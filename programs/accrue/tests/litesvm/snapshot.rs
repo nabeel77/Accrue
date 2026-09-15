@@ -58,6 +58,10 @@ pub fn kamino_program_path() -> PathBuf {
     fixtures_directory().join("programs/kamino_lending.so")
 }
 
+pub fn farms_program_path() -> PathBuf {
+    fixtures_directory().join("programs/kamino_farms.so")
+}
+
 pub fn fixtures_directory() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures")

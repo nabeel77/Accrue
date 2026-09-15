@@ -5,7 +5,7 @@ use crate::constants::{
     KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID,
 };
 use crate::error::AccrueError;
-use crate::kamino::read_obligation_account;
+use crate::kamino::read_obligation_deposited_amount;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CollateralMovement {
@@ -18,6 +18,25 @@ pub enum CollateralMovement {
 pub struct SwapBounds {
     pub amount_in: u64,
     pub minimum_out: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SwapCheck {
+    NoSwapInThisInstruction,
+    BoundsCheckedAroundTheCall,
+    EndsWithAtLeast {
+        source: Pubkey,
+        destination: Pubkey,
+        bounds: SwapBounds,
+    },
+}
+
+pub struct InvariantCheck<'a, 'info> {
+    pub accounts: &'a PositionAccounts<'info>,
+    pub collateral_reserve: &'a Pubkey,
+    pub before: &'a PositionLedger,
+    pub collateral_movement: CollateralMovement,
+    pub swap: SwapCheck,
 }
 
 pub struct PositionAccounts<'info> {
@@ -80,7 +99,6 @@ pub fn read_position_ledger(
     accounts: &PositionAccounts<'_>,
     collateral_reserve: &Pubkey,
 ) -> Result<PositionLedger> {
-    let obligation = read_obligation_account(&accounts.obligation)?;
     Ok(PositionLedger {
         position_lamports: accounts.position.lamports(),
         collateral_lamports: accounts.collateral_token_account.lamports(),
@@ -89,7 +107,10 @@ pub fn read_position_ledger(
         collateral_balance: token_account_amount(&accounts.collateral_token_account)?,
         usdc_balance: token_account_amount(&accounts.usdc_token_account)?,
         destination_balance: token_account_amount(&accounts.destination_token_account)?,
-        obligation_collateral: obligation.deposited_amount_for_reserve(collateral_reserve),
+        obligation_collateral: read_obligation_deposited_amount(
+            &accounts.obligation,
+            collateral_reserve,
+        )?,
     })
 }
 
@@ -108,6 +129,10 @@ pub fn assert_swap_route_touches_nothing_it_must_not(
     for account in route_accounts {
         let key = account.key();
 
+        if key == position_key {
+            continue;
+        }
+
         require_keys_neq!(
             key,
             obligation_key,
@@ -115,7 +140,7 @@ pub fn assert_swap_route_touches_nothing_it_must_not(
         );
         require_keys_neq!(
             key,
-            position_key,
+            crate::ID,
             AccrueError::SwapRouteTouchesAForbiddenAccount
         );
         require_keys_neq!(
@@ -163,15 +188,9 @@ pub fn assert_swap_route_touches_nothing_it_must_not(
     Ok(())
 }
 
-pub fn assert_invariants_hold(
-    accounts: &PositionAccounts<'_>,
-    collateral_reserve: &Pubkey,
-    before: &PositionLedger,
-    collateral_movement: CollateralMovement,
-    swap: Option<SwapBounds>,
-    swap_source: Option<&Pubkey>,
-    swap_destination: Option<&Pubkey>,
-) -> Result<()> {
+pub fn assert_invariants_hold(check: &InvariantCheck<'_, '_>) -> Result<()> {
+    let accounts = check.accounts;
+
     require!(
         !accounts.position.data_is_empty(),
         AccrueError::PositionAccountMissing
@@ -189,26 +208,27 @@ pub fn assert_invariants_hold(
         AccrueError::PositionAccountMissing
     );
 
-    let after = read_position_ledger(accounts, collateral_reserve)?;
+    let before = check.before;
+    let after = read_position_ledger(accounts, check.collateral_reserve)?;
 
     require!(
-        after.position_lamports == before.position_lamports,
-        AccrueError::PositionLamportsMoved
+        after.position_lamports >= before.position_lamports,
+        AccrueError::PositionLamportsTaken
     );
     require!(
-        after.collateral_lamports == before.collateral_lamports,
-        AccrueError::PositionLamportsMoved
+        after.collateral_lamports >= before.collateral_lamports,
+        AccrueError::PositionLamportsTaken
     );
     require!(
-        after.usdc_lamports == before.usdc_lamports,
-        AccrueError::PositionLamportsMoved
+        after.usdc_lamports >= before.usdc_lamports,
+        AccrueError::PositionLamportsTaken
     );
     require!(
-        after.destination_lamports == before.destination_lamports,
-        AccrueError::PositionLamportsMoved
+        after.destination_lamports >= before.destination_lamports,
+        AccrueError::PositionLamportsTaken
     );
 
-    match collateral_movement {
+    match check.collateral_movement {
         CollateralMovement::MustNotMove => {
             require!(
                 after.collateral_balance == before.collateral_balance,
@@ -241,14 +261,16 @@ pub fn assert_invariants_hold(
         }
     }
 
-    if let Some(bounds) = swap {
-        let source = swap_source.ok_or(AccrueError::SwapSpentTooMuch)?;
-        let destination = swap_destination.ok_or(AccrueError::SwapReturnedTooLittle)?;
-
-        let spent = balance_change_for(accounts, before, &after, source, true)?;
+    if let SwapCheck::EndsWithAtLeast {
+        source,
+        destination,
+        bounds,
+    } = check.swap
+    {
+        let spent = balance_change_for(accounts, before, &after, &source, true)?;
         require!(spent <= bounds.amount_in, AccrueError::SwapSpentTooMuch);
 
-        let received = balance_change_for(accounts, before, &after, destination, false)?;
+        let received = balance_change_for(accounts, before, &after, &destination, false)?;
         require!(
             received >= bounds.minimum_out,
             AccrueError::SwapReturnedTooLittle

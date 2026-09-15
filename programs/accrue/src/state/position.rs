@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::MIN_GUARD_ROOM_BPS;
+use crate::constants::{MIN_GUARD_ROOM_BPS, POSITION_SEED};
 use crate::error::AccrueError;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
@@ -87,6 +87,34 @@ pub struct Position {
     pub usdc_borrowed_total: u64,
     pub usdc_repaid_total: u64,
     pub bump: u8,
+}
+
+pub struct PositionSigner {
+    owner: Pubkey,
+    collateral_mint: Pubkey,
+    destination_mint: Pubkey,
+    bump: [u8; 1],
+}
+
+impl PositionSigner {
+    pub fn for_position(position: &Position) -> Self {
+        Self {
+            owner: position.owner,
+            collateral_mint: position.collateral_mint,
+            destination_mint: position.destination_mint,
+            bump: [position.bump],
+        }
+    }
+
+    pub fn seeds(&self) -> [&[u8]; 5] {
+        [
+            POSITION_SEED,
+            self.owner.as_ref(),
+            self.collateral_mint.as_ref(),
+            self.destination_mint.as_ref(),
+            &self.bump,
+        ]
+    }
 }
 
 impl Position {

@@ -2,18 +2,23 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
 
 use crate::constants::{
-    INSTRUCTIONS_SYSVAR_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
+    INSTRUCTIONS_SYSVAR_ID, KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED,
+    TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
-    PositionAccounts,
+    InvariantCheck, PositionAccounts, SwapCheck,
 };
 use crate::kamino::cpi::{
-    refresh_obligation, refresh_reserve, withdraw_collateral, ObligationContext, ReserveRefresh,
-    WithdrawAccounts,
+    farm_accounts_for_reserve, refresh_obligation, refresh_reserve, withdraw_collateral,
+    ObligationContext, ReserveRefresh, WithdrawAccounts,
 };
-use crate::kamino::{read_obligation_account, read_reserve_account};
+use crate::kamino::{
+    obligation_was_closed_by_the_market, read_obligation_borrowed_value_scaled,
+    read_obligation_deposited_amount, read_obligation_deposited_value_scaled,
+    read_obligation_has_debt, read_reserve_account,
+};
 use crate::state::{Position, PositionState};
 
 #[derive(Accounts)]
@@ -68,8 +73,8 @@ pub struct Rescue<'info> {
     )]
     pub owner_destination_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: owned by the lending market program and matched against the position
-    #[account(mut, owner = KAMINO_LEND_PROGRAM_ID)]
+    /// CHECK: matched against the obligation recorded on the position
+    #[account(mut)]
     pub obligation: UncheckedAccount<'info>,
     /// CHECK: owned by the lending market program and matched against the position
     #[account(mut, owner = KAMINO_LEND_PROGRAM_ID)]
@@ -88,8 +93,23 @@ pub struct Rescue<'info> {
     /// CHECK: read from the collateral reserve and passed to the lending market unchanged
     #[account(mut)]
     pub collateral_reserve_liquidity_supply: UncheckedAccount<'info>,
-    /// CHECK: matched against the price account the collateral entry records in the config
+    /// CHECK: matched against the farm the collateral reserve names, absent when it names none
+    #[account(mut)]
+    pub collateral_reserve_farm_state: Option<UncheckedAccount<'info>>,
+    /// CHECK: this position's stake in that farm, owned by the farms program
+    #[account(mut)]
+    pub collateral_obligation_farm_state: Option<UncheckedAccount<'info>>,
+    /// CHECK: the other reserve the obligation names, refreshed so the obligation can be read
+    #[account(mut, owner = KAMINO_LEND_PROGRAM_ID)]
+    pub borrow_reserve: UncheckedAccount<'info>,
+    /// CHECK: matched against the price account the collateral reserve names
     pub scope_prices: UncheckedAccount<'info>,
+    /// CHECK: matched against the price account the borrow reserve names
+    pub borrow_scope_prices: UncheckedAccount<'info>,
+
+    /// CHECK: the farms program the lending market stakes through, from the constants module
+    #[account(address = KAMINO_FARMS_PROGRAM_ID)]
+    pub farms_program: UncheckedAccount<'info>,
 
     /// CHECK: the lending market program itself, checked against the constants module
     #[account(address = KAMINO_LEND_PROGRAM_ID)]
@@ -133,10 +153,14 @@ pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
     let collateral_reserve_key = accounts.collateral_reserve.key();
     let ledger_before = read_position_ledger(&position_accounts, &collateral_reserve_key)?;
 
-    send_everything_to_owner(accounts, &position_seeds)?;
+    send_the_loose_tokens_to_the_owner(accounts, &position_seeds)?;
 
-    let withdrawable = withdrawable_collateral(accounts)?;
-    if withdrawable > 0 {
+    let obligation_info = accounts.obligation.to_account_info();
+    let has_a_deposit = !obligation_was_closed_by_the_market(&obligation_info)
+        && read_obligation_deposited_amount(&obligation_info, &collateral_reserve_key)? > 0;
+
+    let mut withdrawable = 0;
+    if has_a_deposit {
         refresh_reserve(
             &ReserveRefresh {
                 reserve: accounts.collateral_reserve.to_account_info(),
@@ -145,10 +169,38 @@ pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
             },
             &accounts.kamino_program.to_account_info(),
         )?;
+        refresh_reserve(
+            &ReserveRefresh {
+                reserve: accounts.borrow_reserve.to_account_info(),
+                lending_market: accounts.lending_market.to_account_info(),
+                scope_prices: accounts.borrow_scope_prices.to_account_info(),
+            },
+            &accounts.kamino_program.to_account_info(),
+        )?;
         refresh_obligation(
             &accounts.obligation.to_account_info(),
             &accounts.lending_market.to_account_info(),
-            &[accounts.collateral_reserve.to_account_info()],
+            &[
+                accounts.collateral_reserve.to_account_info(),
+                accounts.borrow_reserve.to_account_info(),
+            ],
+        )?;
+
+        withdrawable = withdrawable_collateral(accounts)?;
+    }
+
+    if withdrawable > 0 {
+        let collateral_farms = farm_accounts_for_reserve(
+            read_reserve_account(&accounts.collateral_reserve)?.farm_collateral,
+            accounts
+                .collateral_reserve_farm_state
+                .as_ref()
+                .map(|account| account.to_account_info()),
+            accounts
+                .collateral_obligation_farm_state
+                .as_ref()
+                .map(|account| account.to_account_info()),
+            accounts.farms_program.to_account_info(),
         )?;
 
         withdraw_collateral(
@@ -157,6 +209,7 @@ pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
                 lending_market: accounts.lending_market.to_account_info(),
                 lending_market_authority: accounts.lending_market_authority.to_account_info(),
                 position: accounts.position.to_account_info(),
+                kamino_program: accounts.kamino_program.to_account_info(),
             },
             &WithdrawAccounts {
                 reserve: accounts.collateral_reserve.to_account_info(),
@@ -170,31 +223,40 @@ pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
                 reserve_liquidity_supply: accounts
                     .collateral_reserve_liquidity_supply
                     .to_account_info(),
-                destination_liquidity: accounts.owner_collateral_account.to_account_info(),
+                destination_liquidity: accounts.position_collateral_account.to_account_info(),
                 collateral_token_program: accounts
                     .kamino_collateral_token_program
                     .to_account_info(),
                 liquidity_token_program: accounts.collateral_token_program.to_account_info(),
                 instruction_sysvar: accounts.instruction_sysvar.to_account_info(),
             },
+            &collateral_farms,
             withdrawable,
             &position_seeds,
         )?;
     }
 
-    assert_invariants_hold(
-        &position_accounts,
-        &collateral_reserve_key,
-        &ledger_before,
-        CollateralMovement::ExactlyOut(withdrawable),
-        None,
-        None,
-        None,
+    move_whole_balance(
+        &accounts.position_collateral_account.to_account_info(),
+        &accounts.owner_collateral_account.to_account_info(),
+        &accounts.collateral_mint.to_account_info(),
+        accounts.collateral_mint.decimals,
+        &accounts.collateral_token_program.to_account_info(),
+        &accounts.position.to_account_info(),
+        &position_seeds,
     )?;
 
-    let obligation = read_obligation_account(&accounts.obligation.to_account_info())?;
+    assert_invariants_hold(&InvariantCheck {
+        accounts: &position_accounts,
+        collateral_reserve: &collateral_reserve_key,
+        before: &ledger_before,
+        collateral_movement: CollateralMovement::ExactlyOut(withdrawable),
+        swap: SwapCheck::NoSwapInThisInstruction,
+    })?;
+
+    let still_owes = read_obligation_has_debt(&accounts.obligation.to_account_info())?;
     let position = &mut context.accounts.position;
-    position.state = if obligation.has_debt {
+    position.state = if still_owes {
         PositionState::Closing
     } else {
         PositionState::Closed
@@ -204,31 +266,33 @@ pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
 }
 
 fn withdrawable_collateral(accounts: &Rescue<'_>) -> Result<u64> {
-    let reserve = read_reserve_account(&accounts.collateral_reserve)?;
-    let obligation = read_obligation_account(&accounts.obligation.to_account_info())?;
-    let deposited = obligation.deposited_amount_for_reserve(&accounts.collateral_reserve.key());
+    let obligation = accounts.obligation.to_account_info();
+    let deposited =
+        read_obligation_deposited_amount(&obligation, &accounts.collateral_reserve.key())?;
     if deposited == 0 {
         return Ok(0);
     }
-    if !obligation.has_debt {
+    if !read_obligation_has_debt(&obligation)? {
         return Ok(deposited);
     }
 
-    let threshold_bps = u128::from(reserve.liquidation_threshold_bps()?);
-    if threshold_bps == 0 {
+    let max_loan_to_value_bps =
+        u128::from(read_reserve_account(&accounts.collateral_reserve)?.max_loan_to_value_bps()?);
+    if max_loan_to_value_bps == 0 {
         return Ok(0);
     }
-    let debt_value = obligation.borrowed_assets_market_value_scaled;
-    let deposited_value = obligation.deposited_value_scaled;
+    let debt_value = read_obligation_borrowed_value_scaled(&obligation)?;
+    let deposited_value = read_obligation_deposited_value_scaled(&obligation)?;
     if deposited_value == 0 {
         return Ok(0);
     }
 
-    let value_that_must_stay = debt_value
-        .checked_mul(10_000)
-        .ok_or(AccrueError::MathOverflow)?
-        .checked_div(threshold_bps)
-        .ok_or(AccrueError::MathOverflow)?;
+    let value_that_must_stay = divide_rounding_up(
+        debt_value
+            .checked_mul(10_000)
+            .ok_or(AccrueError::MathOverflow)?,
+        max_loan_to_value_bps,
+    )?;
     if value_that_must_stay >= deposited_value {
         return Ok(0);
     }
@@ -245,7 +309,26 @@ fn withdrawable_collateral(accounts: &Rescue<'_>) -> Result<u64> {
     u64::try_from(releasable).map_err(|_| AccrueError::MathOverflow.into())
 }
 
-fn send_everything_to_owner(accounts: &Rescue<'_>, position_seeds: &[&[u8]]) -> Result<()> {
+fn divide_rounding_up(numerator: u128, denominator: u128) -> Result<u128> {
+    let quotient = numerator
+        .checked_div(denominator)
+        .ok_or(AccrueError::MathOverflow)?;
+    let remainder = numerator
+        .checked_rem(denominator)
+        .ok_or(AccrueError::MathOverflow)?;
+    if remainder == 0 {
+        Ok(quotient)
+    } else {
+        quotient
+            .checked_add(1)
+            .ok_or(AccrueError::MathOverflow.into())
+    }
+}
+
+fn send_the_loose_tokens_to_the_owner(
+    accounts: &Rescue<'_>,
+    position_seeds: &[&[u8]],
+) -> Result<()> {
     move_whole_balance(
         &accounts.position_destination_account.to_account_info(),
         &accounts.owner_destination_account.to_account_info(),
@@ -261,15 +344,6 @@ fn send_everything_to_owner(accounts: &Rescue<'_>, position_seeds: &[&[u8]]) -> 
         &accounts.borrow_mint.to_account_info(),
         accounts.borrow_mint.decimals,
         &accounts.borrow_token_program.to_account_info(),
-        &accounts.position.to_account_info(),
-        position_seeds,
-    )?;
-    move_whole_balance(
-        &accounts.position_collateral_account.to_account_info(),
-        &accounts.owner_collateral_account.to_account_info(),
-        &accounts.collateral_mint.to_account_info(),
-        accounts.collateral_mint.decimals,
-        &accounts.collateral_token_program.to_account_info(),
         &accounts.position.to_account_info(),
         position_seeds,
     )

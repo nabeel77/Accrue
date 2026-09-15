@@ -1,0 +1,9 @@
+{
+  "label": "program_farms",
+  "description": "The farms program the lending market stakes deposits and debt through.",
+  "address": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+  "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+  "lamports": "1141440",
+  "executable": true,
+  "data_base64": "AgAAAD9FZ6puXe4MQHwrrlwPObSASpdAAlXwflF+sYnuri4a"
+}

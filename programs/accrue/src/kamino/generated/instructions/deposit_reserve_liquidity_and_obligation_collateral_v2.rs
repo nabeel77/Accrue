@@ -8,12 +8,12 @@
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 
-pub const DEPOSIT_RESERVE_LIQUIDITY_AND_OBLIGATION_COLLATERAL_DISCRIMINATOR: [u8; 8] =
-    [129, 199, 4, 2, 222, 39, 26, 46];
+pub const DEPOSIT_RESERVE_LIQUIDITY_AND_OBLIGATION_COLLATERAL_V2_DISCRIMINATOR: [u8; 8] =
+    [216, 224, 191, 27, 204, 151, 102, 175];
 
 /// Accounts.
 #[derive(Debug)]
-pub struct DepositReserveLiquidityAndObligationCollateral {
+pub struct DepositReserveLiquidityAndObligationCollateralV2 {
     pub owner: solana_address::Address,
 
     pub obligation: solana_address::Address,
@@ -41,12 +41,18 @@ pub struct DepositReserveLiquidityAndObligationCollateral {
     pub liquidity_token_program: solana_address::Address,
 
     pub instruction_sysvar_account: solana_address::Address,
+
+    pub obligation_farm_user_state: Option<solana_address::Address>,
+
+    pub reserve_farm_state: Option<solana_address::Address>,
+
+    pub farms_program: solana_address::Address,
 }
 
-impl DepositReserveLiquidityAndObligationCollateral {
+impl DepositReserveLiquidityAndObligationCollateralV2 {
     pub fn instruction(
         &self,
-        args: DepositReserveLiquidityAndObligationCollateralInstructionArgs,
+        args: DepositReserveLiquidityAndObligationCollateralV2InstructionArgs,
     ) -> solana_instruction::Instruction {
         self.instruction_with_remaining_accounts(args, &[])
     }
@@ -54,10 +60,10 @@ impl DepositReserveLiquidityAndObligationCollateral {
     #[allow(clippy::vec_init_then_push)]
     pub fn instruction_with_remaining_accounts(
         &self,
-        args: DepositReserveLiquidityAndObligationCollateralInstructionArgs,
+        args: DepositReserveLiquidityAndObligationCollateralV2InstructionArgs,
         remaining_accounts: &[solana_instruction::AccountMeta],
     ) -> solana_instruction::Instruction {
-        let mut accounts = Vec::with_capacity(14 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(17 + remaining_accounts.len());
         accounts.push(solana_instruction::AccountMeta::new(self.owner, true));
         accounts.push(solana_instruction::AccountMeta::new(self.obligation, false));
         accounts.push(solana_instruction::AccountMeta::new_readonly(
@@ -114,8 +120,34 @@ impl DepositReserveLiquidityAndObligationCollateral {
             self.instruction_sysvar_account,
             false,
         ));
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                obligation_farm_user_state,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                reserve_farm_state,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            self.farms_program,
+            false,
+        ));
         accounts.extend_from_slice(remaining_accounts);
-        let mut data = DepositReserveLiquidityAndObligationCollateralInstructionData::new()
+        let mut data = DepositReserveLiquidityAndObligationCollateralV2InstructionData::new()
             .try_to_vec()
             .unwrap();
         let mut args = args.try_to_vec().unwrap();
@@ -130,14 +162,14 @@ impl DepositReserveLiquidityAndObligationCollateral {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
-pub struct DepositReserveLiquidityAndObligationCollateralInstructionData {
+pub struct DepositReserveLiquidityAndObligationCollateralV2InstructionData {
     discriminator: [u8; 8],
 }
 
-impl DepositReserveLiquidityAndObligationCollateralInstructionData {
+impl DepositReserveLiquidityAndObligationCollateralV2InstructionData {
     pub fn new() -> Self {
         Self {
-            discriminator: [129, 199, 4, 2, 222, 39, 26, 46],
+            discriminator: [216, 224, 191, 27, 204, 151, 102, 175],
         }
     }
 
@@ -146,24 +178,24 @@ impl DepositReserveLiquidityAndObligationCollateralInstructionData {
     }
 }
 
-impl Default for DepositReserveLiquidityAndObligationCollateralInstructionData {
+impl Default for DepositReserveLiquidityAndObligationCollateralV2InstructionData {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
-pub struct DepositReserveLiquidityAndObligationCollateralInstructionArgs {
+pub struct DepositReserveLiquidityAndObligationCollateralV2InstructionArgs {
     pub liquidity_amount: u64,
 }
 
-impl DepositReserveLiquidityAndObligationCollateralInstructionArgs {
+impl DepositReserveLiquidityAndObligationCollateralV2InstructionArgs {
     pub(crate) fn try_to_vec(&self) -> Result<Vec<u8>, std::io::Error> {
         borsh::to_vec(self)
     }
 }
 
-/// Instruction builder for `DepositReserveLiquidityAndObligationCollateral`.
+/// Instruction builder for `DepositReserveLiquidityAndObligationCollateralV2`.
 ///
 /// ### Accounts:
 ///
@@ -181,8 +213,11 @@ impl DepositReserveLiquidityAndObligationCollateralInstructionArgs {
 ///   11. `[]` collateral_token_program
 ///   12. `[]` liquidity_token_program
 ///   13. `[optional]` instruction_sysvar_account (default to `Sysvar1nstructions1111111111111111111111111`)
+///   14. `[writable, optional]` obligation_farm_user_state
+///   15. `[writable, optional]` reserve_farm_state
+///   16. `[]` farms_program
 #[derive(Clone, Debug, Default)]
-pub struct DepositReserveLiquidityAndObligationCollateralBuilder {
+pub struct DepositReserveLiquidityAndObligationCollateralV2Builder {
     owner: Option<solana_address::Address>,
     obligation: Option<solana_address::Address>,
     lending_market: Option<solana_address::Address>,
@@ -197,11 +232,14 @@ pub struct DepositReserveLiquidityAndObligationCollateralBuilder {
     collateral_token_program: Option<solana_address::Address>,
     liquidity_token_program: Option<solana_address::Address>,
     instruction_sysvar_account: Option<solana_address::Address>,
+    obligation_farm_user_state: Option<solana_address::Address>,
+    reserve_farm_state: Option<solana_address::Address>,
+    farms_program: Option<solana_address::Address>,
     liquidity_amount: Option<u64>,
     __remaining_accounts: Vec<solana_instruction::AccountMeta>,
 }
 
-impl DepositReserveLiquidityAndObligationCollateralBuilder {
+impl DepositReserveLiquidityAndObligationCollateralV2Builder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -307,6 +345,29 @@ impl DepositReserveLiquidityAndObligationCollateralBuilder {
         self.instruction_sysvar_account = Some(instruction_sysvar_account);
         self
     }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn obligation_farm_user_state(
+        &mut self,
+        obligation_farm_user_state: Option<solana_address::Address>,
+    ) -> &mut Self {
+        self.obligation_farm_user_state = obligation_farm_user_state;
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn reserve_farm_state(
+        &mut self,
+        reserve_farm_state: Option<solana_address::Address>,
+    ) -> &mut Self {
+        self.reserve_farm_state = reserve_farm_state;
+        self
+    }
+    #[inline(always)]
+    pub fn farms_program(&mut self, farms_program: solana_address::Address) -> &mut Self {
+        self.farms_program = Some(farms_program);
+        self
+    }
     #[inline(always)]
     pub fn liquidity_amount(&mut self, liquidity_amount: u64) -> &mut Self {
         self.liquidity_amount = Some(liquidity_amount);
@@ -329,7 +390,7 @@ impl DepositReserveLiquidityAndObligationCollateralBuilder {
     }
     #[allow(clippy::clone_on_copy)]
     pub fn instruction(&self) -> solana_instruction::Instruction {
-        let accounts = DepositReserveLiquidityAndObligationCollateral {
+        let accounts = DepositReserveLiquidityAndObligationCollateralV2 {
             owner: self.owner.expect("owner is not set"),
             obligation: self.obligation.expect("obligation is not set"),
             lending_market: self.lending_market.expect("lending_market is not set"),
@@ -362,8 +423,11 @@ impl DepositReserveLiquidityAndObligationCollateralBuilder {
             instruction_sysvar_account: self.instruction_sysvar_account.unwrap_or(
                 solana_address::address!("Sysvar1nstructions1111111111111111111111111"),
             ),
+            obligation_farm_user_state: self.obligation_farm_user_state,
+            reserve_farm_state: self.reserve_farm_state,
+            farms_program: self.farms_program.expect("farms_program is not set"),
         };
-        let args = DepositReserveLiquidityAndObligationCollateralInstructionArgs {
+        let args = DepositReserveLiquidityAndObligationCollateralV2InstructionArgs {
             liquidity_amount: self
                 .liquidity_amount
                 .clone()
@@ -374,8 +438,8 @@ impl DepositReserveLiquidityAndObligationCollateralBuilder {
     }
 }
 
-/// `deposit_reserve_liquidity_and_obligation_collateral` CPI accounts.
-pub struct DepositReserveLiquidityAndObligationCollateralCpiAccounts<'a, 'b> {
+/// `deposit_reserve_liquidity_and_obligation_collateral_v2` CPI accounts.
+pub struct DepositReserveLiquidityAndObligationCollateralV2CpiAccounts<'a, 'b> {
     pub owner: &'b solana_account_info::AccountInfo<'a>,
 
     pub obligation: &'b solana_account_info::AccountInfo<'a>,
@@ -403,10 +467,16 @@ pub struct DepositReserveLiquidityAndObligationCollateralCpiAccounts<'a, 'b> {
     pub liquidity_token_program: &'b solana_account_info::AccountInfo<'a>,
 
     pub instruction_sysvar_account: &'b solana_account_info::AccountInfo<'a>,
+
+    pub obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub farms_program: &'b solana_account_info::AccountInfo<'a>,
 }
 
-/// `deposit_reserve_liquidity_and_obligation_collateral` CPI instruction.
-pub struct DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
+/// `deposit_reserve_liquidity_and_obligation_collateral_v2` CPI instruction.
+pub struct DepositReserveLiquidityAndObligationCollateralV2Cpi<'a, 'b> {
     /// The program to invoke.
     pub __program: &'b solana_account_info::AccountInfo<'a>,
 
@@ -437,15 +507,21 @@ pub struct DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
     pub liquidity_token_program: &'b solana_account_info::AccountInfo<'a>,
 
     pub instruction_sysvar_account: &'b solana_account_info::AccountInfo<'a>,
+
+    pub obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub farms_program: &'b solana_account_info::AccountInfo<'a>,
     /// The arguments for the instruction.
-    pub __args: DepositReserveLiquidityAndObligationCollateralInstructionArgs,
+    pub __args: DepositReserveLiquidityAndObligationCollateralV2InstructionArgs,
 }
 
-impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
+impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralV2Cpi<'a, 'b> {
     pub fn new(
         program: &'b solana_account_info::AccountInfo<'a>,
-        accounts: DepositReserveLiquidityAndObligationCollateralCpiAccounts<'a, 'b>,
-        args: DepositReserveLiquidityAndObligationCollateralInstructionArgs,
+        accounts: DepositReserveLiquidityAndObligationCollateralV2CpiAccounts<'a, 'b>,
+        args: DepositReserveLiquidityAndObligationCollateralV2InstructionArgs,
     ) -> Self {
         Self {
             __program: program,
@@ -464,6 +540,9 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
             collateral_token_program: accounts.collateral_token_program,
             liquidity_token_program: accounts.liquidity_token_program,
             instruction_sysvar_account: accounts.instruction_sysvar_account,
+            obligation_farm_user_state: accounts.obligation_farm_user_state,
+            reserve_farm_state: accounts.reserve_farm_state,
+            farms_program: accounts.farms_program,
             __args: args,
         }
     }
@@ -490,7 +569,7 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
         signers_seeds: &[&[&[u8]]],
         remaining_accounts: &[(&'b solana_account_info::AccountInfo<'a>, bool, bool)],
     ) -> solana_program_error::ProgramResult {
-        let mut accounts = Vec::with_capacity(14 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(17 + remaining_accounts.len());
         accounts.push(solana_instruction::AccountMeta::new(*self.owner.key, true));
         accounts.push(solana_instruction::AccountMeta::new(
             *self.obligation.key,
@@ -553,6 +632,32 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
             *self.instruction_sysvar_account.key,
             false,
         ));
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                *obligation_farm_user_state.key,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                *reserve_farm_state.key,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            *self.farms_program.key,
+            false,
+        ));
         remaining_accounts.iter().for_each(|remaining_account| {
             accounts.push(solana_instruction::AccountMeta {
                 pubkey: *remaining_account.0.key,
@@ -560,7 +665,7 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
                 is_signer: remaining_account.2,
             })
         });
-        let mut data = DepositReserveLiquidityAndObligationCollateralInstructionData::new()
+        let mut data = DepositReserveLiquidityAndObligationCollateralV2InstructionData::new()
             .try_to_vec()
             .unwrap();
         let mut args = self.__args.try_to_vec().unwrap();
@@ -571,7 +676,7 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
             accounts,
             data,
         };
-        let mut account_infos = Vec::with_capacity(15 + remaining_accounts.len());
+        let mut account_infos = Vec::with_capacity(18 + remaining_accounts.len());
         account_infos.push(self.__program.clone());
         account_infos.push(self.owner.clone());
         account_infos.push(self.obligation.clone());
@@ -591,6 +696,13 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
         account_infos.push(self.collateral_token_program.clone());
         account_infos.push(self.liquidity_token_program.clone());
         account_infos.push(self.instruction_sysvar_account.clone());
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
+            account_infos.push(obligation_farm_user_state.clone());
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            account_infos.push(reserve_farm_state.clone());
+        }
+        account_infos.push(self.farms_program.clone());
         remaining_accounts
             .iter()
             .for_each(|remaining_account| account_infos.push(remaining_account.0.clone()));
@@ -603,7 +715,7 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
     }
 }
 
-/// Instruction builder for `DepositReserveLiquidityAndObligationCollateral` via CPI.
+/// Instruction builder for `DepositReserveLiquidityAndObligationCollateralV2` via CPI.
 ///
 /// ### Accounts:
 ///
@@ -621,15 +733,18 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpi<'a, 'b> {
 ///   11. `[]` collateral_token_program
 ///   12. `[]` liquidity_token_program
 ///   13. `[]` instruction_sysvar_account
+///   14. `[writable, optional]` obligation_farm_user_state
+///   15. `[writable, optional]` reserve_farm_state
+///   16. `[]` farms_program
 #[derive(Clone, Debug)]
-pub struct DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
-    instruction: Box<DepositReserveLiquidityAndObligationCollateralCpiBuilderInstruction<'a, 'b>>,
+pub struct DepositReserveLiquidityAndObligationCollateralV2CpiBuilder<'a, 'b> {
+    instruction: Box<DepositReserveLiquidityAndObligationCollateralV2CpiBuilderInstruction<'a, 'b>>,
 }
 
-impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
+impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralV2CpiBuilder<'a, 'b> {
     pub fn new(program: &'b solana_account_info::AccountInfo<'a>) -> Self {
         let instruction = Box::new(
-            DepositReserveLiquidityAndObligationCollateralCpiBuilderInstruction {
+            DepositReserveLiquidityAndObligationCollateralV2CpiBuilderInstruction {
                 __program: program,
                 owner: None,
                 obligation: None,
@@ -645,6 +760,9 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
                 collateral_token_program: None,
                 liquidity_token_program: None,
                 instruction_sysvar_account: None,
+                obligation_farm_user_state: None,
+                reserve_farm_state: None,
+                farms_program: None,
                 liquidity_amount: None,
                 __remaining_accounts: Vec::new(),
             },
@@ -760,6 +878,32 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
         self.instruction.instruction_sysvar_account = Some(instruction_sysvar_account);
         self
     }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn obligation_farm_user_state(
+        &mut self,
+        obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    ) -> &mut Self {
+        self.instruction.obligation_farm_user_state = obligation_farm_user_state;
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn reserve_farm_state(
+        &mut self,
+        reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    ) -> &mut Self {
+        self.instruction.reserve_farm_state = reserve_farm_state;
+        self
+    }
+    #[inline(always)]
+    pub fn farms_program(
+        &mut self,
+        farms_program: &'b solana_account_info::AccountInfo<'a>,
+    ) -> &mut Self {
+        self.instruction.farms_program = Some(farms_program);
+        self
+    }
     #[inline(always)]
     pub fn liquidity_amount(&mut self, liquidity_amount: u64) -> &mut Self {
         self.instruction.liquidity_amount = Some(liquidity_amount);
@@ -799,14 +943,14 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
     #[allow(clippy::clone_on_copy)]
     #[allow(clippy::vec_init_then_push)]
     pub fn invoke_signed(&self, signers_seeds: &[&[&[u8]]]) -> solana_program_error::ProgramResult {
-        let args = DepositReserveLiquidityAndObligationCollateralInstructionArgs {
+        let args = DepositReserveLiquidityAndObligationCollateralV2InstructionArgs {
             liquidity_amount: self
                 .instruction
                 .liquidity_amount
                 .clone()
                 .expect("liquidity_amount is not set"),
         };
-        let instruction = DepositReserveLiquidityAndObligationCollateralCpi {
+        let instruction = DepositReserveLiquidityAndObligationCollateralV2Cpi {
             __program: self.instruction.__program,
 
             owner: self.instruction.owner.expect("owner is not set"),
@@ -868,6 +1012,15 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
                 .instruction
                 .instruction_sysvar_account
                 .expect("instruction_sysvar_account is not set"),
+
+            obligation_farm_user_state: self.instruction.obligation_farm_user_state,
+
+            reserve_farm_state: self.instruction.reserve_farm_state,
+
+            farms_program: self
+                .instruction
+                .farms_program
+                .expect("farms_program is not set"),
             __args: args,
         };
         instruction.invoke_signed_with_remaining_accounts(
@@ -878,7 +1031,7 @@ impl<'a, 'b> DepositReserveLiquidityAndObligationCollateralCpiBuilder<'a, 'b> {
 }
 
 #[derive(Clone, Debug)]
-struct DepositReserveLiquidityAndObligationCollateralCpiBuilderInstruction<'a, 'b> {
+struct DepositReserveLiquidityAndObligationCollateralV2CpiBuilderInstruction<'a, 'b> {
     __program: &'b solana_account_info::AccountInfo<'a>,
     owner: Option<&'b solana_account_info::AccountInfo<'a>>,
     obligation: Option<&'b solana_account_info::AccountInfo<'a>>,
@@ -894,6 +1047,9 @@ struct DepositReserveLiquidityAndObligationCollateralCpiBuilderInstruction<'a, '
     collateral_token_program: Option<&'b solana_account_info::AccountInfo<'a>>,
     liquidity_token_program: Option<&'b solana_account_info::AccountInfo<'a>>,
     instruction_sysvar_account: Option<&'b solana_account_info::AccountInfo<'a>>,
+    obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    farms_program: Option<&'b solana_account_info::AccountInfo<'a>>,
     liquidity_amount: Option<u64>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(&'b solana_account_info::AccountInfo<'a>, bool, bool)>,

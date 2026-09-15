@@ -13,16 +13,19 @@ import { createFromRoot } from 'codama';
 import { rootNodeFromAnchor, type AnchorIdl } from '@codama/nodes-from-anchor';
 import { renderVisitor as renderRustVisitor } from '@codama/renderers-rust';
 
+// The lending market refuses a cross program call on the plain deposit, borrow, repay and
+// withdraw instructions, so the position signs the V2 forms, which carry the farm accounts
+// inline instead of expecting sibling refresh instructions in the same transaction.
 const KAMINO_INSTRUCTIONS_WE_CALL = [
   'initUserMetadata',
   'initObligation',
   'initObligationFarmsForReserve',
   'refreshReserve',
   'refreshObligation',
-  'depositReserveLiquidityAndObligationCollateral',
-  'borrowObligationLiquidity',
-  'repayObligationLiquidity',
-  'withdrawObligationCollateralAndRedeemReserveCollateral',
+  'depositReserveLiquidityAndObligationCollateralV2',
+  'borrowObligationLiquidityV2',
+  'repayObligationLiquidityV2',
+  'withdrawObligationCollateralAndRedeemReserveCollateralV2',
 ];
 
 const TYPES_THOSE_INSTRUCTIONS_NEED = ['InitObligationArgs'];

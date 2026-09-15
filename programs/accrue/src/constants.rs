@@ -19,6 +19,10 @@ pub const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
 
 pub const INSTRUCTIONS_SYSVAR_ID: Pubkey = address!("Sysvar1nstructions1111111111111111111111111");
 
+pub const RENT_SYSVAR_ID: Pubkey = address!("SysvarRent111111111111111111111111111111111");
+
+pub const SYSTEM_PROGRAM_ID: Pubkey = address!("11111111111111111111111111111111");
+
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const POSITION_SEED: &[u8] = b"position";
 

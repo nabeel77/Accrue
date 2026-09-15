@@ -12,6 +12,14 @@ pub enum AccrueError {
     KaminoFieldOutOfRange,
     #[msg("That reserve names no Scope price feed")]
     ReserveHasNoScopeFeed,
+    #[msg("That reserve names no farm, so no farm account belongs in this call")]
+    ReserveNamesNoFarm,
+    #[msg("That reserve names a farm and the farm accounts were not passed")]
+    FarmAccountMissing,
+    #[msg("That is not the farm account the reserve names")]
+    WrongFarmAccount,
+    #[msg("The obligation names a reserve this instruction was not given")]
+    ObligationNamesAnUnknownReserve,
 
     #[msg("The performance fee is above the ceiling written in the program")]
     PerformanceFeeAboveCeiling,
@@ -83,8 +91,8 @@ pub enum AccrueError {
     SwapReturnedTooLittle,
     #[msg("A token left the position for an address that is not allowed")]
     TokenLeftForAForbiddenAddress,
-    #[msg("The lamports of a position account changed")]
-    PositionLamportsMoved,
+    #[msg("Lamports were taken out of a position account")]
+    PositionLamportsTaken,
     #[msg("A position account no longer exists")]
     PositionAccountMissing,
     #[msg("The swap route was handed an account it must never receive")]

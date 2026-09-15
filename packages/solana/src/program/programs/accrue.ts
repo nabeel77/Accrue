@@ -6,7 +6,394 @@
  * @see https://github.com/codama-idl/codama
  */
 
-import { type Address } from "@solana/kit";
+import {
+  assertIsInstructionWithAccounts,
+  containsBytes,
+  fixEncoderSize,
+  getBytesEncoder,
+  type Address,
+  type Instruction,
+  type InstructionWithData,
+  type ReadonlyUint8Array,
+} from "@solana/kit";
+import {
+  parseAddCollateralInstruction,
+  parseBuyDestinationInstruction,
+  parseClosePositionInstruction,
+  parseInitializeConfigInstruction,
+  parseOpenPositionInstruction,
+  parseRepayInstruction,
+  parseRescueInstruction,
+  parseSetPausedInstruction,
+  parseSetStrategyInstruction,
+  parseSetSunsetInstruction,
+  parseUnwindInstruction,
+  parseUpdateConfigInstruction,
+  parseWithdrawCollateralInstruction,
+  type ParsedAddCollateralInstruction,
+  type ParsedBuyDestinationInstruction,
+  type ParsedClosePositionInstruction,
+  type ParsedInitializeConfigInstruction,
+  type ParsedOpenPositionInstruction,
+  type ParsedRepayInstruction,
+  type ParsedRescueInstruction,
+  type ParsedSetPausedInstruction,
+  type ParsedSetStrategyInstruction,
+  type ParsedSetSunsetInstruction,
+  type ParsedUnwindInstruction,
+  type ParsedUpdateConfigInstruction,
+  type ParsedWithdrawCollateralInstruction,
+} from "../instructions/index.js";
 
 export const ACCRUE_PROGRAM_ADDRESS =
   "6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb" as Address<"6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb">;
+
+export enum AccrueAccount {
+  Config,
+  Position,
+}
+
+export function identifyAccrueAccount(
+  account: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
+): AccrueAccount {
+  const data = "data" in account ? account.data : account;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([155, 12, 170, 224, 30, 250, 204, 130]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueAccount.Config;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([170, 188, 143, 228, 122, 64, 247, 208]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueAccount.Position;
+  }
+  throw new Error(
+    "The provided account could not be identified as a accrue account.",
+  );
+}
+
+export enum AccrueInstruction {
+  AddCollateral,
+  BuyDestination,
+  ClosePosition,
+  InitializeConfig,
+  OpenPosition,
+  Repay,
+  Rescue,
+  SetPaused,
+  SetStrategy,
+  SetSunset,
+  Unwind,
+  UpdateConfig,
+  WithdrawCollateral,
+}
+
+export function identifyAccrueInstruction(
+  instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
+): AccrueInstruction {
+  const data = "data" in instruction ? instruction.data : instruction;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([127, 82, 121, 42, 161, 176, 249, 206]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.AddCollateral;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([177, 25, 202, 245, 186, 223, 114, 47]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.BuyDestination;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([123, 134, 81, 0, 49, 68, 98, 98]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.ClosePosition;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([208, 127, 21, 1, 194, 190, 196, 70]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.InitializeConfig;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([135, 128, 47, 77, 15, 152, 240, 49]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.OpenPosition;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([234, 103, 67, 82, 208, 234, 219, 166]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Repay;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([42, 111, 16, 88, 147, 101, 209, 62]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Rescue;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([91, 60, 125, 192, 176, 225, 166, 218]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.SetPaused;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([251, 41, 210, 173, 140, 96, 78, 235]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.SetStrategy;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([65, 164, 24, 89, 110, 17, 175, 70]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.SetSunset;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([66, 99, 1, 75, 47, 72, 63, 85]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Unwind;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([29, 158, 252, 191, 10, 83, 219, 99]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.UpdateConfig;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([115, 135, 168, 106, 139, 214, 138, 150]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.WithdrawCollateral;
+  }
+  throw new Error(
+    "The provided instruction could not be identified as a accrue instruction.",
+  );
+}
+
+export type ParsedAccrueInstruction<
+  TProgram extends string = "6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb",
+> =
+  | ({
+      instructionType: AccrueInstruction.AddCollateral;
+    } & ParsedAddCollateralInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.BuyDestination;
+    } & ParsedBuyDestinationInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.ClosePosition;
+    } & ParsedClosePositionInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.InitializeConfig;
+    } & ParsedInitializeConfigInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.OpenPosition;
+    } & ParsedOpenPositionInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.Repay;
+    } & ParsedRepayInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.Rescue;
+    } & ParsedRescueInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.SetPaused;
+    } & ParsedSetPausedInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.SetStrategy;
+    } & ParsedSetStrategyInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.SetSunset;
+    } & ParsedSetSunsetInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.Unwind;
+    } & ParsedUnwindInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.UpdateConfig;
+    } & ParsedUpdateConfigInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.WithdrawCollateral;
+    } & ParsedWithdrawCollateralInstruction<TProgram>);
+
+export function parseAccrueInstruction<TProgram extends string>(
+  instruction: Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array>,
+): ParsedAccrueInstruction<TProgram> {
+  const instructionType = identifyAccrueInstruction(instruction);
+  switch (instructionType) {
+    case AccrueInstruction.AddCollateral: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.AddCollateral,
+        ...parseAddCollateralInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.BuyDestination: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.BuyDestination,
+        ...parseBuyDestinationInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.ClosePosition: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.ClosePosition,
+        ...parseClosePositionInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.InitializeConfig: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.InitializeConfig,
+        ...parseInitializeConfigInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.OpenPosition: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.OpenPosition,
+        ...parseOpenPositionInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.Repay: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Repay,
+        ...parseRepayInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.Rescue: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Rescue,
+        ...parseRescueInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.SetPaused: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.SetPaused,
+        ...parseSetPausedInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.SetStrategy: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.SetStrategy,
+        ...parseSetStrategyInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.SetSunset: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.SetSunset,
+        ...parseSetSunsetInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.Unwind: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Unwind,
+        ...parseUnwindInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.UpdateConfig: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.UpdateConfig,
+        ...parseUpdateConfigInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.WithdrawCollateral: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.WithdrawCollateral,
+        ...parseWithdrawCollateralInstruction(instruction),
+      };
+    }
+    default:
+      throw new Error(
+        `Unrecognized instruction type: ${instructionType as string}`,
+      );
+  }
+}

@@ -12,6 +12,7 @@ use crate::invariants::{
 pub struct JupiterSwap<'info> {
     pub source: AccountInfo<'info>,
     pub destination: AccountInfo<'info>,
+    pub swap_program: AccountInfo<'info>,
     pub amount_in: u64,
     pub minimum_out: u64,
 }
@@ -50,13 +51,17 @@ pub fn execute_jupiter_swap<'info>(
     let source_before = token_account_amount(&swap.source)?;
     let destination_before = token_account_amount(&swap.destination)?;
 
+    let mut account_infos = Vec::with_capacity(route_accounts.len().saturating_add(1));
+    account_infos.extend_from_slice(route_accounts);
+    account_infos.push(swap.swap_program.clone());
+
     invoke_signed(
         &Instruction {
             program_id: JUPITER_V6_PROGRAM_ID,
             accounts: metas,
             data: route_data.to_vec(),
         },
-        route_accounts,
+        &account_infos,
         &[position_seeds],
     )?;
 
