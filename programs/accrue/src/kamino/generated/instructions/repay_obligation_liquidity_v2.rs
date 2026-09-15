@@ -8,41 +8,43 @@
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 
-pub const BORROW_OBLIGATION_LIQUIDITY_DISCRIMINATOR: [u8; 8] =
-    [121, 127, 18, 204, 73, 245, 225, 65];
+pub const REPAY_OBLIGATION_LIQUIDITY_V2_DISCRIMINATOR: [u8; 8] =
+    [116, 174, 213, 76, 180, 53, 210, 144];
 
 /// Accounts.
 #[derive(Debug)]
-pub struct BorrowObligationLiquidity {
+pub struct RepayObligationLiquidityV2 {
     pub owner: solana_address::Address,
 
     pub obligation: solana_address::Address,
 
     pub lending_market: solana_address::Address,
 
-    pub lending_market_authority: solana_address::Address,
+    pub repay_reserve: solana_address::Address,
 
-    pub borrow_reserve: solana_address::Address,
+    pub reserve_liquidity_mint: solana_address::Address,
 
-    pub borrow_reserve_liquidity_mint: solana_address::Address,
+    pub reserve_destination_liquidity: solana_address::Address,
 
-    pub reserve_source_liquidity: solana_address::Address,
-
-    pub borrow_reserve_liquidity_fee_receiver: solana_address::Address,
-
-    pub user_destination_liquidity: solana_address::Address,
-
-    pub referrer_token_state: Option<solana_address::Address>,
+    pub user_source_liquidity: solana_address::Address,
 
     pub token_program: solana_address::Address,
 
     pub instruction_sysvar_account: solana_address::Address,
+
+    pub obligation_farm_user_state: Option<solana_address::Address>,
+
+    pub reserve_farm_state: Option<solana_address::Address>,
+
+    pub lending_market_authority: solana_address::Address,
+
+    pub farms_program: solana_address::Address,
 }
 
-impl BorrowObligationLiquidity {
+impl RepayObligationLiquidityV2 {
     pub fn instruction(
         &self,
-        args: BorrowObligationLiquidityInstructionArgs,
+        args: RepayObligationLiquidityV2InstructionArgs,
     ) -> solana_instruction::Instruction {
         self.instruction_with_remaining_accounts(args, &[])
     }
@@ -50,10 +52,10 @@ impl BorrowObligationLiquidity {
     #[allow(clippy::vec_init_then_push)]
     pub fn instruction_with_remaining_accounts(
         &self,
-        args: BorrowObligationLiquidityInstructionArgs,
+        args: RepayObligationLiquidityV2InstructionArgs,
         remaining_accounts: &[solana_instruction::AccountMeta],
     ) -> solana_instruction::Instruction {
-        let mut accounts = Vec::with_capacity(12 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(13 + remaining_accounts.len());
         accounts.push(solana_instruction::AccountMeta::new_readonly(
             self.owner, true,
         ));
@@ -62,33 +64,44 @@ impl BorrowObligationLiquidity {
             self.lending_market,
             false,
         ));
-        accounts.push(solana_instruction::AccountMeta::new_readonly(
-            self.lending_market_authority,
-            false,
-        ));
         accounts.push(solana_instruction::AccountMeta::new(
-            self.borrow_reserve,
+            self.repay_reserve,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            self.borrow_reserve_liquidity_mint,
+            self.reserve_liquidity_mint,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new(
-            self.reserve_source_liquidity,
+            self.reserve_destination_liquidity,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new(
-            self.borrow_reserve_liquidity_fee_receiver,
+            self.user_source_liquidity,
             false,
         ));
-        accounts.push(solana_instruction::AccountMeta::new(
-            self.user_destination_liquidity,
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            self.token_program,
             false,
         ));
-        if let Some(referrer_token_state) = self.referrer_token_state {
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            self.instruction_sysvar_account,
+            false,
+        ));
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
             accounts.push(solana_instruction::AccountMeta::new(
-                referrer_token_state,
+                obligation_farm_user_state,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                reserve_farm_state,
                 false,
             ));
         } else {
@@ -98,15 +111,15 @@ impl BorrowObligationLiquidity {
             ));
         }
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            self.token_program,
+            self.lending_market_authority,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            self.instruction_sysvar_account,
+            self.farms_program,
             false,
         ));
         accounts.extend_from_slice(remaining_accounts);
-        let mut data = BorrowObligationLiquidityInstructionData::new()
+        let mut data = RepayObligationLiquidityV2InstructionData::new()
             .try_to_vec()
             .unwrap();
         let mut args = args.try_to_vec().unwrap();
@@ -121,14 +134,14 @@ impl BorrowObligationLiquidity {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
-pub struct BorrowObligationLiquidityInstructionData {
+pub struct RepayObligationLiquidityV2InstructionData {
     discriminator: [u8; 8],
 }
 
-impl BorrowObligationLiquidityInstructionData {
+impl RepayObligationLiquidityV2InstructionData {
     pub fn new() -> Self {
         Self {
-            discriminator: [121, 127, 18, 204, 73, 245, 225, 65],
+            discriminator: [116, 174, 213, 76, 180, 53, 210, 144],
         }
     }
 
@@ -137,58 +150,60 @@ impl BorrowObligationLiquidityInstructionData {
     }
 }
 
-impl Default for BorrowObligationLiquidityInstructionData {
+impl Default for RepayObligationLiquidityV2InstructionData {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
-pub struct BorrowObligationLiquidityInstructionArgs {
+pub struct RepayObligationLiquidityV2InstructionArgs {
     pub liquidity_amount: u64,
 }
 
-impl BorrowObligationLiquidityInstructionArgs {
+impl RepayObligationLiquidityV2InstructionArgs {
     pub(crate) fn try_to_vec(&self) -> Result<Vec<u8>, std::io::Error> {
         borsh::to_vec(self)
     }
 }
 
-/// Instruction builder for `BorrowObligationLiquidity`.
+/// Instruction builder for `RepayObligationLiquidityV2`.
 ///
 /// ### Accounts:
 ///
 ///   0. `[signer]` owner
 ///   1. `[writable]` obligation
 ///   2. `[]` lending_market
-///   3. `[]` lending_market_authority
-///   4. `[writable]` borrow_reserve
-///   5. `[]` borrow_reserve_liquidity_mint
-///   6. `[writable]` reserve_source_liquidity
-///   7. `[writable]` borrow_reserve_liquidity_fee_receiver
-///   8. `[writable]` user_destination_liquidity
-///   9. `[writable, optional]` referrer_token_state
-///   10. `[optional]` token_program (default to `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`)
-///   11. `[optional]` instruction_sysvar_account (default to `Sysvar1nstructions1111111111111111111111111`)
+///   3. `[writable]` repay_reserve
+///   4. `[]` reserve_liquidity_mint
+///   5. `[writable]` reserve_destination_liquidity
+///   6. `[writable]` user_source_liquidity
+///   7. `[optional]` token_program (default to `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`)
+///   8. `[optional]` instruction_sysvar_account (default to `Sysvar1nstructions1111111111111111111111111`)
+///   9. `[writable, optional]` obligation_farm_user_state
+///   10. `[writable, optional]` reserve_farm_state
+///   11. `[]` lending_market_authority
+///   12. `[]` farms_program
 #[derive(Clone, Debug, Default)]
-pub struct BorrowObligationLiquidityBuilder {
+pub struct RepayObligationLiquidityV2Builder {
     owner: Option<solana_address::Address>,
     obligation: Option<solana_address::Address>,
     lending_market: Option<solana_address::Address>,
-    lending_market_authority: Option<solana_address::Address>,
-    borrow_reserve: Option<solana_address::Address>,
-    borrow_reserve_liquidity_mint: Option<solana_address::Address>,
-    reserve_source_liquidity: Option<solana_address::Address>,
-    borrow_reserve_liquidity_fee_receiver: Option<solana_address::Address>,
-    user_destination_liquidity: Option<solana_address::Address>,
-    referrer_token_state: Option<solana_address::Address>,
+    repay_reserve: Option<solana_address::Address>,
+    reserve_liquidity_mint: Option<solana_address::Address>,
+    reserve_destination_liquidity: Option<solana_address::Address>,
+    user_source_liquidity: Option<solana_address::Address>,
     token_program: Option<solana_address::Address>,
     instruction_sysvar_account: Option<solana_address::Address>,
+    obligation_farm_user_state: Option<solana_address::Address>,
+    reserve_farm_state: Option<solana_address::Address>,
+    lending_market_authority: Option<solana_address::Address>,
+    farms_program: Option<solana_address::Address>,
     liquidity_amount: Option<u64>,
     __remaining_accounts: Vec<solana_instruction::AccountMeta>,
 }
 
-impl BorrowObligationLiquidityBuilder {
+impl RepayObligationLiquidityV2Builder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -208,57 +223,32 @@ impl BorrowObligationLiquidityBuilder {
         self
     }
     #[inline(always)]
-    pub fn lending_market_authority(
-        &mut self,
-        lending_market_authority: solana_address::Address,
-    ) -> &mut Self {
-        self.lending_market_authority = Some(lending_market_authority);
+    pub fn repay_reserve(&mut self, repay_reserve: solana_address::Address) -> &mut Self {
+        self.repay_reserve = Some(repay_reserve);
         self
     }
     #[inline(always)]
-    pub fn borrow_reserve(&mut self, borrow_reserve: solana_address::Address) -> &mut Self {
-        self.borrow_reserve = Some(borrow_reserve);
+    pub fn reserve_liquidity_mint(
+        &mut self,
+        reserve_liquidity_mint: solana_address::Address,
+    ) -> &mut Self {
+        self.reserve_liquidity_mint = Some(reserve_liquidity_mint);
         self
     }
     #[inline(always)]
-    pub fn borrow_reserve_liquidity_mint(
+    pub fn reserve_destination_liquidity(
         &mut self,
-        borrow_reserve_liquidity_mint: solana_address::Address,
+        reserve_destination_liquidity: solana_address::Address,
     ) -> &mut Self {
-        self.borrow_reserve_liquidity_mint = Some(borrow_reserve_liquidity_mint);
+        self.reserve_destination_liquidity = Some(reserve_destination_liquidity);
         self
     }
     #[inline(always)]
-    pub fn reserve_source_liquidity(
+    pub fn user_source_liquidity(
         &mut self,
-        reserve_source_liquidity: solana_address::Address,
+        user_source_liquidity: solana_address::Address,
     ) -> &mut Self {
-        self.reserve_source_liquidity = Some(reserve_source_liquidity);
-        self
-    }
-    #[inline(always)]
-    pub fn borrow_reserve_liquidity_fee_receiver(
-        &mut self,
-        borrow_reserve_liquidity_fee_receiver: solana_address::Address,
-    ) -> &mut Self {
-        self.borrow_reserve_liquidity_fee_receiver = Some(borrow_reserve_liquidity_fee_receiver);
-        self
-    }
-    #[inline(always)]
-    pub fn user_destination_liquidity(
-        &mut self,
-        user_destination_liquidity: solana_address::Address,
-    ) -> &mut Self {
-        self.user_destination_liquidity = Some(user_destination_liquidity);
-        self
-    }
-    /// `[optional account]`
-    #[inline(always)]
-    pub fn referrer_token_state(
-        &mut self,
-        referrer_token_state: Option<solana_address::Address>,
-    ) -> &mut Self {
-        self.referrer_token_state = referrer_token_state;
+        self.user_source_liquidity = Some(user_source_liquidity);
         self
     }
     /// `[optional account, default to 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA']`
@@ -274,6 +264,37 @@ impl BorrowObligationLiquidityBuilder {
         instruction_sysvar_account: solana_address::Address,
     ) -> &mut Self {
         self.instruction_sysvar_account = Some(instruction_sysvar_account);
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn obligation_farm_user_state(
+        &mut self,
+        obligation_farm_user_state: Option<solana_address::Address>,
+    ) -> &mut Self {
+        self.obligation_farm_user_state = obligation_farm_user_state;
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn reserve_farm_state(
+        &mut self,
+        reserve_farm_state: Option<solana_address::Address>,
+    ) -> &mut Self {
+        self.reserve_farm_state = reserve_farm_state;
+        self
+    }
+    #[inline(always)]
+    pub fn lending_market_authority(
+        &mut self,
+        lending_market_authority: solana_address::Address,
+    ) -> &mut Self {
+        self.lending_market_authority = Some(lending_market_authority);
+        self
+    }
+    #[inline(always)]
+    pub fn farms_program(&mut self, farms_program: solana_address::Address) -> &mut Self {
+        self.farms_program = Some(farms_program);
         self
     }
     #[inline(always)]
@@ -298,35 +319,34 @@ impl BorrowObligationLiquidityBuilder {
     }
     #[allow(clippy::clone_on_copy)]
     pub fn instruction(&self) -> solana_instruction::Instruction {
-        let accounts = BorrowObligationLiquidity {
+        let accounts = RepayObligationLiquidityV2 {
             owner: self.owner.expect("owner is not set"),
             obligation: self.obligation.expect("obligation is not set"),
             lending_market: self.lending_market.expect("lending_market is not set"),
-            lending_market_authority: self
-                .lending_market_authority
-                .expect("lending_market_authority is not set"),
-            borrow_reserve: self.borrow_reserve.expect("borrow_reserve is not set"),
-            borrow_reserve_liquidity_mint: self
-                .borrow_reserve_liquidity_mint
-                .expect("borrow_reserve_liquidity_mint is not set"),
-            reserve_source_liquidity: self
-                .reserve_source_liquidity
-                .expect("reserve_source_liquidity is not set"),
-            borrow_reserve_liquidity_fee_receiver: self
-                .borrow_reserve_liquidity_fee_receiver
-                .expect("borrow_reserve_liquidity_fee_receiver is not set"),
-            user_destination_liquidity: self
-                .user_destination_liquidity
-                .expect("user_destination_liquidity is not set"),
-            referrer_token_state: self.referrer_token_state,
+            repay_reserve: self.repay_reserve.expect("repay_reserve is not set"),
+            reserve_liquidity_mint: self
+                .reserve_liquidity_mint
+                .expect("reserve_liquidity_mint is not set"),
+            reserve_destination_liquidity: self
+                .reserve_destination_liquidity
+                .expect("reserve_destination_liquidity is not set"),
+            user_source_liquidity: self
+                .user_source_liquidity
+                .expect("user_source_liquidity is not set"),
             token_program: self.token_program.unwrap_or(solana_address::address!(
                 "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
             )),
             instruction_sysvar_account: self.instruction_sysvar_account.unwrap_or(
                 solana_address::address!("Sysvar1nstructions1111111111111111111111111"),
             ),
+            obligation_farm_user_state: self.obligation_farm_user_state,
+            reserve_farm_state: self.reserve_farm_state,
+            lending_market_authority: self
+                .lending_market_authority
+                .expect("lending_market_authority is not set"),
+            farms_program: self.farms_program.expect("farms_program is not set"),
         };
-        let args = BorrowObligationLiquidityInstructionArgs {
+        let args = RepayObligationLiquidityV2InstructionArgs {
             liquidity_amount: self
                 .liquidity_amount
                 .clone()
@@ -337,35 +357,37 @@ impl BorrowObligationLiquidityBuilder {
     }
 }
 
-/// `borrow_obligation_liquidity` CPI accounts.
-pub struct BorrowObligationLiquidityCpiAccounts<'a, 'b> {
+/// `repay_obligation_liquidity_v2` CPI accounts.
+pub struct RepayObligationLiquidityV2CpiAccounts<'a, 'b> {
     pub owner: &'b solana_account_info::AccountInfo<'a>,
 
     pub obligation: &'b solana_account_info::AccountInfo<'a>,
 
     pub lending_market: &'b solana_account_info::AccountInfo<'a>,
 
-    pub lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+    pub repay_reserve: &'b solana_account_info::AccountInfo<'a>,
 
-    pub borrow_reserve: &'b solana_account_info::AccountInfo<'a>,
+    pub reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
 
-    pub borrow_reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
+    pub reserve_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
 
-    pub reserve_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
-
-    pub borrow_reserve_liquidity_fee_receiver: &'b solana_account_info::AccountInfo<'a>,
-
-    pub user_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
-
-    pub referrer_token_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    pub user_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
 
     pub token_program: &'b solana_account_info::AccountInfo<'a>,
 
     pub instruction_sysvar_account: &'b solana_account_info::AccountInfo<'a>,
+
+    pub obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+
+    pub farms_program: &'b solana_account_info::AccountInfo<'a>,
 }
 
-/// `borrow_obligation_liquidity` CPI instruction.
-pub struct BorrowObligationLiquidityCpi<'a, 'b> {
+/// `repay_obligation_liquidity_v2` CPI instruction.
+pub struct RepayObligationLiquidityV2Cpi<'a, 'b> {
     /// The program to invoke.
     pub __program: &'b solana_account_info::AccountInfo<'a>,
 
@@ -375,47 +397,50 @@ pub struct BorrowObligationLiquidityCpi<'a, 'b> {
 
     pub lending_market: &'b solana_account_info::AccountInfo<'a>,
 
-    pub lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+    pub repay_reserve: &'b solana_account_info::AccountInfo<'a>,
 
-    pub borrow_reserve: &'b solana_account_info::AccountInfo<'a>,
+    pub reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
 
-    pub borrow_reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
+    pub reserve_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
 
-    pub reserve_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
-
-    pub borrow_reserve_liquidity_fee_receiver: &'b solana_account_info::AccountInfo<'a>,
-
-    pub user_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
-
-    pub referrer_token_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    pub user_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
 
     pub token_program: &'b solana_account_info::AccountInfo<'a>,
 
     pub instruction_sysvar_account: &'b solana_account_info::AccountInfo<'a>,
+
+    pub obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+
+    pub lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+
+    pub farms_program: &'b solana_account_info::AccountInfo<'a>,
     /// The arguments for the instruction.
-    pub __args: BorrowObligationLiquidityInstructionArgs,
+    pub __args: RepayObligationLiquidityV2InstructionArgs,
 }
 
-impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
+impl<'a, 'b> RepayObligationLiquidityV2Cpi<'a, 'b> {
     pub fn new(
         program: &'b solana_account_info::AccountInfo<'a>,
-        accounts: BorrowObligationLiquidityCpiAccounts<'a, 'b>,
-        args: BorrowObligationLiquidityInstructionArgs,
+        accounts: RepayObligationLiquidityV2CpiAccounts<'a, 'b>,
+        args: RepayObligationLiquidityV2InstructionArgs,
     ) -> Self {
         Self {
             __program: program,
             owner: accounts.owner,
             obligation: accounts.obligation,
             lending_market: accounts.lending_market,
-            lending_market_authority: accounts.lending_market_authority,
-            borrow_reserve: accounts.borrow_reserve,
-            borrow_reserve_liquidity_mint: accounts.borrow_reserve_liquidity_mint,
-            reserve_source_liquidity: accounts.reserve_source_liquidity,
-            borrow_reserve_liquidity_fee_receiver: accounts.borrow_reserve_liquidity_fee_receiver,
-            user_destination_liquidity: accounts.user_destination_liquidity,
-            referrer_token_state: accounts.referrer_token_state,
+            repay_reserve: accounts.repay_reserve,
+            reserve_liquidity_mint: accounts.reserve_liquidity_mint,
+            reserve_destination_liquidity: accounts.reserve_destination_liquidity,
+            user_source_liquidity: accounts.user_source_liquidity,
             token_program: accounts.token_program,
             instruction_sysvar_account: accounts.instruction_sysvar_account,
+            obligation_farm_user_state: accounts.obligation_farm_user_state,
+            reserve_farm_state: accounts.reserve_farm_state,
+            lending_market_authority: accounts.lending_market_authority,
+            farms_program: accounts.farms_program,
             __args: args,
         }
     }
@@ -442,7 +467,7 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
         signers_seeds: &[&[&[u8]]],
         remaining_accounts: &[(&'b solana_account_info::AccountInfo<'a>, bool, bool)],
     ) -> solana_program_error::ProgramResult {
-        let mut accounts = Vec::with_capacity(12 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(13 + remaining_accounts.len());
         accounts.push(solana_instruction::AccountMeta::new_readonly(
             *self.owner.key,
             true,
@@ -455,33 +480,44 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
             *self.lending_market.key,
             false,
         ));
-        accounts.push(solana_instruction::AccountMeta::new_readonly(
-            *self.lending_market_authority.key,
-            false,
-        ));
         accounts.push(solana_instruction::AccountMeta::new(
-            *self.borrow_reserve.key,
+            *self.repay_reserve.key,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            *self.borrow_reserve_liquidity_mint.key,
+            *self.reserve_liquidity_mint.key,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new(
-            *self.reserve_source_liquidity.key,
+            *self.reserve_destination_liquidity.key,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new(
-            *self.borrow_reserve_liquidity_fee_receiver.key,
+            *self.user_source_liquidity.key,
             false,
         ));
-        accounts.push(solana_instruction::AccountMeta::new(
-            *self.user_destination_liquidity.key,
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            *self.token_program.key,
             false,
         ));
-        if let Some(referrer_token_state) = self.referrer_token_state {
+        accounts.push(solana_instruction::AccountMeta::new_readonly(
+            *self.instruction_sysvar_account.key,
+            false,
+        ));
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
             accounts.push(solana_instruction::AccountMeta::new(
-                *referrer_token_state.key,
+                *obligation_farm_user_state.key,
+                false,
+            ));
+        } else {
+            accounts.push(solana_instruction::AccountMeta::new_readonly(
+                crate::KAMINO_LENDING_ID,
+                false,
+            ));
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            accounts.push(solana_instruction::AccountMeta::new(
+                *reserve_farm_state.key,
                 false,
             ));
         } else {
@@ -491,11 +527,11 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
             ));
         }
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            *self.token_program.key,
+            *self.lending_market_authority.key,
             false,
         ));
         accounts.push(solana_instruction::AccountMeta::new_readonly(
-            *self.instruction_sysvar_account.key,
+            *self.farms_program.key,
             false,
         ));
         remaining_accounts.iter().for_each(|remaining_account| {
@@ -505,7 +541,7 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
                 is_signer: remaining_account.2,
             })
         });
-        let mut data = BorrowObligationLiquidityInstructionData::new()
+        let mut data = RepayObligationLiquidityV2InstructionData::new()
             .try_to_vec()
             .unwrap();
         let mut args = self.__args.try_to_vec().unwrap();
@@ -516,22 +552,25 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
             accounts,
             data,
         };
-        let mut account_infos = Vec::with_capacity(13 + remaining_accounts.len());
+        let mut account_infos = Vec::with_capacity(14 + remaining_accounts.len());
         account_infos.push(self.__program.clone());
         account_infos.push(self.owner.clone());
         account_infos.push(self.obligation.clone());
         account_infos.push(self.lending_market.clone());
-        account_infos.push(self.lending_market_authority.clone());
-        account_infos.push(self.borrow_reserve.clone());
-        account_infos.push(self.borrow_reserve_liquidity_mint.clone());
-        account_infos.push(self.reserve_source_liquidity.clone());
-        account_infos.push(self.borrow_reserve_liquidity_fee_receiver.clone());
-        account_infos.push(self.user_destination_liquidity.clone());
-        if let Some(referrer_token_state) = self.referrer_token_state {
-            account_infos.push(referrer_token_state.clone());
-        }
+        account_infos.push(self.repay_reserve.clone());
+        account_infos.push(self.reserve_liquidity_mint.clone());
+        account_infos.push(self.reserve_destination_liquidity.clone());
+        account_infos.push(self.user_source_liquidity.clone());
         account_infos.push(self.token_program.clone());
         account_infos.push(self.instruction_sysvar_account.clone());
+        if let Some(obligation_farm_user_state) = self.obligation_farm_user_state {
+            account_infos.push(obligation_farm_user_state.clone());
+        }
+        if let Some(reserve_farm_state) = self.reserve_farm_state {
+            account_infos.push(reserve_farm_state.clone());
+        }
+        account_infos.push(self.lending_market_authority.clone());
+        account_infos.push(self.farms_program.clone());
         remaining_accounts
             .iter()
             .for_each(|remaining_account| account_infos.push(remaining_account.0.clone()));
@@ -544,43 +583,45 @@ impl<'a, 'b> BorrowObligationLiquidityCpi<'a, 'b> {
     }
 }
 
-/// Instruction builder for `BorrowObligationLiquidity` via CPI.
+/// Instruction builder for `RepayObligationLiquidityV2` via CPI.
 ///
 /// ### Accounts:
 ///
 ///   0. `[signer]` owner
 ///   1. `[writable]` obligation
 ///   2. `[]` lending_market
-///   3. `[]` lending_market_authority
-///   4. `[writable]` borrow_reserve
-///   5. `[]` borrow_reserve_liquidity_mint
-///   6. `[writable]` reserve_source_liquidity
-///   7. `[writable]` borrow_reserve_liquidity_fee_receiver
-///   8. `[writable]` user_destination_liquidity
-///   9. `[writable, optional]` referrer_token_state
-///   10. `[]` token_program
-///   11. `[]` instruction_sysvar_account
+///   3. `[writable]` repay_reserve
+///   4. `[]` reserve_liquidity_mint
+///   5. `[writable]` reserve_destination_liquidity
+///   6. `[writable]` user_source_liquidity
+///   7. `[]` token_program
+///   8. `[]` instruction_sysvar_account
+///   9. `[writable, optional]` obligation_farm_user_state
+///   10. `[writable, optional]` reserve_farm_state
+///   11. `[]` lending_market_authority
+///   12. `[]` farms_program
 #[derive(Clone, Debug)]
-pub struct BorrowObligationLiquidityCpiBuilder<'a, 'b> {
-    instruction: Box<BorrowObligationLiquidityCpiBuilderInstruction<'a, 'b>>,
+pub struct RepayObligationLiquidityV2CpiBuilder<'a, 'b> {
+    instruction: Box<RepayObligationLiquidityV2CpiBuilderInstruction<'a, 'b>>,
 }
 
-impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
+impl<'a, 'b> RepayObligationLiquidityV2CpiBuilder<'a, 'b> {
     pub fn new(program: &'b solana_account_info::AccountInfo<'a>) -> Self {
-        let instruction = Box::new(BorrowObligationLiquidityCpiBuilderInstruction {
+        let instruction = Box::new(RepayObligationLiquidityV2CpiBuilderInstruction {
             __program: program,
             owner: None,
             obligation: None,
             lending_market: None,
-            lending_market_authority: None,
-            borrow_reserve: None,
-            borrow_reserve_liquidity_mint: None,
-            reserve_source_liquidity: None,
-            borrow_reserve_liquidity_fee_receiver: None,
-            user_destination_liquidity: None,
-            referrer_token_state: None,
+            repay_reserve: None,
+            reserve_liquidity_mint: None,
+            reserve_destination_liquidity: None,
+            user_source_liquidity: None,
             token_program: None,
             instruction_sysvar_account: None,
+            obligation_farm_user_state: None,
+            reserve_farm_state: None,
+            lending_market_authority: None,
+            farms_program: None,
             liquidity_amount: None,
             __remaining_accounts: Vec::new(),
         });
@@ -608,61 +649,35 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
         self
     }
     #[inline(always)]
-    pub fn lending_market_authority(
+    pub fn repay_reserve(
         &mut self,
-        lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+        repay_reserve: &'b solana_account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.lending_market_authority = Some(lending_market_authority);
+        self.instruction.repay_reserve = Some(repay_reserve);
         self
     }
     #[inline(always)]
-    pub fn borrow_reserve(
+    pub fn reserve_liquidity_mint(
         &mut self,
-        borrow_reserve: &'b solana_account_info::AccountInfo<'a>,
+        reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.borrow_reserve = Some(borrow_reserve);
+        self.instruction.reserve_liquidity_mint = Some(reserve_liquidity_mint);
         self
     }
     #[inline(always)]
-    pub fn borrow_reserve_liquidity_mint(
+    pub fn reserve_destination_liquidity(
         &mut self,
-        borrow_reserve_liquidity_mint: &'b solana_account_info::AccountInfo<'a>,
+        reserve_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.borrow_reserve_liquidity_mint = Some(borrow_reserve_liquidity_mint);
+        self.instruction.reserve_destination_liquidity = Some(reserve_destination_liquidity);
         self
     }
     #[inline(always)]
-    pub fn reserve_source_liquidity(
+    pub fn user_source_liquidity(
         &mut self,
-        reserve_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
+        user_source_liquidity: &'b solana_account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.reserve_source_liquidity = Some(reserve_source_liquidity);
-        self
-    }
-    #[inline(always)]
-    pub fn borrow_reserve_liquidity_fee_receiver(
-        &mut self,
-        borrow_reserve_liquidity_fee_receiver: &'b solana_account_info::AccountInfo<'a>,
-    ) -> &mut Self {
-        self.instruction.borrow_reserve_liquidity_fee_receiver =
-            Some(borrow_reserve_liquidity_fee_receiver);
-        self
-    }
-    #[inline(always)]
-    pub fn user_destination_liquidity(
-        &mut self,
-        user_destination_liquidity: &'b solana_account_info::AccountInfo<'a>,
-    ) -> &mut Self {
-        self.instruction.user_destination_liquidity = Some(user_destination_liquidity);
-        self
-    }
-    /// `[optional account]`
-    #[inline(always)]
-    pub fn referrer_token_state(
-        &mut self,
-        referrer_token_state: Option<&'b solana_account_info::AccountInfo<'a>>,
-    ) -> &mut Self {
-        self.instruction.referrer_token_state = referrer_token_state;
+        self.instruction.user_source_liquidity = Some(user_source_liquidity);
         self
     }
     #[inline(always)]
@@ -679,6 +694,40 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
         instruction_sysvar_account: &'b solana_account_info::AccountInfo<'a>,
     ) -> &mut Self {
         self.instruction.instruction_sysvar_account = Some(instruction_sysvar_account);
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn obligation_farm_user_state(
+        &mut self,
+        obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    ) -> &mut Self {
+        self.instruction.obligation_farm_user_state = obligation_farm_user_state;
+        self
+    }
+    /// `[optional account]`
+    #[inline(always)]
+    pub fn reserve_farm_state(
+        &mut self,
+        reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    ) -> &mut Self {
+        self.instruction.reserve_farm_state = reserve_farm_state;
+        self
+    }
+    #[inline(always)]
+    pub fn lending_market_authority(
+        &mut self,
+        lending_market_authority: &'b solana_account_info::AccountInfo<'a>,
+    ) -> &mut Self {
+        self.instruction.lending_market_authority = Some(lending_market_authority);
+        self
+    }
+    #[inline(always)]
+    pub fn farms_program(
+        &mut self,
+        farms_program: &'b solana_account_info::AccountInfo<'a>,
+    ) -> &mut Self {
+        self.instruction.farms_program = Some(farms_program);
         self
     }
     #[inline(always)]
@@ -720,14 +769,14 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
     #[allow(clippy::clone_on_copy)]
     #[allow(clippy::vec_init_then_push)]
     pub fn invoke_signed(&self, signers_seeds: &[&[&[u8]]]) -> solana_program_error::ProgramResult {
-        let args = BorrowObligationLiquidityInstructionArgs {
+        let args = RepayObligationLiquidityV2InstructionArgs {
             liquidity_amount: self
                 .instruction
                 .liquidity_amount
                 .clone()
                 .expect("liquidity_amount is not set"),
         };
-        let instruction = BorrowObligationLiquidityCpi {
+        let instruction = RepayObligationLiquidityV2Cpi {
             __program: self.instruction.__program,
 
             owner: self.instruction.owner.expect("owner is not set"),
@@ -739,37 +788,25 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
                 .lending_market
                 .expect("lending_market is not set"),
 
-            lending_market_authority: self
+            repay_reserve: self
                 .instruction
-                .lending_market_authority
-                .expect("lending_market_authority is not set"),
+                .repay_reserve
+                .expect("repay_reserve is not set"),
 
-            borrow_reserve: self
+            reserve_liquidity_mint: self
                 .instruction
-                .borrow_reserve
-                .expect("borrow_reserve is not set"),
+                .reserve_liquidity_mint
+                .expect("reserve_liquidity_mint is not set"),
 
-            borrow_reserve_liquidity_mint: self
+            reserve_destination_liquidity: self
                 .instruction
-                .borrow_reserve_liquidity_mint
-                .expect("borrow_reserve_liquidity_mint is not set"),
+                .reserve_destination_liquidity
+                .expect("reserve_destination_liquidity is not set"),
 
-            reserve_source_liquidity: self
+            user_source_liquidity: self
                 .instruction
-                .reserve_source_liquidity
-                .expect("reserve_source_liquidity is not set"),
-
-            borrow_reserve_liquidity_fee_receiver: self
-                .instruction
-                .borrow_reserve_liquidity_fee_receiver
-                .expect("borrow_reserve_liquidity_fee_receiver is not set"),
-
-            user_destination_liquidity: self
-                .instruction
-                .user_destination_liquidity
-                .expect("user_destination_liquidity is not set"),
-
-            referrer_token_state: self.instruction.referrer_token_state,
+                .user_source_liquidity
+                .expect("user_source_liquidity is not set"),
 
             token_program: self
                 .instruction
@@ -780,6 +817,20 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
                 .instruction
                 .instruction_sysvar_account
                 .expect("instruction_sysvar_account is not set"),
+
+            obligation_farm_user_state: self.instruction.obligation_farm_user_state,
+
+            reserve_farm_state: self.instruction.reserve_farm_state,
+
+            lending_market_authority: self
+                .instruction
+                .lending_market_authority
+                .expect("lending_market_authority is not set"),
+
+            farms_program: self
+                .instruction
+                .farms_program
+                .expect("farms_program is not set"),
             __args: args,
         };
         instruction.invoke_signed_with_remaining_accounts(
@@ -790,20 +841,21 @@ impl<'a, 'b> BorrowObligationLiquidityCpiBuilder<'a, 'b> {
 }
 
 #[derive(Clone, Debug)]
-struct BorrowObligationLiquidityCpiBuilderInstruction<'a, 'b> {
+struct RepayObligationLiquidityV2CpiBuilderInstruction<'a, 'b> {
     __program: &'b solana_account_info::AccountInfo<'a>,
     owner: Option<&'b solana_account_info::AccountInfo<'a>>,
     obligation: Option<&'b solana_account_info::AccountInfo<'a>>,
     lending_market: Option<&'b solana_account_info::AccountInfo<'a>>,
-    lending_market_authority: Option<&'b solana_account_info::AccountInfo<'a>>,
-    borrow_reserve: Option<&'b solana_account_info::AccountInfo<'a>>,
-    borrow_reserve_liquidity_mint: Option<&'b solana_account_info::AccountInfo<'a>>,
-    reserve_source_liquidity: Option<&'b solana_account_info::AccountInfo<'a>>,
-    borrow_reserve_liquidity_fee_receiver: Option<&'b solana_account_info::AccountInfo<'a>>,
-    user_destination_liquidity: Option<&'b solana_account_info::AccountInfo<'a>>,
-    referrer_token_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    repay_reserve: Option<&'b solana_account_info::AccountInfo<'a>>,
+    reserve_liquidity_mint: Option<&'b solana_account_info::AccountInfo<'a>>,
+    reserve_destination_liquidity: Option<&'b solana_account_info::AccountInfo<'a>>,
+    user_source_liquidity: Option<&'b solana_account_info::AccountInfo<'a>>,
     token_program: Option<&'b solana_account_info::AccountInfo<'a>>,
     instruction_sysvar_account: Option<&'b solana_account_info::AccountInfo<'a>>,
+    obligation_farm_user_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    reserve_farm_state: Option<&'b solana_account_info::AccountInfo<'a>>,
+    lending_market_authority: Option<&'b solana_account_info::AccountInfo<'a>>,
+    farms_program: Option<&'b solana_account_info::AccountInfo<'a>>,
     liquidity_amount: Option<u64>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(&'b solana_account_info::AccountInfo<'a>, bool, bool)>,

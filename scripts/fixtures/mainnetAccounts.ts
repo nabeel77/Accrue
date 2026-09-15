@@ -149,6 +149,13 @@ export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
   },
 
   {
+    label: 'farm_usdc_debt',
+    address: '82eHAjSXZEyA3UpBxTjVYXF4QJmAEtLR6kvWXQca7mqd',
+    description:
+      'The farm the USDC reserve stakes debt in, which every borrow and repay has to carry.',
+  },
+
+  {
     label: 'oracle_scope_prices',
     address: '3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH',
     description:
@@ -165,6 +172,11 @@ export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
     label: 'program_scope',
     address: 'HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ',
     description: 'The Scope oracle program, the same prices the lending market reads.',
+  },
+  {
+    label: 'program_farms',
+    address: 'FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr',
+    description: 'The farms program the lending market stakes deposits and debt through.',
   },
   {
     label: 'program_jupiter_v6',
@@ -185,5 +197,11 @@ export const MAINNET_PROGRAMS_TO_DOWNLOAD: MainnetProgramToDownload[] = [
     programAddress: 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD',
     description:
       'The deployed Kamino Lend bytecode, so the suite runs the real program rather than a stand in.',
+  },
+  {
+    label: 'kamino_farms',
+    programAddress: 'FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr',
+    description:
+      'The deployed farms bytecode, which the lending market calls on every borrow and repay.',
   },
 ];

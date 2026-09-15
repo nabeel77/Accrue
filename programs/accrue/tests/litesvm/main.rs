@@ -3,12 +3,21 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects,
-    clippy::integer_division
+    clippy::integer_division,
+    clippy::result_large_err,
+    clippy::too_many_arguments
 )]
 
+mod actions;
+mod compute_units;
+mod hostile_route;
 mod kamino_layout;
 mod kamino_refresh;
+mod open_position;
+mod owner_instructions;
+mod permissions;
 mod snapshot;
+mod world;
 
 use std::path::PathBuf;
 

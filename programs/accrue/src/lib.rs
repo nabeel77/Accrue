@@ -72,7 +72,38 @@ pub mod accrue {
         handle_buy_destination(context, minimum_destination_amount, jupiter_route_data)
     }
 
+    pub fn add_collateral(context: Context<AddCollateral>, collateral_amount: u64) -> Result<()> {
+        handle_add_collateral(context, collateral_amount)
+    }
+
+    pub fn repay(context: Context<Repay>, requested_amount: u64) -> Result<()> {
+        handle_repay(context, requested_amount)
+    }
+
+    pub fn withdraw_collateral(
+        context: Context<WithdrawCollateral>,
+        collateral_token_amount: u64,
+    ) -> Result<()> {
+        handle_withdraw_collateral(context, collateral_token_amount)
+    }
+
+    pub fn set_strategy(context: Context<SetStrategy>, strategy: Strategy) -> Result<()> {
+        handle_set_strategy(context, strategy)
+    }
+
+    pub fn unwind<'info>(
+        context: Context<'info, Unwind<'info>>,
+        minimum_usdc_out: u64,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_unwind(context, minimum_usdc_out, jupiter_route_data)
+    }
+
     pub fn rescue(context: Context<Rescue>) -> Result<()> {
         handle_rescue(context)
+    }
+
+    pub fn close_position(context: Context<ClosePosition>) -> Result<()> {
+        handle_close_position(context)
     }
 }

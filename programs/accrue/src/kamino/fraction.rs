@@ -63,6 +63,16 @@ pub fn scaled_fraction_to_whole_units(scaled: u128) -> u128 {
     scaled >> SCALED_FRACTION_BITS
 }
 
+pub fn scaled_fraction_to_whole_units_rounding_up(scaled: u128) -> u128 {
+    let remainder_mask = SCALED_FRACTION_ONE.saturating_sub(1);
+    let whole = scaled >> SCALED_FRACTION_BITS;
+    if scaled & remainder_mask == 0 {
+        whole
+    } else {
+        whole.saturating_add(1)
+    }
+}
+
 pub fn whole_units_to_scaled_fraction(whole: u128) -> Result<u128> {
     whole
         .checked_shl(SCALED_FRACTION_BITS)

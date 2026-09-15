@@ -1,11 +1,22 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
   address,
+  appendTransactionMessageInstruction,
+  compileTransactionMessage,
+  createTransactionMessage,
   getAddressEncoder,
+  getCompiledTransactionMessageEncoder,
   getProgramDerivedAddress,
+  pipe,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  setTransactionMessageComputeUnitLimit,
+  setTransactionMessagePriorityFeeLamports,
   type Address,
+  type Instruction,
 } from '@solana/kit';
 
 const repositoryRoot = resolve(import.meta.dirname, '../..');
@@ -13,6 +24,8 @@ const fixturesDirectory = resolve(repositoryRoot, 'tests/fixtures/accounts');
 
 const ACCRUE_PROGRAM = '6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb';
 const KAMINO_LEND = 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD';
+const KAMINO_FARMS = 'FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr';
+const JUPITER_V6 = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ASSOCIATED_TOKEN_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
@@ -26,13 +39,25 @@ const NVDAX_MINT = 'Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh';
 const OWNER = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
 const MARKET = '5wJeMrUYECGq41fxRESKALVcHnNX26TAWy4W98yULsua';
 const SCOPE_PRICES = '3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH';
+const NVDAX_RESERVE = '7B66Az3tJhAo4bLkX8PzTixQ9ZGyHkkjxfVLhF26sP5q';
+const USDC_RESERVE = '97zoywd8mPZsGTg8q1wdD2Wgkdrs2tqusp1Qqcxbyj7E';
 
 const RESERVE_OFFSETS = {
+  farmDebt: 96,
   liquiditySupplyVault: 160,
   liquidityFeeVault: 192,
   collateralMint: 2560,
   collateralSupplyVault: 2600,
 } as const;
+
+const BORROW_AMOUNT = 400_000_000n;
+const COLLATERAL_AMOUNT = 470_000_000n;
+const MAX_ROUTE_ACCOUNTS = 28;
+const PRIORITY_FEE_LAMPORTS = 50_000n;
+const COMPUTE_UNIT_LIMIT = 700_000;
+const VERSION_ONE_ADDRESS_LIMIT = 64;
+const VERSION_ONE_BYTE_LIMIT = 4096;
+const SIGNATURE_BYTES = 1 + 64;
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -52,31 +77,31 @@ function encodeBase58(raw: Uint8Array): string {
   return '1'.repeat(leadingZeros) + encoded;
 }
 
-function readReserveField(label: string, offset: number): string {
+function readReserveField(label: string, offset: number): Address {
   const fixture = JSON.parse(
     readFileSync(resolve(fixturesDirectory, `${label}.json`), 'utf8'),
   ) as { data_base64: string };
   const bytes = Buffer.from(fixture.data_base64, 'base64');
-  return encodeBase58(bytes.subarray(offset, offset + 32));
+  return address(encodeBase58(bytes.subarray(offset, offset + 32)));
 }
 
 const addressEncoder = getAddressEncoder();
 
 async function derive(
-  seeds: (string | Address)[],
   programAddress: string,
+  seeds: (Uint8Array | Address)[],
 ): Promise<Address> {
   const [derived] = await getProgramDerivedAddress({
     programAddress: address(programAddress),
     seeds: seeds.map((seed) =>
-      typeof seed === 'string' &&
-      seed.length < 33 &&
-      !/^[1-9A-HJ-NP-Za-km-z]{32,}$/.exec(seed)
-        ? new TextEncoder().encode(seed)
-        : addressEncoder.encode(address(seed)),
+      seed instanceof Uint8Array ? seed : addressEncoder.encode(seed),
     ),
   });
   return derived;
+}
+
+function text(value: string): Uint8Array {
+  return new TextEncoder().encode(value);
 }
 
 async function associatedTokenAddress(
@@ -84,112 +109,57 @@ async function associatedTokenAddress(
   mint: string,
   tokenProgram: string,
 ): Promise<Address> {
-  const [derived] = await getProgramDerivedAddress({
-    programAddress: address(ASSOCIATED_TOKEN_PROGRAM),
-    seeds: [
-      addressEncoder.encode(owner),
-      addressEncoder.encode(address(tokenProgram)),
-      addressEncoder.encode(address(mint)),
-    ],
-  });
-  return derived;
+  return derive(ASSOCIATED_TOKEN_PROGRAM, [owner, address(tokenProgram), address(mint)]);
 }
 
-async function main(): Promise<void> {
-  const position = await derive(
-    ['position', OWNER, NVDAX_MINT, ONYC_MINT],
-    ACCRUE_PROGRAM,
+function anchorDiscriminator(instructionName: string): Uint8Array {
+  return new Uint8Array(
+    createHash('sha256').update(`global:${instructionName}`).digest().subarray(0, 8),
   );
-  const config = await derive(['config'], ACCRUE_PROGRAM);
+}
 
-  const [obligationAddress] = await getProgramDerivedAddress({
-    programAddress: address(KAMINO_LEND),
-    seeds: [
-      new Uint8Array([0]),
-      new Uint8Array([0]),
-      addressEncoder.encode(position),
-      addressEncoder.encode(address(MARKET)),
-      addressEncoder.encode(address(SYSTEM_PROGRAM)),
-      addressEncoder.encode(address(SYSTEM_PROGRAM)),
-    ],
-  });
-  const [userMetadata] = await getProgramDerivedAddress({
-    programAddress: address(KAMINO_LEND),
-    seeds: [new TextEncoder().encode('user_meta'), addressEncoder.encode(position)],
-  });
-  const [marketAuthority] = await getProgramDerivedAddress({
-    programAddress: address(KAMINO_LEND),
-    seeds: [new TextEncoder().encode('lma'), addressEncoder.encode(address(MARKET))],
-  });
+function encodeOpenPositionData(routeData: Uint8Array): Uint8Array {
+  const strategy = new Uint8Array(8);
+  const strategyView = new DataView(strategy.buffer);
+  strategyView.setUint16(0, 4_000, true);
+  strategyView.setUint16(2, 5_000, true);
+  strategyView.setUint16(4, 3_000, true);
+  strategy[6] = 1;
+  strategy[7] = 1;
 
-  const ourAccounts: Record<string, string> = {
-    owner: OWNER,
-    config,
-    position,
-    obligation: obligationAddress,
-    user_metadata: userMetadata,
-    lending_market: MARKET,
-    lending_market_authority: marketAuthority,
-    scope_prices: SCOPE_PRICES,
+  const amounts = new Uint8Array(24);
+  const amountsView = new DataView(amounts.buffer);
+  amountsView.setBigUint64(0, COLLATERAL_AMOUNT, true);
+  amountsView.setBigUint64(8, BORROW_AMOUNT, true);
+  amountsView.setBigUint64(16, 0n, true);
 
-    collateral_reserve: '7B66Az3tJhAo4bLkX8PzTixQ9ZGyHkkjxfVLhF26sP5q',
-    collateral_mint: NVDAX_MINT,
-    collateral_liquidity_supply: readReserveField(
-      'reserve_nvdax',
-      RESERVE_OFFSETS.liquiditySupplyVault,
-    ),
-    collateral_ctoken_mint: readReserveField(
-      'reserve_nvdax',
-      RESERVE_OFFSETS.collateralMint,
-    ),
-    collateral_ctoken_vault: readReserveField(
-      'reserve_nvdax',
-      RESERVE_OFFSETS.collateralSupplyVault,
-    ),
+  const routeLength = new Uint8Array(4);
+  new DataView(routeLength.buffer).setUint32(0, routeData.length, true);
 
-    borrow_reserve: '97zoywd8mPZsGTg8q1wdD2Wgkdrs2tqusp1Qqcxbyj7E',
-    borrow_mint: USDC_MINT,
-    borrow_liquidity_supply: readReserveField(
-      'reserve_usdc',
-      RESERVE_OFFSETS.liquiditySupplyVault,
-    ),
-    borrow_fee_receiver: readReserveField(
-      'reserve_usdc',
-      RESERVE_OFFSETS.liquidityFeeVault,
-    ),
+  return Uint8Array.from([
+    ...anchorDiscriminator('open_position'),
+    ...amounts,
+    ...strategy,
+    1,
+    ...routeLength,
+    ...routeData,
+  ]);
+}
 
-    owner_collateral_ata: await associatedTokenAddress(
-      address(OWNER),
-      NVDAX_MINT,
-      TOKEN_2022_PROGRAM,
-    ),
-    position_collateral_ata: await associatedTokenAddress(
-      position,
-      NVDAX_MINT,
-      TOKEN_2022_PROGRAM,
-    ),
-    position_usdc_ata: await associatedTokenAddress(position, USDC_MINT, TOKEN_PROGRAM),
-    position_destination_ata: await associatedTokenAddress(
-      position,
-      ONYC_MINT,
-      TOKEN_PROGRAM,
-    ),
-    destination_mint: ONYC_MINT,
+interface JupiterSwapInstruction {
+  programId: string;
+  accounts: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+  data: string;
+}
 
-    accrue_program: ACCRUE_PROGRAM,
-    kamino_program: KAMINO_LEND,
-    token_program: TOKEN_PROGRAM,
-    token_2022_program: TOKEN_2022_PROGRAM,
-    associated_token_program: ASSOCIATED_TOKEN_PROGRAM,
-    system_program: SYSTEM_PROGRAM,
-    rent_sysvar: RENT_SYSVAR,
-    instructions_sysvar: INSTRUCTIONS_SYSVAR,
-  };
-
+async function fetchJupiterRoute(
+  userPublicKey: Address,
+): Promise<JupiterSwapInstruction> {
   const quoteResponse = await (
     await fetch(
       `https://lite-api.jup.ag/swap/v1/quote?inputMint=${USDC_MINT}&outputMint=${ONYC_MINT}` +
-        `&amount=400000000&slippageBps=50&restrictIntermediateTokens=true&maxAccounts=28`,
+        `&amount=${BORROW_AMOUNT}&slippageBps=50&restrictIntermediateTokens=true` +
+        `&maxAccounts=${MAX_ROUTE_ACCOUNTS}`,
     )
   ).json();
 
@@ -199,54 +169,145 @@ async function main(): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         quoteResponse,
-        userPublicKey: position,
+        userPublicKey,
         wrapAndUnwrapSol: false,
         useSharedAccounts: false,
         skipUserAccountsRpcCalls: true,
       }),
     })
-  ).json()) as {
-    swapInstruction: {
-      programId: string;
-      accounts: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
-      data: string;
-    };
+  ).json()) as { swapInstruction: JupiterSwapInstruction };
+
+  return swapResponse.swapInstruction;
+}
+
+async function main(): Promise<void> {
+  const owner = address(OWNER);
+  const position = await derive(ACCRUE_PROGRAM, [
+    text('position'),
+    owner,
+    address(NVDAX_MINT),
+    address(ONYC_MINT),
+  ]);
+  const config = await derive(ACCRUE_PROGRAM, [text('config')]);
+  const obligation = await derive(KAMINO_LEND, [
+    new Uint8Array([0]),
+    new Uint8Array([0]),
+    position,
+    address(MARKET),
+    address(SYSTEM_PROGRAM),
+    address(SYSTEM_PROGRAM),
+  ]);
+  const userMetadata = await derive(KAMINO_LEND, [text('user_meta'), position]);
+  const marketAuthority = await derive(KAMINO_LEND, [text('lma'), address(MARKET)]);
+  const usdcDebtFarm = readReserveField('reserve_usdc', RESERVE_OFFSETS.farmDebt);
+  const obligationDebtFarm = await derive(KAMINO_FARMS, [
+    text('user'),
+    usdcDebtFarm,
+    obligation,
+  ]);
+
+  const writable = (addressToUse: Address) =>
+    ({ address: addressToUse, role: 1 }) as const;
+  const readonly = (addressToUse: Address) =>
+    ({ address: addressToUse, role: 0 }) as const;
+  const writableSigner = (addressToUse: Address) =>
+    ({ address: addressToUse, role: 3 }) as const;
+
+  const accrueAccounts = [
+    writableSigner(owner),
+    readonly(config),
+    writable(position),
+    readonly(address(NVDAX_MINT)),
+    readonly(address(ONYC_MINT)),
+    readonly(address(USDC_MINT)),
+    writable(await associatedTokenAddress(owner, NVDAX_MINT, TOKEN_2022_PROGRAM)),
+    writable(await associatedTokenAddress(position, NVDAX_MINT, TOKEN_2022_PROGRAM)),
+    writable(await associatedTokenAddress(position, USDC_MINT, TOKEN_PROGRAM)),
+    writable(await associatedTokenAddress(position, ONYC_MINT, TOKEN_PROGRAM)),
+    writable(address(MARKET)),
+    readonly(marketAuthority),
+    writable(obligation),
+    writable(userMetadata),
+    writable(address(NVDAX_RESERVE)),
+    writable(readReserveField('reserve_nvdax', RESERVE_OFFSETS.liquiditySupplyVault)),
+    writable(readReserveField('reserve_nvdax', RESERVE_OFFSETS.collateralMint)),
+    writable(readReserveField('reserve_nvdax', RESERVE_OFFSETS.collateralSupplyVault)),
+    writable(address(USDC_RESERVE)),
+    writable(readReserveField('reserve_usdc', RESERVE_OFFSETS.liquiditySupplyVault)),
+    writable(readReserveField('reserve_usdc', RESERVE_OFFSETS.liquidityFeeVault)),
+    readonly(address(ACCRUE_PROGRAM)),
+    readonly(address(ACCRUE_PROGRAM)),
+    writable(usdcDebtFarm),
+    writable(obligationDebtFarm),
+    readonly(address(SCOPE_PRICES)),
+    readonly(address(KAMINO_FARMS)),
+    readonly(address(JUPITER_V6)),
+    readonly(address(KAMINO_LEND)),
+    readonly(address(INSTRUCTIONS_SYSVAR)),
+    readonly(address(TOKEN_2022_PROGRAM)),
+    readonly(address(TOKEN_PROGRAM)),
+    readonly(address(TOKEN_PROGRAM)),
+    readonly(address(TOKEN_PROGRAM)),
+    readonly(address(RENT_SYSVAR)),
+    readonly(address(SYSTEM_PROGRAM)),
+  ];
+
+  const swapInstruction = await fetchJupiterRoute(position);
+  const routeAccounts = swapInstruction.accounts.map((account) =>
+    account.isWritable
+      ? writable(address(account.pubkey))
+      : readonly(address(account.pubkey)),
+  );
+  const routeData = new Uint8Array(Buffer.from(swapInstruction.data, 'base64'));
+
+  const openPosition: Instruction = {
+    programAddress: address(ACCRUE_PROGRAM),
+    accounts: [...accrueAccounts, ...routeAccounts],
+    data: encodeOpenPositionData(routeData),
   };
 
-  const routeAddresses = new Set<string>(
-    swapResponse.swapInstruction.accounts.map((account) => account.pubkey),
+  const message = pipe(
+    createTransactionMessage({ version: 1 }),
+    (draft) => setTransactionMessageFeePayer(owner, draft),
+    (draft) =>
+      setTransactionMessageLifetimeUsingBlockhash(
+        {
+          blockhash: '11111111111111111111111111111111' as never,
+          lastValidBlockHeight: 0n,
+        },
+        draft,
+      ),
+    (draft) => setTransactionMessageComputeUnitLimit(COMPUTE_UNIT_LIMIT, draft),
+    (draft) => setTransactionMessagePriorityFeeLamports(PRIORITY_FEE_LAMPORTS, draft),
+    (draft) => appendTransactionMessageInstruction(openPosition, draft),
   );
-  routeAddresses.add(swapResponse.swapInstruction.programId);
 
-  const ourUnique = new Set(Object.values(ourAccounts));
-  const union = new Set([...ourUnique, ...routeAddresses]);
-  const routeOnly = [...routeAddresses].filter((candidate) => !ourUnique.has(candidate));
+  const compiled = compileTransactionMessage(message);
+  const encodedMessage = getCompiledTransactionMessageEncoder().encode(compiled);
+  const uniqueAddresses = new Set(
+    [...accrueAccounts, ...routeAccounts]
+      .map((account) => account.address as string)
+      .concat(ACCRUE_PROGRAM, OWNER),
+  );
 
-  const swapDataBytes = Buffer.from(swapResponse.swapInstruction.data, 'base64').length;
-  const accrueDataBytes = 8 + 8 + 8 + 8 + 7 + 1;
-  const accountIndexBytes = union.size + routeAddresses.size;
-  const signatureBytes = 64 + 1;
-  const headerBytes = 3 + 1 + 32 + 1 + 2 + 8;
-  const messageBytes =
-    headerBytes +
-    union.size * 32 +
-    accountIndexBytes +
-    accrueDataBytes +
-    swapDataBytes +
-    8;
+  const totalBytes = SIGNATURE_BYTES + encodedMessage.length;
 
-  console.log('our own accounts, unique:      ', ourUnique.size);
-  console.log('jupiter route accounts, unique:', routeAddresses.size);
-  console.log('route addresses not already ours:', routeOnly.length);
-  console.log('UNION, unique addresses:       ', union.size, '/ 64 allowed');
+  console.log(`accounts on the instruction:      ${openPosition.accounts?.length}`);
+  console.log(`  of which the route contributes: ${routeAccounts.length}`);
   console.log(
-    'estimated version 1 size:      ',
-    signatureBytes + messageBytes,
-    '/ 4096 allowed',
+    `unique addresses:                 ${uniqueAddresses.size} / ${VERSION_ONE_ADDRESS_LIMIT}`,
   );
-  console.log('  jupiter instruction data:    ', swapDataBytes, 'bytes');
-  console.log('\nroute addresses that are new to the transaction:');
-  for (const candidate of routeOnly) console.log('  ', candidate);
+  console.log(`jupiter instruction data:         ${routeData.length} bytes`);
+  console.log(`compiled version 1 message:       ${encodedMessage.length} bytes`);
+  console.log(
+    `signed transaction:               ${totalBytes} / ${VERSION_ONE_BYTE_LIMIT} bytes`,
+  );
+  console.log(
+    uniqueAddresses.size <= VERSION_ONE_ADDRESS_LIMIT &&
+      totalBytes <= VERSION_ONE_BYTE_LIMIT
+      ? 'the single transaction path fits'
+      : 'the single transaction path does not fit, the split path is needed',
+  );
 }
 
 await main();

@@ -84,6 +84,11 @@ jobs:
       - name: anchor build
         run: anchor build
 
+      - name: build the test swap programs
+        run: |
+          cargo build-sbf --manifest-path tests/programs/honest-swap/Cargo.toml
+          cargo build-sbf --manifest-path tests/programs/hostile-swap/Cargo.toml
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1

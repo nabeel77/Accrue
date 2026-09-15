@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::TokenAccount;
 
-use crate::constants::{CONFIG_SEED, KAMINO_LEND_PROGRAM_ID, POSITION_SEED};
+use crate::constants::{CONFIG_SEED, JUPITER_V6_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED};
 use crate::error::AccrueError;
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
-    PositionAccounts,
+    InvariantCheck, PositionAccounts, SwapCheck,
 };
 use crate::state::{Config, Position, PositionState};
 use crate::swap::{execute_jupiter_swap, JupiterSwap};
@@ -53,6 +53,10 @@ pub struct BuyDestination<'info> {
     /// CHECK: matched against the reserve recorded for this collateral in the config
     #[account(owner = KAMINO_LEND_PROGRAM_ID)]
     pub collateral_reserve: UncheckedAccount<'info>,
+
+    /// CHECK: the swap router itself, checked against the constants module
+    #[account(address = JUPITER_V6_PROGRAM_ID)]
+    pub swap_program: UncheckedAccount<'info>,
 }
 
 pub fn handle_buy_destination<'info>(
@@ -102,10 +106,11 @@ pub fn handle_buy_destination<'info>(
         &position_bump,
     ];
 
-    let swapped = execute_jupiter_swap(
+    let bounds = execute_jupiter_swap(
         &JupiterSwap {
             source: accounts.position_usdc_account.to_account_info(),
             destination: accounts.position_destination_account.to_account_info(),
+            swap_program: accounts.swap_program.to_account_info(),
             amount_in: usdc_to_spend,
             minimum_out: minimum_destination_amount,
         },
@@ -115,15 +120,17 @@ pub fn handle_buy_destination<'info>(
         &position_seeds,
     )?;
 
-    assert_invariants_hold(
-        &position_accounts,
-        &collateral_entry.reserve,
-        &ledger_before,
-        CollateralMovement::MustNotMove,
-        Some(swapped),
-        Some(&accounts.position_usdc_account.key()),
-        Some(&accounts.position_destination_account.key()),
-    )?;
+    assert_invariants_hold(&InvariantCheck {
+        accounts: &position_accounts,
+        collateral_reserve: &collateral_entry.reserve,
+        before: &ledger_before,
+        collateral_movement: CollateralMovement::MustNotMove,
+        swap: SwapCheck::EndsWithAtLeast {
+            source: accounts.position_usdc_account.key(),
+            destination: accounts.position_destination_account.key(),
+            bounds,
+        },
+    })?;
 
     context.accounts.position.state = PositionState::Open;
     Ok(())

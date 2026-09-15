@@ -2,19 +2,25 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
 
 use crate::constants::{
-    BASIS_POINTS_DENOMINATOR, CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, KAMINO_LEND_PROGRAM_ID,
-    POSITION_SEED, TOKEN_PROGRAM_ID,
+    BASIS_POINTS_DENOMINATOR, CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, JUPITER_V6_PROGRAM_ID,
+    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
 use crate::invariants::{
-    assert_invariants_hold, read_position_ledger, CollateralMovement, PositionAccounts,
+    assert_invariants_hold, read_position_ledger, CollateralMovement, InvariantCheck,
+    PositionAccounts, SwapCheck,
 };
 use crate::kamino::cpi::{
-    borrow_liquidity, deposit_collateral, init_obligation, init_user_metadata, refresh_obligation,
-    refresh_reserve, BorrowAccounts, DepositAccounts, InitObligationAccounts,
-    InitUserMetadataAccounts, ObligationContext, ReserveRefresh,
+    borrow_liquidity, deposit_collateral, farm_accounts_for_reserve, init_obligation,
+    init_obligation_farm, init_user_metadata, refresh_obligation, refresh_reserve, BorrowAccounts,
+    DepositAccounts, FarmAccounts, InitObligationAccounts, InitObligationFarmAccounts,
+    InitUserMetadataAccounts, ObligationContext, ReserveRefresh, FARM_MODE_COLLATERAL,
+    FARM_MODE_DEBT,
 };
-use crate::kamino::{read_reserve_account, scaled_fraction_to_whole_units, SCALED_FRACTION_ONE};
+use crate::kamino::{
+    read_obligation_deposited_amount, read_reserve_account, scaled_fraction_to_whole_units,
+    SCALED_FRACTION_ONE,
+};
 use crate::state::{Config, Position, PositionState, Strategy};
 use crate::swap::{execute_jupiter_swap, JupiterSwap};
 
@@ -119,8 +125,31 @@ pub struct OpenPosition<'info> {
     #[account(mut)]
     pub borrow_reserve_fee_receiver: UncheckedAccount<'info>,
 
+    /// CHECK: matched against the farm the collateral reserve names, absent when it names none
+    #[account(mut)]
+    pub collateral_reserve_farm_state: Option<UncheckedAccount<'info>>,
+
+    /// CHECK: this position's stake in that farm, created and owned by the farms program
+    #[account(mut)]
+    pub collateral_obligation_farm_state: Option<UncheckedAccount<'info>>,
+
+    /// CHECK: matched against the farm the borrow reserve names, absent when it names none
+    #[account(mut)]
+    pub borrow_reserve_farm_state: Option<UncheckedAccount<'info>>,
+
+    /// CHECK: this position's stake in that farm, created and owned by the farms program
+    #[account(mut)]
+    pub borrow_obligation_farm_state: Option<UncheckedAccount<'info>>,
+
     /// CHECK: matched against the price account the collateral entry records in the config
     pub scope_prices: UncheckedAccount<'info>,
+
+    /// CHECK: the farms program the lending market stakes through, from the constants module
+    #[account(address = KAMINO_FARMS_PROGRAM_ID)]
+    pub farms_program: UncheckedAccount<'info>,
+    /// CHECK: the swap router itself, checked against the constants module
+    #[account(address = JUPITER_V6_PROGRAM_ID)]
+    pub swap_program: UncheckedAccount<'info>,
 
     /// CHECK: the lending market program itself, checked against the constants module
     #[account(address = KAMINO_LEND_PROGRAM_ID)]
@@ -266,6 +295,7 @@ pub fn handle_open_position<'info>(
             user_metadata: accounts.user_metadata.to_account_info(),
             fee_payer: accounts.owner.to_account_info(),
             position: accounts.position.to_account_info(),
+            kamino_program: accounts.kamino_program.to_account_info(),
             rent: accounts.rent.to_account_info(),
             system_program: accounts.system_program.to_account_info(),
         },
@@ -281,9 +311,38 @@ pub fn handle_open_position<'info>(
             owner_user_metadata: accounts.user_metadata.to_account_info(),
             fee_payer: accounts.owner.to_account_info(),
             position: accounts.position.to_account_info(),
+            kamino_program: accounts.kamino_program.to_account_info(),
             rent: accounts.rent.to_account_info(),
             system_program: accounts.system_program.to_account_info(),
         },
+        &position_seeds,
+    )?;
+
+    let collateral_farms = farm_accounts_for_reserve(
+        collateral_reserve.farm_collateral,
+        optional_account_info(&accounts.collateral_reserve_farm_state),
+        optional_account_info(&accounts.collateral_obligation_farm_state),
+        accounts.farms_program.to_account_info(),
+    )?;
+    let borrow_farms = farm_accounts_for_reserve(
+        borrow_reserve.farm_debt,
+        optional_account_info(&accounts.borrow_reserve_farm_state),
+        optional_account_info(&accounts.borrow_obligation_farm_state),
+        accounts.farms_program.to_account_info(),
+    )?;
+
+    start_farm_stake(
+        accounts,
+        &collateral_farms,
+        &accounts.collateral_reserve.to_account_info(),
+        FARM_MODE_COLLATERAL,
+        &position_seeds,
+    )?;
+    start_farm_stake(
+        accounts,
+        &borrow_farms,
+        &accounts.borrow_reserve.to_account_info(),
+        FARM_MODE_DEBT,
         &position_seeds,
     )?;
 
@@ -298,11 +357,23 @@ pub fn handle_open_position<'info>(
     };
     let ledger_before = read_position_ledger(&position_accounts, &collateral_entry.reserve)?;
 
-    refresh_both_reserves(accounts)?;
+    let both_reserves = [
+        accounts.collateral_reserve.to_account_info(),
+        accounts.borrow_reserve.to_account_info(),
+    ];
+
+    refresh_reserve(
+        &ReserveRefresh {
+            reserve: accounts.collateral_reserve.to_account_info(),
+            lending_market: accounts.lending_market.to_account_info(),
+            scope_prices: accounts.scope_prices.to_account_info(),
+        },
+        &accounts.kamino_program.to_account_info(),
+    )?;
     refresh_obligation(
         &accounts.obligation.to_account_info(),
         &accounts.lending_market.to_account_info(),
-        &[],
+        &both_reserves,
     )?;
 
     let kamino_collateral_token_program =
@@ -314,6 +385,7 @@ pub fn handle_open_position<'info>(
         lending_market: accounts.lending_market.to_account_info(),
         lending_market_authority: accounts.lending_market_authority.to_account_info(),
         position: accounts.position.to_account_info(),
+        kamino_program: accounts.kamino_program.to_account_info(),
     };
 
     deposit_collateral(
@@ -335,18 +407,25 @@ pub fn handle_open_position<'info>(
             liquidity_token_program: kamino_liquidity_token_program.clone(),
             instruction_sysvar: accounts.instruction_sysvar.to_account_info(),
         },
+        &collateral_farms,
         collateral_amount,
         &position_seeds,
     )?;
 
-    refresh_both_reserves(accounts)?;
+    for reserve in &both_reserves {
+        refresh_reserve(
+            &ReserveRefresh {
+                reserve: reserve.clone(),
+                lending_market: accounts.lending_market.to_account_info(),
+                scope_prices: accounts.scope_prices.to_account_info(),
+            },
+            &accounts.kamino_program.to_account_info(),
+        )?;
+    }
     refresh_obligation(
         &accounts.obligation.to_account_info(),
         &accounts.lending_market.to_account_info(),
-        &[
-            accounts.collateral_reserve.to_account_info(),
-            accounts.borrow_reserve.to_account_info(),
-        ],
+        &both_reserves,
     )?;
 
     borrow_liquidity(
@@ -360,11 +439,12 @@ pub fn handle_open_position<'info>(
             token_program: accounts.borrow_token_program.to_account_info(),
             instruction_sysvar: accounts.instruction_sysvar.to_account_info(),
         },
+        &borrow_farms,
         borrow_amount,
         &position_seeds,
     )?;
 
-    let deposited_collateral = deposited_collateral_after(
+    let deposited_collateral = read_obligation_deposited_amount(
         &accounts.obligation.to_account_info(),
         &collateral_entry.reserve,
     )?;
@@ -374,13 +454,14 @@ pub fn handle_open_position<'info>(
             .ok_or(AccrueError::ObligationCollateralMoved)?,
     );
 
-    let swapped = if leave_usdc_for_later_swap {
-        None
+    let swap = if leave_usdc_for_later_swap {
+        SwapCheck::NoSwapInThisInstruction
     } else {
-        Some(execute_jupiter_swap(
+        let bounds = execute_jupiter_swap(
             &JupiterSwap {
                 source: accounts.position_usdc_account.to_account_info(),
                 destination: accounts.position_destination_account.to_account_info(),
+                swap_program: accounts.swap_program.to_account_info(),
                 amount_in: borrow_amount,
                 minimum_out: minimum_destination_amount,
             },
@@ -388,18 +469,21 @@ pub fn handle_open_position<'info>(
             context.remaining_accounts,
             &jupiter_route_data,
             &position_seeds,
-        )?)
+        )?;
+        SwapCheck::EndsWithAtLeast {
+            source: accounts.position_usdc_account.key(),
+            destination: accounts.position_destination_account.key(),
+            bounds,
+        }
     };
 
-    assert_invariants_hold(
-        &position_accounts,
-        &collateral_entry.reserve,
-        &ledger_before,
+    assert_invariants_hold(&InvariantCheck {
+        accounts: &position_accounts,
+        collateral_reserve: &collateral_entry.reserve,
+        before: &ledger_before,
         collateral_movement,
-        swapped,
-        Some(&accounts.position_usdc_account.key()),
-        Some(&accounts.position_destination_account.key()),
-    )?;
+        swap,
+    })?;
 
     let clock = Clock::get()?;
     let position = &mut context.accounts.position;
@@ -431,22 +515,42 @@ pub fn handle_open_position<'info>(
     Ok(())
 }
 
-fn refresh_both_reserves(accounts: &OpenPosition<'_>) -> Result<()> {
-    refresh_reserve(
-        &ReserveRefresh {
-            reserve: accounts.collateral_reserve.to_account_info(),
+fn optional_account_info<'info>(
+    account: &Option<UncheckedAccount<'info>>,
+) -> Option<AccountInfo<'info>> {
+    account.as_ref().map(|account| account.to_account_info())
+}
+
+fn start_farm_stake<'info>(
+    accounts: &OpenPosition<'info>,
+    farms: &FarmAccounts<'info>,
+    reserve: &AccountInfo<'info>,
+    mode: u8,
+    position_seeds: &[&[u8]],
+) -> Result<()> {
+    let (Some(reserve_farm_state), Some(obligation_farm_user_state)) = (
+        farms.reserve_farm_state.clone(),
+        farms.obligation_farm_user_state.clone(),
+    ) else {
+        return Ok(());
+    };
+
+    init_obligation_farm(
+        &InitObligationFarmAccounts {
+            fee_payer: accounts.owner.to_account_info(),
+            obligation: accounts.obligation.to_account_info(),
             lending_market: accounts.lending_market.to_account_info(),
-            scope_prices: accounts.scope_prices.to_account_info(),
+            lending_market_authority: accounts.lending_market_authority.to_account_info(),
+            reserve: reserve.clone(),
+            reserve_farm_state,
+            obligation_farm_user_state,
+            position: accounts.position.to_account_info(),
+            farms_program: accounts.farms_program.to_account_info(),
+            rent: accounts.rent.to_account_info(),
+            system_program: accounts.system_program.to_account_info(),
         },
-        &accounts.kamino_program.to_account_info(),
-    )?;
-    refresh_reserve(
-        &ReserveRefresh {
-            reserve: accounts.borrow_reserve.to_account_info(),
-            lending_market: accounts.lending_market.to_account_info(),
-            scope_prices: accounts.scope_prices.to_account_info(),
-        },
-        &accounts.kamino_program.to_account_info(),
+        mode,
+        position_seeds,
     )
 }
 
@@ -464,11 +568,6 @@ fn transfer_collateral_from_owner(accounts: &OpenPosition<'_>, amount: u64) -> R
         amount,
         accounts.collateral_mint.decimals,
     )
-}
-
-fn deposited_collateral_after(obligation: &AccountInfo<'_>, reserve: &Pubkey) -> Result<u64> {
-    let snapshot = crate::kamino::read_obligation_account(obligation)?;
-    Ok(snapshot.deposited_amount_for_reserve(reserve))
 }
 
 fn collateral_value_in_whole_usd(

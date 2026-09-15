@@ -104,6 +104,126 @@ impl ObligationSnapshot {
     }
 }
 
+pub fn obligation_was_closed_by_the_market(account: &AccountInfo<'_>) -> bool {
+    account.data_is_empty()
+}
+
+fn borrow_kamino_account<'a>(
+    account: &'a AccountInfo<'_>,
+) -> Result<std::cell::Ref<'a, &'a mut [u8]>> {
+    require_keys_eq!(
+        *account.owner,
+        super::KAMINO_LEND_PROGRAM_ID,
+        AccrueError::NotAKaminoAccount
+    );
+    let data = account.try_borrow_data()?;
+    require!(
+        data.len() == OBLIGATION_ACCOUNT_LEN,
+        AccrueError::KaminoAccountTooShort
+    );
+    Ok(data)
+}
+
+pub fn read_obligation_reserves_in_order(account: &AccountInfo<'_>) -> Result<Vec<Pubkey>> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(Vec::new());
+    }
+    let data = borrow_kamino_account(account)?;
+    let mut reserves = Vec::new();
+
+    for index in 0..MAX_OBLIGATION_DEPOSITS {
+        let base = OFFSET_DEPOSITS.saturating_add(index.saturating_mul(DEPOSIT_ENTRY_LEN));
+        let reserve = read_pubkey_at(&data, base)?;
+        if reserve != Pubkey::default() {
+            reserves.push(reserve);
+        }
+    }
+    for index in 0..MAX_OBLIGATION_BORROWS {
+        let base = OFFSET_BORROWS.saturating_add(index.saturating_mul(BORROW_ENTRY_LEN));
+        let reserve = read_pubkey_at(&data, base)?;
+        if reserve != Pubkey::default() {
+            reserves.push(reserve);
+        }
+    }
+    Ok(reserves)
+}
+
+pub fn read_obligation_deposited_amount(
+    account: &AccountInfo<'_>,
+    reserve: &Pubkey,
+) -> Result<u64> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    for index in 0..MAX_OBLIGATION_DEPOSITS {
+        let base = OFFSET_DEPOSITS.saturating_add(index.saturating_mul(DEPOSIT_ENTRY_LEN));
+        if read_pubkey_at(&data, base)? == *reserve {
+            return read_u64_at(&data, base.saturating_add(DEPOSIT_DEPOSITED_AMOUNT));
+        }
+    }
+    Ok(0)
+}
+
+pub fn read_obligation_borrowed_amount_scaled(
+    account: &AccountInfo<'_>,
+    reserve: &Pubkey,
+) -> Result<u128> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    for index in 0..MAX_OBLIGATION_BORROWS {
+        let base = OFFSET_BORROWS.saturating_add(index.saturating_mul(BORROW_ENTRY_LEN));
+        if read_pubkey_at(&data, base)? == *reserve {
+            return read_u128_at(&data, base.saturating_add(BORROW_BORROWED_AMOUNT_SF));
+        }
+    }
+    Ok(0)
+}
+
+pub fn read_obligation_deposited_value_scaled(account: &AccountInfo<'_>) -> Result<u128> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    read_u128_at(&data, OFFSET_DEPOSITED_VALUE_SF)
+}
+
+pub fn read_obligation_borrowed_value_scaled(account: &AccountInfo<'_>) -> Result<u128> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    read_u128_at(&data, OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF)
+}
+
+pub fn read_obligation_has_debt(account: &AccountInfo<'_>) -> Result<bool> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(false);
+    }
+    let data = borrow_kamino_account(account)?;
+    Ok(read_u8_at(&data, OFFSET_HAS_DEBT)? != 0)
+}
+
+pub fn read_obligation_loan_to_value_bps(account: &AccountInfo<'_>) -> Result<u16> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    let deposited = read_u128_at(&data, OFFSET_DEPOSITED_VALUE_SF)?;
+    if deposited == 0 {
+        return Ok(0);
+    }
+    let borrowed = read_u128_at(&data, OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF)?;
+    let ratio = borrowed
+        .checked_mul(10_000)
+        .ok_or(AccrueError::MathOverflow)?
+        .checked_div(deposited)
+        .ok_or(AccrueError::MathOverflow)?;
+    u16::try_from(ratio.min(u128::from(u16::MAX))).map_err(|_| AccrueError::MathOverflow.into())
+}
+
 pub fn read_obligation_account(account: &AccountInfo<'_>) -> Result<ObligationSnapshot> {
     require_keys_eq!(
         *account.owner,
