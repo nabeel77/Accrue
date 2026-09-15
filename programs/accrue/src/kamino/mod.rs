@@ -9,7 +9,7 @@ use anchor_lang::prelude::Pubkey;
 
 pub use fraction::{
     scaled_fraction_to_whole_units, scaled_fraction_to_whole_units_rounding_up,
-    whole_units_to_scaled_fraction, SCALED_FRACTION_ONE,
+    whole_units_to_scaled_fraction, SCALED_FRACTION_BITS, SCALED_FRACTION_ONE,
 };
 pub use obligation::{
     decode_obligation, obligation_was_closed_by_the_market, read_obligation_account,

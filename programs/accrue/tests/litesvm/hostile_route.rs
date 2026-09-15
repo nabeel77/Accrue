@@ -1,4 +1,4 @@
-use accrue::constants::{KAMINO_FARMS_PROGRAM_ID, TOKEN_PROGRAM_ID};
+use accrue::constants::{JUPITER_V6_PROGRAM_ID, KAMINO_FARMS_PROGRAM_ID, TOKEN_PROGRAM_ID};
 use accrue::kamino::KAMINO_LEND_PROGRAM_ID;
 use solana_address::Address;
 use solana_instruction::AccountMeta;
@@ -16,7 +16,10 @@ const ATTACK_PAY_LESS_THAN_THE_MINIMUM: u8 = 1;
 const ATTACK_SEND_THE_OUTPUT_SOMEWHERE_ELSE: u8 = 2;
 const ATTACK_DRAIN_AN_ACCOUNT_IT_WAS_HANDED: u8 = 3;
 const ATTACK_CLOSE_AN_ACCOUNT_IT_WAS_HANDED: u8 = 4;
-const ATTACK_HONEST_FILL: u8 = 5;
+use crate::actions::ATTACK_HONEST_FILL;
+const ATTACK_APPROVE_ITSELF_AS_DELEGATE: u8 = 6;
+const ATTACK_TAKE_THE_OWNER_AUTHORITY: u8 = 7;
+const ATTACK_SET_A_CLOSE_AUTHORITY: u8 = 8;
 
 struct Untouched {
     usdc: u64,
@@ -25,6 +28,37 @@ struct Untouched {
     obligation_collateral: u64,
     obligation_debt: u128,
     position_lamports: u64,
+    authorities: [TokenAccountAuthorities; 3],
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct TokenAccountAuthorities {
+    owner: Address,
+    delegate: Option<Address>,
+    close_authority: Option<Address>,
+}
+
+fn read_authorities(world: &World, token_account: &Address) -> TokenAccountAuthorities {
+    let account = world.svm.get_account(token_account).unwrap();
+    let address_at = |offset: usize| {
+        let mut buffer = [0u8; 32];
+        buffer.copy_from_slice(&account.data[offset..offset + 32]);
+        Address::from(buffer)
+    };
+    let option_at = |tag: usize, value: usize| {
+        let mut buffer = [0u8; 4];
+        buffer.copy_from_slice(&account.data[tag..tag + 4]);
+        if u32::from_le_bytes(buffer) == 0 {
+            None
+        } else {
+            Some(address_at(value))
+        }
+    };
+    TokenAccountAuthorities {
+        owner: address_at(32),
+        delegate: option_at(72, 76),
+        close_authority: option_at(129, 133),
+    }
 }
 
 impl Untouched {
@@ -36,6 +70,11 @@ impl Untouched {
             obligation_collateral: world.obligation_collateral(&opened.obligation),
             obligation_debt: world.obligation_debt(&opened.obligation),
             position_lamports: world.lamports_of(&opened.address),
+            authorities: [
+                read_authorities(world, &opened.tokens.position_collateral),
+                read_authorities(world, &opened.tokens.position_usdc),
+                read_authorities(world, &opened.tokens.position_destination),
+            ],
         }
     }
 
@@ -70,6 +109,21 @@ impl Untouched {
             self.position_lamports,
             "{attack} moved lamports out of the position"
         );
+
+        let now = [
+            read_authorities(world, &opened.tokens.position_collateral),
+            read_authorities(world, &opened.tokens.position_usdc),
+            read_authorities(world, &opened.tokens.position_destination),
+        ];
+        assert_eq!(
+            now, self.authorities,
+            "{attack} changed an authority on a position token account"
+        );
+        for authorities in &now {
+            assert_eq!(authorities.owner, opened.address);
+            assert_eq!(authorities.delegate, None);
+            assert_eq!(authorities.close_authority, None);
+        }
     }
 }
 
@@ -230,6 +284,61 @@ fn a_route_handed_a_lending_market_account_is_refused_before_it_runs() {
             .unwrap_or_else(|| panic!("the route was handed {forbidden} and ran"));
         before.assert_still_true(&world, &opened, "handing over a forbidden account");
     }
+}
+
+fn assert_the_authority_trick_reverts(mode: u8, expected_error: &str, attack: &str) {
+    let (mut world, opened) = a_position_with_a_hostile_router();
+    let thief = world.stranger.pubkey();
+    let before = Untouched::read(&world, &opened);
+    let route = buying_route(&world, &opened, Some(thief));
+    let destination_out = 3_900_000_000;
+
+    let failure = world
+        .buy_destination(
+            &opened,
+            destination_out,
+            hostile_route_data(mode, BORROW_AMOUNT, destination_out),
+            route,
+        )
+        .expect_err("a route that pays in full and still takes an authority must revert");
+    let logs = failure.meta.logs.join("\n");
+    assert!(
+        logs.contains(&format!("Program {JUPITER_V6_PROGRAM_ID} success")),
+        "{attack} never got as far as paying in full, so the revert proves nothing:\n{logs}"
+    );
+    assert!(
+        logs.contains(expected_error),
+        "{attack} reverted for the wrong reason:\n{logs}"
+    );
+
+    before.assert_still_true(&world, &opened, attack);
+}
+
+#[test]
+fn a_route_that_approves_itself_as_delegate_reverts_even_when_it_pays_in_full() {
+    assert_the_authority_trick_reverts(
+        ATTACK_APPROVE_ITSELF_AS_DELEGATE,
+        "PositionTokenAccountHasADelegate",
+        "approving itself as delegate",
+    );
+}
+
+#[test]
+fn a_route_that_takes_the_owner_authority_reverts_even_when_it_pays_in_full() {
+    assert_the_authority_trick_reverts(
+        ATTACK_TAKE_THE_OWNER_AUTHORITY,
+        "PositionTokenAccountOwnerChanged",
+        "taking the owner authority",
+    );
+}
+
+#[test]
+fn a_route_that_sets_a_close_authority_reverts_even_when_it_pays_in_full() {
+    assert_the_authority_trick_reverts(
+        ATTACK_SET_A_CLOSE_AUTHORITY,
+        "PositionTokenAccountHasACloseAuthority",
+        "setting a close authority",
+    );
 }
 
 #[test]

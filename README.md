@@ -4,24 +4,25 @@ Accrue puts tokenized stocks on Solana to work without selling them, and guards 
 
 You deposit a stock token as collateral in a lending market, borrow USDC against it, and put that USDC into a yield token that targets more than the loan costs. You keep the stock and all of its upside. An on chain program owns the position in an account only you can empty, and repays part of the loan when the stock falls, before the market can liquidate you. Anyone can run that guard. Nobody can redirect it.
 
-This repository is at Phase 0: the skeleton is in place and the program is empty. The sections below describe what exists today, and the plan states what each later phase adds.
+The program and the guard bot are written and tested. The web app is still a skeleton. The sections below describe what exists today, and the plan states what each later phase adds.
 
 ## Status
 
 | Part                                     | State                                |
 | ---------------------------------------- | ------------------------------------ |
 | Monorepo, toolchain, hooks, CI           | Done                                 |
-| Program skeleton, IDL, generated client  | Done, no instructions yet            |
+| Program, IDL, generated client           | Done, every instruction              |
 | Database schema and first migration      | Generated, applied by the operator   |
-| LiteSVM harness on mainnet snapshots     | Done, 28 accounts at a recorded slot |
-| Position instructions, invariants, guard | Not started                          |
-| Web app, keeper loop, rescue page        | Skeletons only                       |
+| LiteSVM harness on mainnet snapshots     | Done, 33 accounts at a recorded slot |
+| Position instructions, invariants, guard | Done, tested against both routers    |
+| Keeper loop                              | Done, tested a whole round at a time |
+| Web app, rescue page                     | Skeletons only                       |
 
 Nothing here is deployed. There is no program id on mainnet yet, no audit, and no live site.
 
-## What the program will be able to do
+## What the program can do
 
-The permission table is the point of the whole design, so it is stated before anything else. None of these instructions exist yet; this is the contract the next phase is written against.
+The permission table is the point of the whole design, so it is stated before anything else.
 
 | Instruction           | Who may call it   | What it does                                                                                                                                  |
 | --------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |

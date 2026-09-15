@@ -108,6 +108,9 @@ jobs:
       - name: litesvm suite
         run: cargo test --package accrue --test litesvm
 
+      - name: keeper rounds
+        run: pnpm run test:rounds
+
       - name: anchor test
         run: pnpm run program:test --skip-build
 

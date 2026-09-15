@@ -6,4 +6,5 @@ target
 coverage
 pnpm-lock.yaml
 packages/solana/src/program
+packages/solana/src/kamino/generated
 packages/db/migrations

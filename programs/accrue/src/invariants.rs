@@ -71,6 +71,55 @@ pub fn token_account_amount(account: &AccountInfo<'_>) -> Result<u64> {
     Ok(u64::from_le_bytes(buffer))
 }
 
+const TOKEN_ACCOUNT_OWNER_OFFSET: usize = 32;
+const TOKEN_ACCOUNT_DELEGATE_TAG_OFFSET: usize = 72;
+const TOKEN_ACCOUNT_CLOSE_AUTHORITY_TAG_OFFSET: usize = 129;
+const COPTION_NONE: u32 = 0;
+
+fn coption_is_none(data: &[u8], offset: usize) -> Result<bool> {
+    let end = offset
+        .checked_add(4)
+        .ok_or(AccrueError::KaminoAccountTooShort)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(AccrueError::KaminoAccountTooShort)?;
+    let mut buffer = [0u8; 4];
+    buffer.copy_from_slice(bytes);
+    Ok(u32::from_le_bytes(buffer) == COPTION_NONE)
+}
+
+pub fn assert_the_position_still_holds_its_token_account(
+    account: &AccountInfo<'_>,
+    position: &Pubkey,
+) -> Result<()> {
+    require!(
+        is_known_token_program(account.owner),
+        AccrueError::UnknownTokenProgram
+    );
+    let data = account.try_borrow_data()?;
+
+    let owner_bytes = data
+        .get(TOKEN_ACCOUNT_OWNER_OFFSET..TOKEN_ACCOUNT_OWNER_OFFSET.saturating_add(32))
+        .ok_or(AccrueError::KaminoAccountTooShort)?;
+    let mut buffer = [0u8; 32];
+    buffer.copy_from_slice(owner_bytes);
+    require_keys_eq!(
+        Pubkey::new_from_array(buffer),
+        *position,
+        AccrueError::PositionTokenAccountOwnerChanged
+    );
+
+    require!(
+        coption_is_none(&data, TOKEN_ACCOUNT_DELEGATE_TAG_OFFSET)?,
+        AccrueError::PositionTokenAccountHasADelegate
+    );
+    require!(
+        coption_is_none(&data, TOKEN_ACCOUNT_CLOSE_AUTHORITY_TAG_OFFSET)?,
+        AccrueError::PositionTokenAccountHasACloseAuthority
+    );
+    Ok(())
+}
+
 pub fn token_account_owner(account: &AccountInfo<'_>) -> Result<Pubkey> {
     require!(
         is_known_token_program(account.owner),
@@ -207,6 +256,17 @@ pub fn assert_invariants_hold(check: &InvariantCheck<'_, '_>) -> Result<()> {
         !accounts.destination_token_account.data_is_empty(),
         AccrueError::PositionAccountMissing
     );
+
+    let position_key = accounts.position.key();
+    assert_the_position_still_holds_its_token_account(
+        &accounts.collateral_token_account,
+        &position_key,
+    )?;
+    assert_the_position_still_holds_its_token_account(&accounts.usdc_token_account, &position_key)?;
+    assert_the_position_still_holds_its_token_account(
+        &accounts.destination_token_account,
+        &position_key,
+    )?;
 
     let before = check.before;
     let after = read_position_ledger(accounts, check.collateral_reserve)?;

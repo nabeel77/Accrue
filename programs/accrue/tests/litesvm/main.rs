@@ -10,12 +10,15 @@
 
 mod actions;
 mod compute_units;
+mod grow;
 mod hostile_route;
 mod kamino_layout;
 mod kamino_refresh;
+mod leave;
 mod open_position;
 mod owner_instructions;
 mod permissions;
+mod protect;
 mod snapshot;
 mod world;
 

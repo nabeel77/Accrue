@@ -10,6 +10,7 @@ use litesvm::types::{FailedTransactionMetadata, TransactionMetadata};
 use litesvm::LiteSVM;
 use solana_account::Account;
 use solana_address::Address;
+use solana_clock::Clock;
 use solana_instruction::Instruction;
 use solana_keypair::Keypair;
 use solana_message::Message;
@@ -25,6 +26,11 @@ pub const BORROW_RESERVE_LABEL: &str = "reserve_usdc";
 pub const DESTINATION_MINT_LABEL: &str = "mint_onyc";
 pub const MARKET_LABEL: &str = "xstocks_market";
 pub const SCOPE_PRICES_LABEL: &str = "oracle_scope_prices";
+pub const ONYC_SCOPE_FEED_INDEX: u16 = 350;
+pub const ONYC_SCOPE_TWAP_FEED_INDEX: u16 = 478;
+const RESERVE_TWAP_CHAIN_OFFSET: usize = 5_152;
+const SCOPE_FIRST_PRICE_OFFSET: usize = 40;
+const SCOPE_DATED_PRICE_LEN: usize = 56;
 
 pub const MARKET_AUTHORITY_SEED: &[u8] = b"lma";
 pub const USER_METADATA_SEED: &[u8] = b"user_meta";
@@ -41,6 +47,8 @@ const MINT_ACCOUNT_LEN: usize = 82;
 const TOKEN_ACCOUNT_RENT_LAMPORTS: u64 = 2_039_280;
 const MINT_ACCOUNT_RENT_LAMPORTS: u64 = 1_461_600;
 const VAULT_HEADROOM_MULTIPLIER: u64 = 4;
+const SLOTS_PER_SECOND: u64 = 2;
+const SLOTS_PER_EPOCH: u64 = 432_000;
 const COMPUTE_BUDGET_PROGRAM_ID: Address =
     solana_address::address!("ComputeBudget111111111111111111111111111111");
 const SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR: u8 = 2;
@@ -87,6 +95,7 @@ impl ReserveUnderTest {
 
 pub struct World {
     pub svm: LiteSVM,
+    pub clock: Clock,
     pub owner: Keypair,
     pub admin: Keypair,
     pub guardian: Keypair,
@@ -101,12 +110,25 @@ pub struct World {
     pub destination_mint: Address,
     pub destination_token_program: Address,
     pub swap_authority: Address,
+    pub router_is_hostile: bool,
 }
 
 impl World {
     pub fn new() -> Self {
         let snapshot = load_mainnet_snapshot().unwrap();
-        let MainnetSnapshot { mut svm, .. } = snapshot;
+        let MainnetSnapshot {
+            mut svm,
+            slot,
+            unix_timestamp,
+            ..
+        } = snapshot;
+        let clock = Clock {
+            slot,
+            epoch_start_timestamp: unix_timestamp,
+            epoch: slot / SLOTS_PER_EPOCH,
+            leader_schedule_epoch: slot / SLOTS_PER_EPOCH,
+            unix_timestamp,
+        };
 
         let reference = load_mainnet_snapshot().unwrap();
         svm.add_program_from_file(KAMINO_LEND_PROGRAM_ID, kamino_program_path())
@@ -147,6 +169,7 @@ impl World {
 
         let mut world = Self {
             svm,
+            clock,
             owner,
             admin,
             guardian,
@@ -161,6 +184,7 @@ impl World {
             destination_mint,
             destination_token_program: TOKEN_PROGRAM_ID,
             swap_authority,
+            router_is_hostile: false,
         };
 
         world.seed_reserve_vaults();
@@ -175,6 +199,7 @@ impl World {
     }
 
     pub fn install_swap_program(&mut self, file_name: &str) {
+        self.router_is_hostile = file_name.contains("hostile");
         let path = crate::snapshot::fixtures_directory()
             .join("../../target/deploy")
             .join(file_name);
@@ -300,7 +325,7 @@ impl World {
             mint: self.destination_mint,
             token_program: self.destination_token_program,
             scope_price_account: self.scope_prices,
-            scope_feed_index: 0,
+            scope_feed_index: ONYC_SCOPE_FEED_INDEX,
             enabled: true,
         };
         self.update_config(accrue::instructions::ConfigUpdate {
@@ -526,6 +551,163 @@ impl World {
             .unwrap();
     }
 
+    /// What a keeper does before it decides: refresh both reserves and the obligation with plain
+    /// permissionless instructions, then read the loan to value off the chain.
+    pub fn refresh_the_market_from_outside(&mut self) {
+        let market = self.market;
+        let scope = self.scope_prices;
+        let mut instructions = Vec::new();
+        for reserve in [self.collateral.address, self.borrow.address] {
+            instructions.push(
+                accrue::kamino::generated::instructions::RefreshReserve {
+                    reserve,
+                    lending_market: market,
+                    pyth_oracle: None,
+                    switchboard_price_oracle: None,
+                    switchboard_twap_oracle: None,
+                    scope_prices: Some(scope),
+                }
+                .instruction(),
+            );
+        }
+        self.svm.expire_blockhash();
+        let payer = self.stranger.insecure_clone();
+        self.send(&instructions, &[&payer])
+            .unwrap_or_else(|failure| {
+                panic!("refreshing the reserves reverted: {:?}", failure.err)
+            });
+    }
+
+    pub fn refresh_the_obligation_from_outside(&mut self, obligation: Address) {
+        let mut instruction = accrue::kamino::generated::instructions::RefreshObligation {
+            lending_market: self.market,
+            obligation,
+        }
+        .instruction();
+        for reserve in [self.collateral.address, self.borrow.address] {
+            instruction
+                .accounts
+                .push(solana_instruction::AccountMeta::new(reserve, false));
+        }
+        let payer = self.stranger.insecure_clone();
+        self.send(&[instruction], &[&payer])
+            .unwrap_or_else(|failure| {
+                panic!("refreshing the obligation reverted: {:?}", failure.err)
+            });
+    }
+
+    pub fn obligation_values_scaled(&self, obligation: &Address) -> (u128, u128) {
+        let snapshot = self.decoded_obligation(obligation).unwrap();
+        (
+            snapshot.borrowed_assets_market_value_scaled,
+            snapshot.deposited_value_scaled,
+        )
+    }
+
+    pub fn obligation_loan_to_value_bps(&self, obligation: &Address) -> u16 {
+        self.decoded_obligation(obligation)
+            .map_or(0, |snapshot| snapshot.loan_to_value_bps().unwrap())
+    }
+
+    pub fn scope_price_scaled(&self, feed_index: u16) -> u128 {
+        let (value, exponent, last_updated_slot) = self.scope_price(feed_index);
+        accrue::scope::ScopePrice {
+            value,
+            exponent,
+            last_updated_slot,
+        }
+        .usd_per_whole_token_scaled()
+        .unwrap()
+    }
+
+    pub fn scope_price(&self, feed_index: u16) -> (u64, u64, u64) {
+        let account = self.svm.get_account(&self.scope_prices).unwrap();
+        let base = SCOPE_FIRST_PRICE_OFFSET + usize::from(feed_index) * SCOPE_DATED_PRICE_LEN;
+        let read = |offset: usize| {
+            let mut buffer = [0u8; 8];
+            buffer.copy_from_slice(&account.data[base + offset..base + offset + 8]);
+            u64::from_le_bytes(buffer)
+        };
+        (read(0), read(8), read(16))
+    }
+
+    pub fn write_scope_price(&mut self, feed_index: u16, value: u64, last_updated_slot: u64) {
+        let mut account = self.svm.get_account(&self.scope_prices).unwrap();
+        let base = SCOPE_FIRST_PRICE_OFFSET + usize::from(feed_index) * SCOPE_DATED_PRICE_LEN;
+        account.data[base..base + 8].copy_from_slice(&value.to_le_bytes());
+        account.data[base + 16..base + 24].copy_from_slice(&last_updated_slot.to_le_bytes());
+        account.data[base + 24..base + 32]
+            .copy_from_slice(&self.clock.unix_timestamp.to_le_bytes());
+        self.svm.set_account(self.scope_prices, account).unwrap();
+    }
+
+    /// Every feed the lending market and the program read, price and the twap it is checked
+    /// against, so a synthetic move stays inside the market's own divergence rules.
+    pub fn every_feed_in_play(&self) -> [u16; 6] {
+        [
+            self.collateral.snapshot.scope_feed_index,
+            self.twap_feed_of(&self.collateral.address),
+            self.borrow.snapshot.scope_feed_index,
+            self.twap_feed_of(&self.borrow.address),
+            ONYC_SCOPE_FEED_INDEX,
+            ONYC_SCOPE_TWAP_FEED_INDEX,
+        ]
+    }
+
+    pub fn twap_feed_of(&self, reserve: &Address) -> u16 {
+        let account = self.svm.get_account(reserve).unwrap();
+        let mut buffer = [0u8; 2];
+        buffer.copy_from_slice(
+            &account.data[RESERVE_TWAP_CHAIN_OFFSET..RESERVE_TWAP_CHAIN_OFFSET + 2],
+        );
+        u16::from_le_bytes(buffer)
+    }
+
+    /// Moves a price and the twap it is checked against together, the way a real move would.
+    pub fn move_the_price(&mut self, feed_index: u16, numerator: u64, denominator: u64) {
+        let twap = if feed_index == self.collateral.snapshot.scope_feed_index {
+            self.twap_feed_of(&self.collateral.address)
+        } else if feed_index == self.borrow.snapshot.scope_feed_index {
+            self.twap_feed_of(&self.borrow.address)
+        } else {
+            ONYC_SCOPE_TWAP_FEED_INDEX
+        };
+        let slot = self.clock.slot;
+        for feed in [feed_index, twap] {
+            let (value, _, _) = self.scope_price(feed);
+            let moved =
+                u64::try_from(u128::from(value) * u128::from(numerator) / u128::from(denominator))
+                    .unwrap();
+            self.write_scope_price(feed, moved, slot);
+        }
+    }
+
+    pub fn make_the_price_stale(&mut self, feed_index: u16, slots_old: u64) {
+        let (value, _, _) = self.scope_price(feed_index);
+        let slot = self.clock.slot.saturating_sub(slots_old);
+        self.write_scope_price(feed_index, value, slot);
+    }
+
+    pub fn move_time_forward(&mut self, seconds: i64) {
+        self.clock.unix_timestamp += seconds;
+        self.clock.slot += u64::try_from(seconds).unwrap() * SLOTS_PER_SECOND;
+        self.svm.warp_to_slot(self.clock.slot);
+        self.svm.set_sysvar(&self.clock.clone());
+        self.keep_every_scope_price_fresh();
+    }
+
+    pub fn keep_every_scope_price_fresh(&mut self) {
+        let slot = self.clock.slot;
+        for feed in self.every_feed_in_play() {
+            let (value, _, _) = self.scope_price(feed);
+            self.write_scope_price(feed, value, slot);
+        }
+    }
+
+    pub fn now(&self) -> i64 {
+        self.clock.unix_timestamp
+    }
+
     pub fn obligation_collateral(&self, obligation: &Address) -> u64 {
         self.decoded_obligation(obligation).map_or(0, |snapshot| {
             snapshot.deposited_amount_for_reserve(&self.collateral.address)
@@ -538,7 +720,7 @@ impl World {
         })
     }
 
-    fn decoded_obligation(
+    pub fn decoded_obligation(
         &self,
         obligation: &Address,
     ) -> Option<accrue::kamino::ObligationSnapshot> {
