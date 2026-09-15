@@ -1,3 +1,4 @@
+pub mod cpi;
 pub mod fraction;
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 pub mod generated;
