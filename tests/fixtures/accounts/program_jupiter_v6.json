@@ -1,0 +1,9 @@
+{
+  "label": "program_jupiter_v6",
+  "description": "Jupiter v6, the swap router every route is built against.",
+  "address": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+  "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+  "lamports": "6944115527",
+  "executable": true,
+  "data_base64": "AgAAADAPUGBbvrcwh4nmwPvj5KNgIENvbqDK2oAmDbRv9mCE"
+}

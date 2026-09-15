@@ -1,0 +1,9 @@
+{
+  "label": "program_kamino_lend",
+  "description": "The deployed Kamino Lend program the position calls for deposit, borrow, repay and withdraw.",
+  "address": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+  "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+  "lamports": "33141440",
+  "executable": true,
+  "data_base64": "AgAAAIRMohNu7QFIhSZnG4DdIQLFGAqjMqCcvme5zoE+LQAr"
+}

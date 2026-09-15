@@ -1,0 +1,53 @@
+{
+  "name": "accrue",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tests/anchor/tsconfig.json --noEmit && pnpm --recursive run typecheck",
+    "lint": "eslint . && prettier --check .",
+    "lint:fix": "eslint . --fix && prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:litesvm": "cargo test --package accrue --test litesvm -- --nocapture",
+    "rust:fmt": "cargo fmt --all -- --check",
+    "rust:clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "program:build": "anchor build",
+    "program:test": "bash scripts/program/test.sh",
+    "program:client": "tsx scripts/program/generateClient.ts",
+    "fixtures:refresh": "tsx scripts/fixtures/refresh.ts",
+    "db:generate": "pnpm --filter @accrue/db run db:generate",
+    "db:migrate": "pnpm --filter @accrue/db run db:migrate",
+    "check:no-web3js": "bash scripts/ci/checkNoWeb3Js.sh",
+    "check:bundle-secrets": "bash scripts/ci/checkBundleSecrets.sh",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.2.5",
+    "@codama/renderers-js": "^1.3.4",
+    "@eslint/js": "^9.36.0",
+    "@solana/kit": "^8.3.0",
+    "@types/node": "^24.5.2",
+    "codama": "^1.11.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.1",
+    "vitest": "^5.0.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.28",
+      "esbuild": "^0.25.12"
+    }
+  }
+}

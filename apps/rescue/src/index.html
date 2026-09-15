@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Return everything to my wallet</title>
+    <style>
+      :root {
+        --color-ground: #0c0b0a;
+        --color-text: #f0ede8;
+        --color-text-secondary: #9a938a;
+        --color-accent: #37b98d;
+        --color-accent-deep: #2e8f6e;
+        --color-accent-deeper: #26654f;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--color-ground);
+        color: var(--color-text);
+        font-family: system-ui, sans-serif;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        align-items: center;
+        padding: 32px;
+        text-align: center;
+      }
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 300;
+        letter-spacing: -0.03em;
+      }
+      p {
+        margin: 0;
+        color: var(--color-text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span style="display: inline-flex; align-items: center; gap: 9px">
+        <svg width="22" height="22" viewBox="0 0 48 48" role="img" aria-label="Accrue">
+          <polygon points="11.78,28 36.22,28 44,42 4,42" fill="var(--color-accent)" />
+          <polygon
+            points="17.89,17 30.11,17 35.11,26 12.89,26"
+            fill="var(--color-accent-deep)"
+          />
+          <polygon points="24,6 29,15 19,15" fill="var(--color-accent-deeper)" />
+        </svg>
+        <span style="font-size: 17px; font-weight: 500; letter-spacing: -0.02em"
+          >accrue</span
+        >
+      </span>
+      <h1>Return everything to my wallet</h1>
+      <p>Connect the wallet that owns the position.</p>
+    </main>
+    <script type="module" src="./rescue.js"></script>
+  </body>
+</html>

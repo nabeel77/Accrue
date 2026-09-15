@@ -1,0 +1,46 @@
+[package]
+name = "accrue"
+description = "The Accrue position program: each position is an isolated account the program alone can move."
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "accrue"
+
+[features]
+default = []
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+idl-build = ["anchor-lang/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+base64 = { workspace = true }
+litesvm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+solana-account = { workspace = true }
+solana-address = { workspace = true }
+
+[[test]]
+name = "litesvm"
+path = "tests/litesvm/main.rs"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
+[lints.clippy]
+arithmetic_side_effects = "deny"
+integer_division = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"

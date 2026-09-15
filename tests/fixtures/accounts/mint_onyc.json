@@ -1,0 +1,9 @@
+{
+  "label": "mint_onyc",
+  "description": "ONyc mint, the first yield destination.",
+  "address": "5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5",
+  "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "lamports": "346661602",
+  "executable": false,
+  "data_base64": "AQAAAI6kU++aopg4v2jQVL8dQmaKipFzLtff9l/j1ir5Clt0eIm16AcTpAMJAQEAAAAtvVUbmg0MwPymG0C3ScIpoOHW0ZL+7Cfeq/hrYIDisg=="
+}

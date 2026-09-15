@@ -1,0 +1,9 @@
+node_modules
+dist
+.next
+out
+target
+coverage
+pnpm-lock.yaml
+packages/solana/src/program
+packages/db/migrations

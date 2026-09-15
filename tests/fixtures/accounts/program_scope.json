@@ -1,0 +1,9 @@
+{
+  "label": "program_scope",
+  "description": "The Scope oracle program, the same prices the lending market reads.",
+  "address": "HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ",
+  "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+  "lamports": "21141440",
+  "executable": true,
+  "data_base64": "AgAAAL+zy6WNl2fTgBJEmaZ+7hDLiHmeg4kO6oxEXDME9/k9"
+}

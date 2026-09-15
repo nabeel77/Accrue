@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = ["programs/*", "tests/programs/*"]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+anchor-lang = "1.2.0"
+litesvm = "0.16.0"
+# Pinned to the versions litesvm 0.16 links, so the test harness and the runtime
+# never end up with two copies of the same Solana type.
+solana-account = "4.3.2"
+solana-address = "2.6.1"
+solana-clock = "3.1.1"
+solana-instruction = "3.4.1"
+solana-keypair = "3.1.2"
+solana-message = "4.4.1"
+solana-signer = "3.0.1"
+solana-transaction = "4.1.6"
+anyhow = "1.0"
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

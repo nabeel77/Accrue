@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+target/
+test-ledger/
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+
+# Keypairs never belong in the repo. The program keypair lives under target/,
+# the admin and keeper keys live outside the repo entirely.
+*.pem
+*-keypair.json
+id.json

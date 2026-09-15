@@ -1,0 +1,108 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLANA_VERSION: v4.2.2
+  ANCHOR_VERSION: 1.2.0
+
+jobs:
+  typescript:
+    name: typescript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        run: pnpm run typecheck
+
+      - name: lint
+        run: pnpm run lint
+
+      - name: test
+        run: pnpm run test
+
+      - name: no import of the old Solana library
+        run: pnpm run check:no-web3js
+
+      - name: build
+        run: pnpm run build
+
+      - name: no server only variable name in a browser bundle
+        run: pnpm run check:bundle-secrets
+
+      - name: audit dependencies
+        run: pnpm audit --audit-level moderate
+
+  program:
+    name: program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: install the Solana toolchain
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: install Anchor
+        run: |
+          cargo install --git https://github.com/solana-foundation/anchor avm --locked --force
+          avm install "$ANCHOR_VERSION"
+          avm use "$ANCHOR_VERSION"
+
+      - name: format
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: anchor build
+        run: anchor build
+
+      - name: litesvm suite
+        run: cargo test --package accrue --test litesvm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: anchor test
+        run: pnpm run program:test --skip-build
+
+      - name: install cargo audit
+        run: cargo install cargo-audit --locked
+
+      - name: audit crates
+        run: cargo audit

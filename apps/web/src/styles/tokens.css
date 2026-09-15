@@ -1,0 +1,23 @@
+:root {
+  --color-ground: #0c0b0a;
+  --color-panel: #121110;
+  --color-raised: #191715;
+  --color-raised-2: #171512;
+  --color-hairline: #22201d;
+  --color-text: #f0ede8;
+  --color-text-secondary: #9a938a;
+  --color-text-muted: #6e675f;
+  --color-accent: #37b98d;
+  --color-accent-hover: #6fd8b0;
+  --color-accent-deep: #2e8f6e;
+  --color-accent-deeper: #26654f;
+  --color-gold: #e2b871;
+  --color-health-healthy: #6fd08c;
+  --color-health-caution: #e8b03a;
+  --color-health-danger: #e2685c;
+  --color-danger-surface: #5e2a24;
+  --font-text: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --radius: 8px;
+  --radius-pill: 999px;
+}

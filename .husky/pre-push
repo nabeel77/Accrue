@@ -1,0 +1,9 @@
+set -e
+
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run check:no-web3js
+anchor build
+pnpm run build
+pnpm run check:bundle-secrets

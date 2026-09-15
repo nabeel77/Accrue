@@ -1,0 +1,22 @@
+{
+  "name": "@accrue/keeper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@accrue/core": "workspace:*",
+    "@accrue/db": "workspace:*",
+    "@accrue/solana": "workspace:*",
+    "@solana/kit": "^8.3.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}
