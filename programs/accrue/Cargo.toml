@@ -14,13 +14,14 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
 
 [dependencies]
 anchor-lang = { workspace = true }
+anchor-spl = { workspace = true }
 borsh = { workspace = true }
 solana-address = { workspace = true }
 solana-account-info = { workspace = true }

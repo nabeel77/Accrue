@@ -17,6 +17,8 @@ pub const TOKEN_2022_PROGRAM_ID: Pubkey = address!("TokenzQdBNbLqP5VEhdkAS6EPFLC
 pub const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
     address!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
+pub const INSTRUCTIONS_SYSVAR_ID: Pubkey = address!("Sysvar1nstructions1111111111111111111111111");
+
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const POSITION_SEED: &[u8] = b"position";
 

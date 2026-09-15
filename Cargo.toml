@@ -13,6 +13,7 @@ edition = "2021"
 
 [workspace.dependencies]
 anchor-lang = "1.2.0"
+anchor-spl = { version = "1.2.0", features = ["token", "token_2022", "associated_token"] }
 borsh = "1.5"
 litesvm = "0.16.0"
 # Pinned to the versions litesvm 0.16 links, so the test harness and the runtime
