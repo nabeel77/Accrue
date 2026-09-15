@@ -142,6 +142,13 @@ export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
   },
 
   {
+    label: 'reserve_onyc_onre_market',
+    address: '6ZxkBSJEqsXA3Kdm2PDAzHLUdPTPUK93Lf4bAezec1UQ',
+    description:
+      'ONyc has no reserve on the xStocks market, so its Scope price account and feed index are read from its reserve on the OnRe market.',
+  },
+
+  {
     label: 'oracle_scope_prices',
     address: '3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH',
     description:
