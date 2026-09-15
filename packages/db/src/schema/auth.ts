@@ -3,7 +3,6 @@ import { index, pgTable, text } from 'drizzle-orm/pg-core';
 import { base58Address, instant } from './columnTypes.js';
 import { wallets } from './wallets.js';
 
-/** Single use sign in nonces. The cron deletes rows older than a day. */
 export const authNonces = pgTable(
   'auth_nonces',
   {
@@ -18,7 +17,6 @@ export const authNonces = pgTable(
   (table) => [index('auth_nonces_expires_at_index').on(table.expiresAt)],
 ).enableRLS();
 
-/** The cookie carries the id only. Everything else about the session lives here. */
 export const sessions = pgTable(
   'sessions',
   {

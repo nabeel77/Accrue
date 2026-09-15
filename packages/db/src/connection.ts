@@ -15,16 +15,11 @@ function requireConnectionString(
   return connectionString;
 }
 
-/**
- * Runtime client on the pooled connection string. Server only: the browser never holds
- * this string and never talks to the database.
- */
 export function createDatabaseClient(): ReturnType<typeof drizzle<typeof schema>> {
   const sql = postgres(requireConnectionString('DATABASE_URL'), { prepare: false });
   return drizzle(sql, { schema });
 }
 
-/** Migrations run on the direct connection string, never the pooled one. */
 export function createMigrationClient(): ReturnType<typeof postgres> {
   return postgres(requireConnectionString('DATABASE_DIRECT_URL'), { max: 1 });
 }

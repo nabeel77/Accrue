@@ -84,9 +84,6 @@ jobs:
       - name: anchor build
         run: anchor build
 
-      - name: litesvm suite
-        run: cargo test --package accrue --test litesvm
-
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
@@ -97,6 +94,14 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: download the lending market bytecode
+        run: pnpm run fixtures:programs
+        env:
+          HELIUS_RPC_URL: ${{ secrets.HELIUS_RPC_URL }}
+
+      - name: litesvm suite
+        run: cargo test --package accrue --test litesvm
 
       - name: anchor test
         run: pnpm run program:test --skip-build

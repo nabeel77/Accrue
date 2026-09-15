@@ -60,13 +60,11 @@ export default defineConfig([
     },
   },
   {
-    // Build tooling and test runner configuration sit outside the compiled projects.
     files: ['**/*.config.ts', '**/*.config.mjs', '**/build.mjs', 'eslint.config.mjs'],
     extends: [typescriptEslint.configs.disableTypeChecked],
     languageOptions: { parserOptions: { projectService: false, project: false } },
   },
   {
-    // Command line entry points report what they did.
     files: [
       'scripts/**/*.ts',
       'apps/keeper/src/**/*.ts',
@@ -76,7 +74,6 @@ export default defineConfig([
     rules: { 'no-console': 'off' },
   },
   {
-    // Drizzle column builders return deep generic types that cannot be written by hand.
     files: ['packages/db/src/schema/columnTypes.ts'],
     rules: { '@typescript-eslint/explicit-module-boundary-types': 'off' },
   },

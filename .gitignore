@@ -21,3 +21,5 @@ next-env.d.ts
 *.pem
 *-keypair.json
 id.json
+
+tests/fixtures/programs/

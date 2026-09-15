@@ -2,10 +2,6 @@ import { integer, pgTable } from 'drizzle-orm/pg-core';
 
 import { base58Address, instant } from './columnTypes.js';
 
-/**
- * One row per wallet that has signed in, and the record of what it accepted. Nothing else
- * about the person is stored because there is nothing else to store.
- */
 export const wallets = pgTable('wallets', {
   address: base58Address('address').primaryKey(),
   firstSeenAt: instant('first_seen_at').notNull().defaultNow(),

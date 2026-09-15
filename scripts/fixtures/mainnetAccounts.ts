@@ -4,10 +4,6 @@ export interface MainnetAccountToCapture {
   description: string;
 }
 
-/**
- * Everything the program suite replays against. Each entry says why it is here, and the
- * LiteSVM harness asserts that no entry is captured without a reason.
- */
 export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
   {
     label: 'xstocks_market',
@@ -139,6 +135,20 @@ export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
   },
 
   {
+    label: 'obligation_with_debt',
+    address: '7BACsXdze3FporEnXEbuSHStPPQ58tpZuWb7jgsUYmV',
+    description:
+      'A real obligation on this market holding stock collateral and a USDC loan, so the layout test decodes non zero deposits and borrows.',
+  },
+
+  {
+    label: 'oracle_scope_prices',
+    address: '3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH',
+    description:
+      'The Scope price account every reserve on this market reads, and the one the swap floor will read.',
+  },
+
+  {
     label: 'program_kamino_lend',
     address: 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD',
     description:
@@ -153,5 +163,20 @@ export const MAINNET_ACCOUNTS_TO_CAPTURE: MainnetAccountToCapture[] = [
     label: 'program_jupiter_v6',
     address: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
     description: 'Jupiter v6, the swap router every route is built against.',
+  },
+];
+
+export interface MainnetProgramToDownload {
+  label: string;
+  programAddress: string;
+  description: string;
+}
+
+export const MAINNET_PROGRAMS_TO_DOWNLOAD: MainnetProgramToDownload[] = [
+  {
+    label: 'kamino_lending',
+    programAddress: 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD',
+    description:
+      'The deployed Kamino Lend bytecode, so the suite runs the real program rather than a stand in.',
   },
 ];

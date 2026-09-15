@@ -1,6 +1,5 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
-/** The position state machine from packages/core. No other transitions exist. */
 export const positionStatusEnum = pgEnum('position_status', [
   'building',
   'submitted',

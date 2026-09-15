@@ -2,7 +2,6 @@ import { index, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 
 import { base58Address, instant, usdAmount } from './columnTypes.js';
 
-/** Hourly reserve metrics, cross checked between the lending SDK and the market API. */
 export const marketSnapshots = pgTable(
   'market_snapshots',
   {
@@ -30,7 +29,6 @@ export const marketSnapshots = pgTable(
   ],
 ).enableRLS();
 
-/** Hourly destination rates, shown on screen with the time they were fetched. */
 export const destinationSnapshots = pgTable(
   'destination_snapshots',
   {

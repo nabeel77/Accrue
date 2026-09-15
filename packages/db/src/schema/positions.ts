@@ -4,10 +4,6 @@ import { base58Address, instant, rawAmount, usdAmount } from './columnTypes.js';
 import { positionStatusEnum } from './enums.js';
 import { wallets } from './wallets.js';
 
-/**
- * What the user did in Accrue and what the numbers were at the time. The chain stays the
- * source of truth for what they own; this table is only the memory around it.
- */
 export const positions = pgTable(
   'positions',
   {

@@ -2,9 +2,12 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::integer_division
 )]
 
+mod kamino_layout;
+mod kamino_refresh;
 mod snapshot;
 
 use std::path::PathBuf;

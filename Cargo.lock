@@ -9,11 +9,21 @@ dependencies = [
  "anchor-lang",
  "anyhow",
  "base64 0.22.1",
+ "borsh",
  "litesvm",
  "serde",
  "serde_json",
  "solana-account",
+ "solana-account-info",
  "solana-address 2.6.1",
+ "solana-clock",
+ "solana-cpi",
+ "solana-instruction",
+ "solana-keypair",
+ "solana-message",
+ "solana-program-error",
+ "solana-signer",
+ "solana-transaction",
 ]
 
 [[package]]
