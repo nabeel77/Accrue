@@ -5,22 +5,22 @@
 //! <https://github.com/codama-idl/codama>
 //!
 
-pub(crate) mod r#borrow_obligation_liquidity;
-pub(crate) mod r#deposit_reserve_liquidity_and_obligation_collateral;
-pub(crate) mod r#init_obligation;
-pub(crate) mod r#init_obligation_farms_for_reserve;
-pub(crate) mod r#init_user_metadata;
-pub(crate) mod r#refresh_obligation;
-pub(crate) mod r#refresh_reserve;
-pub(crate) mod r#repay_obligation_liquidity;
-pub(crate) mod r#withdraw_obligation_collateral_and_redeem_reserve_collateral;
+pub(crate) mod borrow_obligation_liquidity;
+pub(crate) mod deposit_reserve_liquidity_and_obligation_collateral;
+pub(crate) mod init_obligation;
+pub(crate) mod init_obligation_farms_for_reserve;
+pub(crate) mod init_user_metadata;
+pub(crate) mod refresh_obligation;
+pub(crate) mod refresh_reserve;
+pub(crate) mod repay_obligation_liquidity;
+pub(crate) mod withdraw_obligation_collateral_and_redeem_reserve_collateral;
 
-pub use self::r#borrow_obligation_liquidity::*;
-pub use self::r#deposit_reserve_liquidity_and_obligation_collateral::*;
-pub use self::r#init_obligation::*;
-pub use self::r#init_obligation_farms_for_reserve::*;
-pub use self::r#init_user_metadata::*;
-pub use self::r#refresh_obligation::*;
-pub use self::r#refresh_reserve::*;
-pub use self::r#repay_obligation_liquidity::*;
-pub use self::r#withdraw_obligation_collateral_and_redeem_reserve_collateral::*;
+pub use self::borrow_obligation_liquidity::*;
+pub use self::deposit_reserve_liquidity_and_obligation_collateral::*;
+pub use self::init_obligation::*;
+pub use self::init_obligation_farms_for_reserve::*;
+pub use self::init_user_metadata::*;
+pub use self::refresh_obligation::*;
+pub use self::refresh_reserve::*;
+pub use self::repay_obligation_liquidity::*;
+pub use self::withdraw_obligation_collateral_and_redeem_reserve_collateral::*;

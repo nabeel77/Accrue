@@ -1,4 +1,11 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -72,6 +79,68 @@ function keepOnlyWhatWeCall(idl: LegacyAnchorIdl): LegacyAnchorIdl {
 const filteredIdl = keepOnlyWhatWeCall(readKlendIdl());
 const codama = createFromRoot(rootNodeFromAnchor(filteredIdl as unknown as AnchorIdl));
 
+const RUST_KEYWORDS = new Set([
+  'as',
+  'break',
+  'const',
+  'continue',
+  'crate',
+  'dyn',
+  'else',
+  'enum',
+  'extern',
+  'false',
+  'fn',
+  'for',
+  'if',
+  'impl',
+  'in',
+  'let',
+  'loop',
+  'match',
+  'mod',
+  'move',
+  'mut',
+  'pub',
+  'ref',
+  'return',
+  'self',
+  'static',
+  'struct',
+  'super',
+  'trait',
+  'true',
+  'type',
+  'unsafe',
+  'use',
+  'where',
+  'while',
+  'async',
+  'await',
+  'try',
+]);
+
+function removeRawIdentifiersFromModuleDeclarations(directory: string): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      removeRawIdentifiersFromModuleDeclarations(entryPath);
+      continue;
+    }
+    if (!entry.name.endsWith('.rs')) {
+      continue;
+    }
+    const original = readFileSync(entryPath, 'utf8');
+    const rewritten = original.replace(
+      /\br#([A-Za-z_][A-Za-z0-9_]*)/g,
+      (raw, identifier: string) => (RUST_KEYWORDS.has(identifier) ? raw : identifier),
+    );
+    if (rewritten !== original) {
+      writeFileSync(entryPath, rewritten);
+    }
+  }
+}
+
 const scratchDirectory = mkdtempSync(resolve(tmpdir(), 'accrue-kamino-'));
 try {
   codama.accept(
@@ -85,6 +154,7 @@ try {
   cpSync(resolve(scratchDirectory, 'src/generated'), generatedDirectory, {
     recursive: true,
   });
+  removeRawIdentifiersFromModuleDeclarations(generatedDirectory);
 } finally {
   rmSync(scratchDirectory, { recursive: true, force: true });
 }
