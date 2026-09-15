@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use super::fraction::{read_pubkey_at, read_u128_at, read_u64_at, read_u8_at};
+use super::fraction::{read_pubkey_at, read_u128_at, read_u16_at, read_u64_at, read_u8_at};
 use crate::error::AccrueError;
 
 pub const RESERVE_ACCOUNT_LEN: usize = 8624;
@@ -30,6 +30,8 @@ const OFFSET_CONFIG_BORROW_LIMIT: usize = 5024;
 const OFFSET_CONFIG_DEPOSIT_WITHDRAWAL_CAP: usize = 5416;
 const OFFSET_CONFIG_DEBT_WITHDRAWAL_CAP: usize = 5448;
 const OFFSET_CONFIG_AUTODELEVERAGE_ENABLED: usize = 5502;
+const OFFSET_CONFIG_SCOPE_PRICE_ACCOUNT: usize = 5112;
+const OFFSET_CONFIG_SCOPE_PRICE_CHAIN: usize = 5144;
 
 const WITHDRAWAL_CAP_CURRENT_TOTAL: usize = 8;
 const WITHDRAWAL_CAP_INTERVAL_START: usize = 16;
@@ -90,6 +92,8 @@ pub struct ReserveSnapshot {
     pub deleveraging_margin_call_period_seconds: u64,
     pub deposit_withdrawal_cap: WithdrawalCap,
     pub debt_withdrawal_cap: WithdrawalCap,
+    pub scope_price_account: Pubkey,
+    pub scope_feed_index: u16,
 }
 
 impl ReserveSnapshot {
@@ -117,6 +121,22 @@ impl ReserveSnapshot {
         u16::from(self.loan_to_value_pct)
             .checked_mul(BASIS_POINTS_PER_PERCENT)
             .ok_or_else(|| AccrueError::MathOverflow.into())
+    }
+
+    pub fn scope_price_account(&self) -> Result<Pubkey> {
+        require!(
+            self.scope_price_account != Pubkey::default(),
+            AccrueError::ReserveHasNoScopeFeed
+        );
+        Ok(self.scope_price_account)
+    }
+
+    pub fn scope_feed_index(&self) -> Result<u16> {
+        require!(
+            self.scope_feed_index != u16::MAX,
+            AccrueError::ReserveHasNoScopeFeed
+        );
+        Ok(self.scope_feed_index)
     }
 
     pub fn liquidation_threshold_bps(&self) -> Result<u16> {
@@ -175,6 +195,8 @@ pub fn decode_reserve(data: &[u8]) -> Result<ReserveSnapshot> {
         )?,
         deposit_withdrawal_cap: decode_withdrawal_cap(data, OFFSET_CONFIG_DEPOSIT_WITHDRAWAL_CAP)?,
         debt_withdrawal_cap: decode_withdrawal_cap(data, OFFSET_CONFIG_DEBT_WITHDRAWAL_CAP)?,
+        scope_price_account: read_pubkey_at(data, OFFSET_CONFIG_SCOPE_PRICE_ACCOUNT)?,
+        scope_feed_index: read_u16_at(data, OFFSET_CONFIG_SCOPE_PRICE_CHAIN)?,
     })
 }
 

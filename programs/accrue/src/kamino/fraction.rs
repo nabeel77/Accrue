@@ -29,6 +29,18 @@ pub fn read_u128_at(data: &[u8], offset: usize) -> Result<u128> {
     Ok(u128::from_le_bytes(buffer))
 }
 
+pub fn read_u16_at(data: &[u8], offset: usize) -> Result<u16> {
+    let end = offset
+        .checked_add(2)
+        .ok_or(AccrueError::KaminoAccountTooShort)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(AccrueError::KaminoAccountTooShort)?;
+    let mut buffer = [0u8; 2];
+    buffer.copy_from_slice(bytes);
+    Ok(u16::from_le_bytes(buffer))
+}
+
 pub fn read_u8_at(data: &[u8], offset: usize) -> Result<u8> {
     data.get(offset)
         .copied()

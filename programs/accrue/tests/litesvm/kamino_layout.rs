@@ -15,6 +15,9 @@ const TOKEN_PROGRAM: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 const XSTOCKS_MARKET: &str = "5wJeMrUYECGq41fxRESKALVcHnNX26TAWy4W98yULsua";
 const OBLIGATION_FIXTURE_LABEL: &str = "obligation_with_debt";
+const ONYC_RESERVE_LABEL: &str = "reserve_onyc_onre_market";
+const ONRE_MARKET: &str = "47tfyEG9SsdEnUm9cw5kY9BXngQGqu3LBoop9j5uTAv8";
+const SHARED_SCOPE_PRICES: &str = "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH";
 const EMPTY_ADDRESS: &str = "11111111111111111111111111111111";
 
 #[derive(Deserialize)]
@@ -82,6 +85,13 @@ fn reserve_labels(snapshot: &MainnetSnapshot) -> Vec<String> {
         .collect()
 }
 
+fn xstocks_market_reserve_labels(snapshot: &MainnetSnapshot) -> Vec<String> {
+    reserve_labels(snapshot)
+        .into_iter()
+        .filter(|label| label != ONYC_RESERVE_LABEL)
+        .collect()
+}
+
 #[test]
 fn every_reserve_fixture_is_exactly_the_length_the_layout_expects() {
     let snapshot = load_mainnet_snapshot().unwrap();
@@ -122,7 +132,7 @@ fn every_reserve_field_matches_what_the_lending_market_reports() {
     let token_2022_program = Address::from_str(TOKEN_2022_PROGRAM).unwrap();
 
     let mut checked = 0;
-    for label in reserve_labels(&snapshot) {
+    for label in xstocks_market_reserve_labels(&snapshot) {
         let fixture = snapshot.account_by_label(&label).unwrap();
         let reserve = decode_fixture_reserve(&snapshot, &label).unwrap();
         let expected_reserve = expected_by_reserve
@@ -362,4 +372,47 @@ fn an_obligation_shorter_than_the_layout_is_refused() {
     data.truncate(OBLIGATION_ACCOUNT_LEN - 1);
 
     assert!(decode_obligation(&data).is_err());
+}
+
+#[test]
+fn the_onyc_reserve_carries_its_own_market_and_price_feed() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+    let reserve = decode_fixture_reserve(&snapshot, ONYC_RESERVE_LABEL).unwrap();
+
+    assert_eq!(
+        reserve.lending_market.to_string(),
+        ONRE_MARKET,
+        "ONyc has no reserve on the xStocks market, so this one must come from the OnRe market"
+    );
+    assert_eq!(
+        reserve.liquidity_mint.to_string(),
+        "5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5"
+    );
+    assert_eq!(reserve.liquidity_token_program.to_string(), TOKEN_PROGRAM);
+    assert_eq!(reserve.liquidity_mint_decimals, 9);
+    assert_eq!(
+        reserve.scope_price_account().unwrap().to_string(),
+        SHARED_SCOPE_PRICES,
+        "ONyc prices through the same Scope account as the stocks today"
+    );
+    assert_eq!(reserve.scope_feed_index().unwrap(), 350);
+}
+
+#[test]
+fn every_stock_reserve_names_the_scope_feed_the_guard_will_read() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+
+    for label in xstocks_market_reserve_labels(&snapshot) {
+        let reserve = decode_fixture_reserve(&snapshot, &label).unwrap();
+        assert_eq!(
+            reserve.scope_price_account().unwrap().to_string(),
+            SHARED_SCOPE_PRICES,
+            "{label} prices through a Scope account the config does not expect"
+        );
+        assert_ne!(
+            reserve.scope_feed_index().unwrap(),
+            u16::MAX,
+            "{label} has no Scope feed index"
+        );
+    }
 }
