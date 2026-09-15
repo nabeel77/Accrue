@@ -6,11 +6,12 @@ pub mod instructions;
 pub mod invariants;
 pub mod kamino;
 pub mod state;
+pub mod swap;
 
 pub(crate) use kamino::generated::KAMINO_LENDING_ID;
 
 use instructions::*;
-use state::ConfigLimits;
+use state::{ConfigLimits, Strategy};
 
 declare_id!("6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb");
 
@@ -41,5 +42,37 @@ pub mod accrue {
 
     pub fn set_sunset(context: Context<SetSunset>) -> Result<()> {
         handle_set_sunset(context)
+    }
+
+    pub fn open_position<'info>(
+        context: Context<'info, OpenPosition<'info>>,
+        collateral_amount: u64,
+        borrow_amount: u64,
+        minimum_destination_amount: u64,
+        strategy: Strategy,
+        leave_usdc_for_later_swap: bool,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_open_position(
+            context,
+            collateral_amount,
+            borrow_amount,
+            minimum_destination_amount,
+            strategy,
+            leave_usdc_for_later_swap,
+            jupiter_route_data,
+        )
+    }
+
+    pub fn buy_destination<'info>(
+        context: Context<'info, BuyDestination<'info>>,
+        minimum_destination_amount: u64,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_buy_destination(context, minimum_destination_amount, jupiter_route_data)
+    }
+
+    pub fn rescue(context: Context<Rescue>) -> Result<()> {
+        handle_rescue(context)
     }
 }
