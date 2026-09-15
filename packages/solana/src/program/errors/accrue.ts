@@ -108,35 +108,77 @@ export const ACCRUE_ERROR__SWAP_ROUTE_TOUCHES_A_FORBIDDEN_ACCOUNT = 0x179c; // 6
 export const ACCRUE_ERROR__SWAP_ROUTE_CALLS_AN_UNKNOWN_PROGRAM = 0x179d; // 6045
 /** MinimumOutputTooLow: The minimum output the caller supplied is below what the oracle allows */
 export const ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW = 0x179e; // 6046
+/** PositionTokenAccountOwnerChanged: A position token account is no longer owned by the position */
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED = 0x179f; // 6047
+/** PositionTokenAccountHasADelegate: A position token account was given a delegate */
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE = 0x17a0; // 6048
+/** PositionTokenAccountHasACloseAuthority: A position token account was given a close authority */
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY = 0x17a1; // 6049
+/** NotAScopeAccount: That account is not owned by the oracle program */
+export const ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT = 0x17a2; // 6050
+/** ScopeAccountTooShort: The oracle account is shorter than its layout */
+export const ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT = 0x17a3; // 6051
+/** OraclePriceIsZero: The oracle price is zero */
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO = 0x17a4; // 6052
+/** OraclePriceIsStale: The oracle price is older than the config allows for a call by anyone */
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_STALE = 0x17a5; // 6053
+/** IntervalHasNotElapsed: Not enough time has passed since the last time the guard acted */
+export const ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED = 0x17a6; // 6054
+/** GuardLevelNotReached: The loan to value is below the level the guard acts at */
+export const ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED = 0x17a7; // 6055
+/** GrowLevelExceeded: The loan to value is above the level growing is allowed at */
+export const ACCRUE_ERROR__GROW_LEVEL_EXCEEDED = 0x17a8; // 6056
+/** GrowNotEnabled: Growing is switched off for this position */
+export const ACCRUE_ERROR__GROW_NOT_ENABLED = 0x17a9; // 6057
+/** NothingToSell: The position holds no destination token to sell */
+export const ACCRUE_ERROR__NOTHING_TO_SELL = 0x17aa; // 6058
+/** NothingToBorrow: There is nothing to borrow before the position reaches its target */
+export const ACCRUE_ERROR__NOTHING_TO_BORROW = 0x17ab; // 6059
+/** NoReasonToLeave: The lending market has not flagged this reserve and the program is not retiring */
+export const ACCRUE_ERROR__NO_REASON_TO_LEAVE = 0x17ac; // 6060
+/** ExitOnFlagNotEnabled: Leaving on a flag is switched off for this position */
+export const ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED = 0x17ad; // 6061
+/** BountyAccountIsNotTheCallers: The bounty account does not belong to the caller */
+export const ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS = 0x17ae; // 6062
 /** NothingToSwap: The position has no USDC to swap */
-export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x179f; // 6047
+export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x17af; // 6063
 /** WrongTreasury: The treasury account in the config does not match the one passed */
-export const ACCRUE_ERROR__WRONG_TREASURY = 0x17a0; // 6048
+export const ACCRUE_ERROR__WRONG_TREASURY = 0x17b0; // 6064
 /** NotTheAdmin: Only the admin key may do that */
-export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17a1; // 6049
+export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17b1; // 6065
 /** NotTheGuardianOrAdmin: Only the guardian or the admin may do that */
-export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17a2; // 6050
+export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17b2; // 6066
 
 export type AccrueError =
   | typeof ACCRUE_ERROR__ALLOW_LIST_FULL
   | typeof ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY
+  | typeof ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS
   | typeof ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED
   | typeof ACCRUE_ERROR__COLLATERAL_ENTRY_INCOMPLETE
   | typeof ACCRUE_ERROR__COLLATERAL_NOT_ALLOWED
   | typeof ACCRUE_ERROR__DEBT_STILL_OUTSTANDING
   | typeof ACCRUE_ERROR__DESTINATION_ENTRY_INCOMPLETE
   | typeof ACCRUE_ERROR__DESTINATION_NOT_ALLOWED
+  | typeof ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED
   | typeof ACCRUE_ERROR__FARM_ACCOUNT_MISSING
+  | typeof ACCRUE_ERROR__GROW_LEVEL_EXCEEDED
   | typeof ACCRUE_ERROR__GROW_LEVEL_TOO_HIGH
+  | typeof ACCRUE_ERROR__GROW_NOT_ENABLED
   | typeof ACCRUE_ERROR__GROWS_ARE_PAUSED
+  | typeof ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED
   | typeof ACCRUE_ERROR__INTERVAL_BELOW_FLOOR
+  | typeof ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED
   | typeof ACCRUE_ERROR__KAMINO_ACCOUNT_TOO_SHORT
   | typeof ACCRUE_ERROR__KAMINO_FIELD_OUT_OF_RANGE
   | typeof ACCRUE_ERROR__KEEPER_BOUNTY_ABOVE_CEILING
   | typeof ACCRUE_ERROR__LOAN_TO_VALUE_ABOVE_TARGET
   | typeof ACCRUE_ERROR__MATH_OVERFLOW
   | typeof ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW
+  | typeof ACCRUE_ERROR__NO_REASON_TO_LEAVE
   | typeof ACCRUE_ERROR__NOT_A_KAMINO_ACCOUNT
+  | typeof ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT
+  | typeof ACCRUE_ERROR__NOTHING_TO_BORROW
+  | typeof ACCRUE_ERROR__NOTHING_TO_SELL
   | typeof ACCRUE_ERROR__NOTHING_TO_SWAP
   | typeof ACCRUE_ERROR__NOT_THE_ADMIN
   | typeof ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN
@@ -144,17 +186,23 @@ export type AccrueError =
   | typeof ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED
   | typeof ACCRUE_ERROR__OBLIGATION_NAMES_AN_UNKNOWN_RESERVE
   | typeof ACCRUE_ERROR__OPENS_ARE_PAUSED
+  | typeof ACCRUE_ERROR__ORACLE_PRICE_IS_STALE
+  | typeof ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO
   | typeof ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__POSITION_ACCOUNT_MISSING
   | typeof ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN
   | typeof ACCRUE_ERROR__POSITION_SIZE_LIMITS_INVERTED
   | typeof ACCRUE_ERROR__POSITION_SIZE_OUT_OF_RANGE
+  | typeof ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY
+  | typeof ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE
+  | typeof ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED
   | typeof ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__PROGRAM_IS_RETIRING
   | typeof ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH
   | typeof ACCRUE_ERROR__RESERVE_HAS_NO_SCOPE_FEED
   | typeof ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM
   | typeof ACCRUE_ERROR__RESERVE_NAMES_NO_FARM
+  | typeof ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT
   | typeof ACCRUE_ERROR__SHARE_OF_AVAILABLE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__SLIPPAGE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE
@@ -175,23 +223,33 @@ if (process.env['NODE_ENV'] !== "production") {
   accrueErrorMessages = {
     [ACCRUE_ERROR__ALLOW_LIST_FULL]: `The allow list is full`,
     [ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY]: `That borrow would take too large a share of the liquidity left`,
+    [ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS]: `The bounty account does not belong to the caller`,
     [ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED]: `The stock token account changed during an instruction that must not move it`,
     [ACCRUE_ERROR__COLLATERAL_ENTRY_INCOMPLETE]: `The collateral entry is missing a mint, a reserve or a price account`,
     [ACCRUE_ERROR__COLLATERAL_NOT_ALLOWED]: `That collateral is not enabled`,
     [ACCRUE_ERROR__DEBT_STILL_OUTSTANDING]: `The position still owes the lending market`,
     [ACCRUE_ERROR__DESTINATION_ENTRY_INCOMPLETE]: `The destination entry is missing a mint or a price account`,
     [ACCRUE_ERROR__DESTINATION_NOT_ALLOWED]: `That destination is not enabled`,
+    [ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED]: `Leaving on a flag is switched off for this position`,
     [ACCRUE_ERROR__FARM_ACCOUNT_MISSING]: `That reserve names a farm and the farm accounts were not passed`,
+    [ACCRUE_ERROR__GROW_LEVEL_EXCEEDED]: `The loan to value is above the level growing is allowed at`,
     [ACCRUE_ERROR__GROW_LEVEL_TOO_HIGH]: `The grow level must sit below the borrow level`,
+    [ACCRUE_ERROR__GROW_NOT_ENABLED]: `Growing is switched off for this position`,
     [ACCRUE_ERROR__GROWS_ARE_PAUSED]: `Growing is paused`,
+    [ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED]: `The loan to value is below the level the guard acts at`,
     [ACCRUE_ERROR__INTERVAL_BELOW_FLOOR]: `The interval is below the floor written in the program`,
+    [ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED]: `Not enough time has passed since the last time the guard acted`,
     [ACCRUE_ERROR__KAMINO_ACCOUNT_TOO_SHORT]: `The lending market account is shorter than its layout`,
     [ACCRUE_ERROR__KAMINO_FIELD_OUT_OF_RANGE]: `A lending market field is outside the range the program can represent`,
     [ACCRUE_ERROR__KEEPER_BOUNTY_ABOVE_CEILING]: `The keeper bounty is above the ceiling written in the program`,
     [ACCRUE_ERROR__LOAN_TO_VALUE_ABOVE_TARGET]: `The resulting loan to value is above the target`,
     [ACCRUE_ERROR__MATH_OVERFLOW]: `Arithmetic overflowed`,
     [ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW]: `The minimum output the caller supplied is below what the oracle allows`,
+    [ACCRUE_ERROR__NO_REASON_TO_LEAVE]: `The lending market has not flagged this reserve and the program is not retiring`,
     [ACCRUE_ERROR__NOT_A_KAMINO_ACCOUNT]: `That account is not owned by the lending market program`,
+    [ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT]: `That account is not owned by the oracle program`,
+    [ACCRUE_ERROR__NOTHING_TO_BORROW]: `There is nothing to borrow before the position reaches its target`,
+    [ACCRUE_ERROR__NOTHING_TO_SELL]: `The position holds no destination token to sell`,
     [ACCRUE_ERROR__NOTHING_TO_SWAP]: `The position has no USDC to swap`,
     [ACCRUE_ERROR__NOT_THE_ADMIN]: `Only the admin key may do that`,
     [ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN]: `Only the guardian or the admin may do that`,
@@ -199,17 +257,23 @@ if (process.env['NODE_ENV'] !== "production") {
     [ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED]: `The obligation collateral changed during a swap`,
     [ACCRUE_ERROR__OBLIGATION_NAMES_AN_UNKNOWN_RESERVE]: `The obligation names a reserve this instruction was not given`,
     [ACCRUE_ERROR__OPENS_ARE_PAUSED]: `New positions are paused`,
+    [ACCRUE_ERROR__ORACLE_PRICE_IS_STALE]: `The oracle price is older than the config allows for a call by anyone`,
+    [ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO]: `The oracle price is zero`,
     [ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING]: `The performance fee is above the ceiling written in the program`,
     [ACCRUE_ERROR__POSITION_ACCOUNT_MISSING]: `A position account no longer exists`,
     [ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN]: `Lamports were taken out of a position account`,
     [ACCRUE_ERROR__POSITION_SIZE_LIMITS_INVERTED]: `The minimum position size is above the maximum`,
     [ACCRUE_ERROR__POSITION_SIZE_OUT_OF_RANGE]: `The position size is outside the limits in the config`,
+    [ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY]: `A position token account was given a close authority`,
+    [ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE]: `A position token account was given a delegate`,
+    [ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED]: `A position token account is no longer owned by the position`,
     [ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING]: `The price age is outside the range the program allows`,
     [ACCRUE_ERROR__PROGRAM_IS_RETIRING]: `The program is retiring and will not open new positions`,
     [ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH]: `The guard level is too close to the liquidation threshold`,
     [ACCRUE_ERROR__RESERVE_HAS_NO_SCOPE_FEED]: `That reserve names no Scope price feed`,
     [ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM]: `This reserve leaves no room between its liquidation threshold and the guard`,
     [ACCRUE_ERROR__RESERVE_NAMES_NO_FARM]: `That reserve names no farm, so no farm account belongs in this call`,
+    [ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT]: `The oracle account is shorter than its layout`,
     [ACCRUE_ERROR__SHARE_OF_AVAILABLE_ABOVE_CEILING]: `The share of available liquidity is above the ceiling written in the program`,
     [ACCRUE_ERROR__SLIPPAGE_ABOVE_CEILING]: `The slippage limit is above the ceiling written in the program`,
     [ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE]: `The swap returned less than the minimum`,

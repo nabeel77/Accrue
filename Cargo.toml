@@ -4,8 +4,10 @@ members = ["programs/*", "tests/programs/*"]
 
 [profile.release]
 overflow-checks = true
+opt-level = "s"
 lto = "fat"
 codegen-units = 1
+strip = true
 
 [workspace.package]
 version = "0.1.0"

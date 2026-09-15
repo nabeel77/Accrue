@@ -20,8 +20,11 @@ import {
   parseAddCollateralInstruction,
   parseBuyDestinationInstruction,
   parseClosePositionInstruction,
+  parseGrowInstruction,
   parseInitializeConfigInstruction,
+  parseLeaveInstruction,
   parseOpenPositionInstruction,
+  parseProtectInstruction,
   parseRepayInstruction,
   parseRescueInstruction,
   parseSetPausedInstruction,
@@ -33,8 +36,11 @@ import {
   type ParsedAddCollateralInstruction,
   type ParsedBuyDestinationInstruction,
   type ParsedClosePositionInstruction,
+  type ParsedGrowInstruction,
   type ParsedInitializeConfigInstruction,
+  type ParsedLeaveInstruction,
   type ParsedOpenPositionInstruction,
+  type ParsedProtectInstruction,
   type ParsedRepayInstruction,
   type ParsedRescueInstruction,
   type ParsedSetPausedInstruction,
@@ -88,8 +94,11 @@ export enum AccrueInstruction {
   AddCollateral,
   BuyDestination,
   ClosePosition,
+  Grow,
   InitializeConfig,
+  Leave,
   OpenPosition,
+  Protect,
   Repay,
   Rescue,
   SetPaused,
@@ -141,6 +150,17 @@ export function identifyAccrueInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([1, 21, 159, 221, 109, 244, 39, 40]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Grow;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([208, 127, 21, 1, 194, 190, 196, 70]),
       ),
       0,
@@ -152,12 +172,34 @@ export function identifyAccrueInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([59, 234, 148, 108, 107, 149, 173, 112]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Leave;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([135, 128, 47, 77, 15, 152, 240, 49]),
       ),
       0,
     )
   ) {
     return AccrueInstruction.OpenPosition;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([7, 200, 63, 183, 60, 48, 87, 142]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.Protect;
   }
   if (
     containsBytes(
@@ -265,11 +307,20 @@ export type ParsedAccrueInstruction<
       instructionType: AccrueInstruction.ClosePosition;
     } & ParsedClosePositionInstruction<TProgram>)
   | ({
+      instructionType: AccrueInstruction.Grow;
+    } & ParsedGrowInstruction<TProgram>)
+  | ({
       instructionType: AccrueInstruction.InitializeConfig;
     } & ParsedInitializeConfigInstruction<TProgram>)
   | ({
+      instructionType: AccrueInstruction.Leave;
+    } & ParsedLeaveInstruction<TProgram>)
+  | ({
       instructionType: AccrueInstruction.OpenPosition;
     } & ParsedOpenPositionInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.Protect;
+    } & ParsedProtectInstruction<TProgram>)
   | ({
       instructionType: AccrueInstruction.Repay;
     } & ParsedRepayInstruction<TProgram>)
@@ -321,6 +372,13 @@ export function parseAccrueInstruction<TProgram extends string>(
         ...parseClosePositionInstruction(instruction),
       };
     }
+    case AccrueInstruction.Grow: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Grow,
+        ...parseGrowInstruction(instruction),
+      };
+    }
     case AccrueInstruction.InitializeConfig: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -328,11 +386,25 @@ export function parseAccrueInstruction<TProgram extends string>(
         ...parseInitializeConfigInstruction(instruction),
       };
     }
+    case AccrueInstruction.Leave: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Leave,
+        ...parseLeaveInstruction(instruction),
+      };
+    }
     case AccrueInstruction.OpenPosition: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: AccrueInstruction.OpenPosition,
         ...parseOpenPositionInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.Protect: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.Protect,
+        ...parseProtectInstruction(instruction),
       };
     }
     case AccrueInstruction.Repay: {

@@ -1,0 +1,20 @@
+{
+  "name": "@accrue/keeper-rounds",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@accrue/core": "workspace:*",
+    "@accrue/solana": "workspace:*",
+    "@solana/kit": "^8.3.0",
+    "litesvm": "^1.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.1"
+  }
+}

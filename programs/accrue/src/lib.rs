@@ -2,9 +2,11 @@ use anchor_lang::prelude::*;
 
 pub mod constants;
 pub mod error;
+pub mod guard;
 pub mod instructions;
 pub mod invariants;
 pub mod kamino;
+pub mod scope;
 pub mod state;
 pub mod swap;
 
@@ -105,5 +107,28 @@ pub mod accrue {
 
     pub fn close_position(context: Context<ClosePosition>) -> Result<()> {
         handle_close_position(context)
+    }
+
+    pub fn protect<'info>(
+        context: Context<'info, Protect<'info>>,
+        owner_minimum_usdc_out: u64,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_protect(context, owner_minimum_usdc_out, jupiter_route_data)
+    }
+
+    pub fn grow<'info>(
+        context: Context<'info, Grow<'info>>,
+        owner_minimum_destination_out: u64,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_grow(context, owner_minimum_destination_out, jupiter_route_data)
+    }
+
+    pub fn leave<'info>(
+        context: Context<'info, Leave<'info>>,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_leave(context, jupiter_route_data)
     }
 }

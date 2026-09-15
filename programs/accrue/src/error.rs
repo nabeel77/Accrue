@@ -101,6 +101,39 @@ pub enum AccrueError {
     SwapRouteCallsAnUnknownProgram,
     #[msg("The minimum output the caller supplied is below what the oracle allows")]
     MinimumOutputTooLow,
+    #[msg("A position token account is no longer owned by the position")]
+    PositionTokenAccountOwnerChanged,
+    #[msg("A position token account was given a delegate")]
+    PositionTokenAccountHasADelegate,
+    #[msg("A position token account was given a close authority")]
+    PositionTokenAccountHasACloseAuthority,
+
+    #[msg("That account is not owned by the oracle program")]
+    NotAScopeAccount,
+    #[msg("The oracle account is shorter than its layout")]
+    ScopeAccountTooShort,
+    #[msg("The oracle price is zero")]
+    OraclePriceIsZero,
+    #[msg("The oracle price is older than the config allows for a call by anyone")]
+    OraclePriceIsStale,
+    #[msg("Not enough time has passed since the last time the guard acted")]
+    IntervalHasNotElapsed,
+    #[msg("The loan to value is below the level the guard acts at")]
+    GuardLevelNotReached,
+    #[msg("The loan to value is above the level growing is allowed at")]
+    GrowLevelExceeded,
+    #[msg("Growing is switched off for this position")]
+    GrowNotEnabled,
+    #[msg("The position holds no destination token to sell")]
+    NothingToSell,
+    #[msg("There is nothing to borrow before the position reaches its target")]
+    NothingToBorrow,
+    #[msg("The lending market has not flagged this reserve and the program is not retiring")]
+    NoReasonToLeave,
+    #[msg("Leaving on a flag is switched off for this position")]
+    ExitOnFlagNotEnabled,
+    #[msg("The bounty account does not belong to the caller")]
+    BountyAccountIsNotTheCallers,
 
     #[msg("The position has no USDC to swap")]
     NothingToSwap,

@@ -3,6 +3,7 @@ export interface KeeperConfiguration {
   keypairPath: string;
   programAddress: string;
   jupiterApiUrl: string;
+  jupiterApiKey: string | undefined;
   intervalSeconds: number;
   priorityFeeLamports: number;
 }
@@ -30,6 +31,7 @@ export function readKeeperConfiguration(): KeeperConfiguration {
     keypairPath: requireVariable('KEEPER_KEYPAIR_PATH'),
     programAddress: requireVariable('ACCRUE_PROGRAM_ID'),
     jupiterApiUrl: requireVariable('JUPITER_API_URL'),
+    jupiterApiKey: process.env['JUPITER_API_KEY'] ?? undefined,
     intervalSeconds: requirePositiveInteger('KEEPER_INTERVAL_SECONDS'),
     priorityFeeLamports: requirePositiveInteger('KEEPER_PRIORITY_FEE_LAMPORTS'),
   };

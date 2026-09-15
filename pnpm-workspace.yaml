@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - tests/keeper
 
 # pnpm 10 blocks dependency lifecycle scripts unless a package is listed here.
 onlyBuiltDependencies:

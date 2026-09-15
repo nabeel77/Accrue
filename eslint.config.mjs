@@ -15,6 +15,7 @@ export default defineConfig([
     '**/coverage/**',
     '**/next-env.d.ts',
     'packages/solana/src/program/**',
+    'packages/solana/src/kamino/generated/**',
   ]),
   js.configs.recommended,
   typescriptEslint.configs.strictTypeChecked,
