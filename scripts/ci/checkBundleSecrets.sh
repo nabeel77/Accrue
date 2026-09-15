@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Every variable in .env.example that is not marked NEXT_PUBLIC_ is server only. If the name
-# of one reaches a browser bundle, something server side leaked into a client component.
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

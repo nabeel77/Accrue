@@ -1,6 +1,5 @@
 export interface KeeperConfiguration {
   rpcUrl: string;
-  /** A path on the keeper machine. The key is read from the file, never from a variable. */
   keypairPath: string;
   programAddress: string;
   jupiterApiUrl: string;

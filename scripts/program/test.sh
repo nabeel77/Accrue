@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Anchor 1.x reaches for surfpool by default. This starts the validator that ships with the
-# Solana CLI instead, so the suite runs on any machine that can build the program.
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -4,7 +4,6 @@ import { instant, usdAmount } from './columnTypes.js';
 import { positionHealthEnum } from './enums.js';
 import { positions } from './positions.js';
 
-/** Health over time, written every five minutes for every open position. */
 export const positionSnapshots = pgTable(
   'position_snapshots',
   {

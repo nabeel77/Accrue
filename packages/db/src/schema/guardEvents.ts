@@ -4,10 +4,6 @@ import { base58Address, instant, rawAmount } from './columnTypes.js';
 import { guardEventKindEnum } from './enums.js';
 import { positions } from './positions.js';
 
-/**
- * Every protect, grow and leave that landed on any position, read from the chain by the
- * cron rather than from our own keeper, so the activity list does not depend on us.
- */
 export const guardEvents = pgTable(
   'guard_events',
   {

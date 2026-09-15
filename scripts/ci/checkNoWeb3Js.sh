@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Our own code uses @solana/kit. A transitive dependency may still pull the old library in,
-# but no file of ours may import it.
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

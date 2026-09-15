@@ -10,11 +10,10 @@ use litesvm::LiteSVM;
 use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
 use solana_account::Account;
 use solana_address::Address;
+use solana_clock::Clock;
 
-/// Every account we capture is rent exempt, which the runtime marks with this epoch.
 const RENT_EXEMPT_FOREVER: u64 = u64::MAX;
 
-/// One mainnet account captured by `pnpm fixtures:refresh`, in the shape that script writes.
 #[derive(Deserialize)]
 pub struct FixtureAccount {
     pub label: String,
@@ -55,6 +54,10 @@ impl MainnetSnapshot {
     }
 }
 
+pub fn kamino_program_path() -> PathBuf {
+    fixtures_directory().join("programs/kamino_lending.so")
+}
+
 pub fn fixtures_directory() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures")
@@ -62,8 +65,6 @@ pub fn fixtures_directory() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures"))
 }
 
-/// Loads every captured account into a fresh LiteSVM and warps the clock to the slot they
-/// were captured at, so Kamino's own staleness checks see the world as it was at that slot.
 pub fn load_mainnet_snapshot() -> Result<MainnetSnapshot> {
     let directory = fixtures_directory();
     let manifest_path = directory.join("snapshot.json");
@@ -86,6 +87,13 @@ pub fn load_mainnet_snapshot() -> Result<MainnetSnapshot> {
 
     let mut svm = LiteSVM::new();
     svm.warp_to_slot(manifest.slot);
+    svm.set_sysvar(&Clock {
+        slot: manifest.slot,
+        epoch_start_timestamp: manifest.unix_timestamp,
+        epoch: manifest.slot / 432_000,
+        leader_schedule_epoch: manifest.slot / 432_000,
+        unix_timestamp: manifest.unix_timestamp,
+    });
 
     for fixture in &accounts {
         let address = parse_address(&fixture.address)?;
@@ -142,7 +150,6 @@ fn parse_address(value: &str) -> Result<Address> {
     Address::from_str(value).with_context(|| format!("{value} is not a base58 address"))
 }
 
-/// Lamports are captured as a string because a large u64 does not survive a JSON number.
 fn u64_from_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
     let text = String::deserialize(deserializer)?;
     text.parse().map_err(DeserializeError::custom)

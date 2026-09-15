@@ -13,7 +13,6 @@ import { transactionKindEnum, transactionStatusEnum } from './enums.js';
 import { positions } from './positions.js';
 import { wallets } from './wallets.js';
 
-/** Everything we forwarded, with the format it was compiled in. */
 export const transactions = pgTable(
   'transactions',
   {

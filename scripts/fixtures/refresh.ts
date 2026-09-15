@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import { address, createSolanaRpc, type Address } from '@solana/kit';
 
+import { fetchKaminoExpectedDecoding } from './kaminoExpected.js';
 import { MAINNET_ACCOUNTS_TO_CAPTURE } from './mainnetAccounts.js';
 
 const PUBLIC_MAINNET_RPC_URL = 'https://api.mainnet-beta.solana.com';
@@ -17,7 +18,6 @@ interface CapturedAccount {
   description: string;
   address: string;
   owner: string;
-  /** A string because lamports can exceed what a JSON number holds exactly. */
   lamports: string;
   executable: boolean;
   data_base64: string;
@@ -110,7 +110,15 @@ async function captureMainnetAccounts(): Promise<void> {
     )}\n`,
   );
 
-  console.log(`Captured ${captured.length} mainnet accounts at slot ${contextSlot}.`);
+  const expectedDecoding = await fetchKaminoExpectedDecoding();
+  writeFileSync(
+    resolve(fixturesDirectory, 'kamino-expected.json'),
+    `${JSON.stringify(expectedDecoding, null, 2)}\n`,
+  );
+
+  console.log(
+    `Captured ${captured.length} mainnet accounts at slot ${contextSlot}, plus expected values for ${expectedDecoding.reserves.length} reserves and one obligation.`,
+  );
 }
 
 await captureMainnetAccounts();
