@@ -5,6 +5,7 @@ import { AccountRole, type Instruction } from '@solana/kit';
 import type { FailedTransactionMetadata } from 'litesvm';
 
 import {
+  decodeLendingMarket,
   getRefreshObligationInstruction,
   getRefreshReserveInstruction,
 } from '@accrue/solana/kamino';
@@ -107,6 +108,7 @@ export async function refreshTheMarket(world: World, obligation: string): Promis
 function readTheMarket(world: World, opened: OpenedPosition): MarketReading {
   return {
     obligation: world.obligation(opened.obligation),
+    lendingMarket: decodeLendingMarket(world.accountData(world.market)),
     collateralReserve: world.collateral.snapshot,
     borrowReserve: world.borrow.snapshot,
     borrowReserveAddress: world.borrow.address,

@@ -3,8 +3,8 @@ use anchor_spl::token_interface::{Mint, TokenAccount};
 
 use crate::constants::{
     BASIS_POINTS_DENOMINATOR, CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, JUPITER_V6_PROGRAM_ID,
-    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, MAX_PRICE_AGE_SLOTS_AT_OPEN,
-    PERCENT_DENOMINATOR, POSITION_SEED, TOKEN_PROGRAM_ID,
+    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, PERCENT_DENOMINATOR, POSITION_SEED,
+    TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
 use crate::instructions::checks::require_the_vaults_the_borrow_reserve_names;
@@ -24,7 +24,7 @@ use crate::kamino::{
     scaled_fraction_to_whole_units, scaled_fraction_to_whole_units_rounding_up,
     SCALED_FRACTION_ONE,
 };
-use crate::scope::{read_scope_price, require_price_is_fresh, usd_value_of_scaled};
+use crate::scope::usd_value_of_scaled;
 use crate::state::{Config, Position, PositionState, Strategy};
 use crate::swap::{execute_jupiter_swap, JupiterSwap};
 
@@ -555,19 +555,9 @@ fn refresh_everything_then_size_the_position(
     require!(collateral_amount > 0, AccrueError::PositionSizeOutOfRange);
     require!(borrow_amount > 0, AccrueError::PositionSizeOutOfRange);
 
-    let slot = Clock::get()?.slot;
-    let collateral_price = read_scope_price(
-        &accounts.scope_prices,
-        collateral_reserve.scope_feed_index()?,
-    )?;
-    require_price_is_fresh(&collateral_price, slot, MAX_PRICE_AGE_SLOTS_AT_OPEN)?;
-    let borrow_price =
-        read_scope_price(&accounts.scope_prices, borrow_reserve.scope_feed_index()?)?;
-    require_price_is_fresh(&borrow_price, slot, MAX_PRICE_AGE_SLOTS_AT_OPEN)?;
-
     let collateral_value_usd = collateral_value_in_whole_usd(
         collateral_amount,
-        collateral_price.usd_per_whole_token_scaled()?,
+        collateral_reserve.liquidity_market_price_scaled,
         collateral_reserve.liquidity_mint_decimals,
     )?;
     require!(
@@ -579,7 +569,7 @@ fn refresh_everything_then_size_the_position(
     require_borrow_within_target(
         borrow_amount,
         borrow_reserve.liquidity_mint_decimals,
-        borrow_price.usd_per_whole_token_scaled()?,
+        borrow_reserve.liquidity_market_price_scaled,
         borrow_reserve.borrow_factor_pct()?,
         collateral_value_usd,
         strategy.target_ltv_bps,
@@ -598,9 +588,9 @@ fn refresh_everything_then_size_the_position(
         collateral_value_scaled: usd_value_of_scaled(
             collateral_amount,
             collateral_reserve.liquidity_mint_decimals,
-            collateral_price.usd_per_whole_token_scaled()?,
+            collateral_reserve.liquidity_market_price_scaled,
         )?,
-        borrow_price_scaled: borrow_price.usd_per_whole_token_scaled()?,
+        borrow_price_scaled: borrow_reserve.liquidity_market_price_scaled,
         borrow_decimals: borrow_reserve.liquidity_mint_decimals,
         borrow_factor_pct: borrow_reserve.borrow_factor_pct()?,
     })

@@ -14,11 +14,13 @@ import {
 } from '@solana/kit';
 
 import {
+  decodeLendingMarket,
   decodeObligation,
   decodeReserve,
   decodeScopePrice,
   getRefreshObligationInstruction,
   getRefreshReserveInstruction,
+  type LendingMarketSnapshot,
   type ObligationSnapshot,
   type ReserveSnapshot,
   type ScopePrice,
@@ -26,6 +28,7 @@ import {
 
 export interface MarketReading {
   readonly obligation: ObligationSnapshot;
+  readonly lendingMarket: LendingMarketSnapshot;
   readonly collateralReserve: ReserveSnapshot;
   readonly borrowReserve: ReserveSnapshot;
   readonly borrowReserveAddress: Address;
@@ -114,6 +117,7 @@ export async function readTheMarketAfterARefresh(
     obligation: decodeObligation(
       new Uint8Array(Buffer.from(refreshed.data[0], 'base64')),
     ),
+    lendingMarket: decodeLendingMarket(await fetchAccount(rpc, addresses.lendingMarket)),
     collateralReserve,
     borrowReserve,
     borrowReserveAddress,

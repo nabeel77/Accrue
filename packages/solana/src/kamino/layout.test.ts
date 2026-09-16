@@ -4,7 +4,12 @@ import { resolve } from 'node:path';
 import { address } from '@solana/kit';
 import { describe, expect, it } from 'vitest';
 
-import { decodeObligation, decodeReserve, decodeScopePrice } from './layout.js';
+import {
+  decodeLendingMarket,
+  decodeObligation,
+  decodeReserve,
+  decodeScopePrice,
+} from './layout.js';
 
 const fixtures = resolve(import.meta.dirname, '../../../../tests/fixtures/accounts');
 
@@ -33,7 +38,8 @@ describe('reading the lending market the way the keeper does', () => {
     expect(reserve.maxLoanToValueBps).toBe(5_500);
     expect(reserve.liquidationThresholdBps).toBe(6_500);
     expect(reserve.isActive).toBe(true);
-    expect(reserve.isFlaggedForExit).toBe(false);
+    expect(reserve.isObsolete).toBe(false);
+    expect(reserve.autodeleverageEnabled).toBe(false);
     expect(reserve.collateralFarm).toBeNull();
     expect(reserve.debtFarm).toBeNull();
     expect(reserve.scopeFeedIndex).toBe(332);
@@ -80,7 +86,21 @@ describe('reading the lending market the way the keeper does', () => {
   });
 
   it('sees a reserve the market retired', () => {
-    expect(decodeReserve(fixtureData('reserve_metax')).isFlaggedForExit).toBe(true);
+    expect(decodeReserve(fixtureData('reserve_metax')).isObsolete).toBe(true);
+  });
+
+  it('reads the deleveraging fields the leave rule weighs', () => {
+    const market = decodeLendingMarket(fixtureData('xstocks_market'));
+    expect(market.autodeleverageEnabled).toBe(false);
+
+    const obligation = decodeObligation(fixtureData('obligation_with_debt'));
+    expect(obligation.autodeleverageMarginCallStartedTimestamp).toBe(0n);
+
+    for (const label of ['reserve_usdc', 'reserve_nvdax', 'reserve_spyx']) {
+      expect(decodeReserve(fixtureData(label)).deleveragingMarginCallPeriodSeconds).toBe(
+        604_800n,
+      );
+    }
   });
 
   it('reads the borrow factor the market weights each reserve by', () => {
@@ -93,7 +113,8 @@ describe('reading the lending market the way the keeper does', () => {
       const reserve = decodeReserve(fixtureData(label));
       expect(reserve.depositLimitCrossedTimestamp).toBe(0n);
       expect(reserve.borrowLimitCrossedTimestamp).toBe(0n);
-      expect(reserve.isFlaggedForExit).toBe(false);
+      expect(reserve.isObsolete).toBe(false);
+      expect(reserve.autodeleverageEnabled).toBe(false);
     }
 
     expect(decodeReserve(fixtureData('reserve_metax')).depositLimitCrossedTimestamp).toBe(

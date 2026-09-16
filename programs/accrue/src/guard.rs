@@ -102,6 +102,51 @@ pub fn performance_fee_on_realised_profit(
     u64::try_from(fee).map_err(|_| AccrueError::MathOverflow.into())
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DeleverageSignals {
+    pub reserve_status_obsolete: bool,
+    pub program_is_retiring: bool,
+    pub obligation_margin_call_started_at: u64,
+    pub market_autodeleverage_enabled: bool,
+    pub reserve_autodeleverage_enabled: bool,
+    pub deposit_limit_crossed_at: u64,
+    pub borrow_limit_crossed_at: u64,
+    pub margin_call_period_seconds: u64,
+}
+
+fn a_margin_call_period_has_elapsed(started_at: u64, period_seconds: u64, now: i64) -> bool {
+    if started_at == 0 {
+        return false;
+    }
+    let Some(ends_at) = started_at.checked_add(period_seconds) else {
+        return false;
+    };
+    u64::try_from(now).is_ok_and(|seconds| seconds >= ends_at)
+}
+
+pub fn there_is_a_reason_to_leave(signals: &DeleverageSignals, now: i64) -> bool {
+    if signals.reserve_status_obsolete
+        || signals.program_is_retiring
+        || signals.obligation_margin_call_started_at != 0
+    {
+        return true;
+    }
+
+    if !signals.market_autodeleverage_enabled || !signals.reserve_autodeleverage_enabled {
+        return false;
+    }
+
+    a_margin_call_period_has_elapsed(
+        signals.deposit_limit_crossed_at,
+        signals.margin_call_period_seconds,
+        now,
+    ) || a_margin_call_period_has_elapsed(
+        signals.borrow_limit_crossed_at,
+        signals.margin_call_period_seconds,
+        now,
+    )
+}
+
 pub fn require_the_interval_has_elapsed(
     last_at: i64,
     now: i64,
@@ -321,6 +366,93 @@ mod tests {
             performance_fee_on_realised_profit(101 * USDC, 101 * USDC, TEN_PERCENT_BPS).unwrap(),
             0
         );
+    }
+
+    const A_WEEK: u64 = 604_800;
+    const A_MOMENT_A_LIMIT_WAS_CROSSED: u64 = 1_789_000_000;
+
+    fn a_reserve_the_market_is_deleveraging() -> DeleverageSignals {
+        DeleverageSignals {
+            market_autodeleverage_enabled: true,
+            reserve_autodeleverage_enabled: true,
+            deposit_limit_crossed_at: A_MOMENT_A_LIMIT_WAS_CROSSED,
+            margin_call_period_seconds: A_WEEK,
+            ..DeleverageSignals::default()
+        }
+    }
+
+    #[test]
+    fn a_healthy_reserve_on_a_live_program_is_no_reason_to_leave() {
+        let now = i64::try_from(A_MOMENT_A_LIMIT_WAS_CROSSED + A_WEEK).unwrap();
+        assert!(!there_is_a_reason_to_leave(
+            &DeleverageSignals::default(),
+            now
+        ));
+    }
+
+    #[test]
+    fn the_market_wide_flag_has_to_be_on_as_well_as_the_reserve_one() {
+        let now = i64::try_from(A_MOMENT_A_LIMIT_WAS_CROSSED + A_WEEK).unwrap();
+
+        let market_flag_off = DeleverageSignals {
+            market_autodeleverage_enabled: false,
+            ..a_reserve_the_market_is_deleveraging()
+        };
+        assert!(!there_is_a_reason_to_leave(&market_flag_off, now));
+
+        let reserve_flag_off = DeleverageSignals {
+            reserve_autodeleverage_enabled: false,
+            ..a_reserve_the_market_is_deleveraging()
+        };
+        assert!(!there_is_a_reason_to_leave(&reserve_flag_off, now));
+    }
+
+    #[test]
+    fn a_margin_call_younger_than_the_period_is_no_reason_to_leave() {
+        let signals = a_reserve_the_market_is_deleveraging();
+        let one_second_early = i64::try_from(A_MOMENT_A_LIMIT_WAS_CROSSED + A_WEEK - 1).unwrap();
+        assert!(!there_is_a_reason_to_leave(&signals, one_second_early));
+    }
+
+    #[test]
+    fn a_margin_call_older_than_the_period_is_a_reason_to_leave() {
+        let signals = a_reserve_the_market_is_deleveraging();
+        let the_moment_it_elapses = i64::try_from(A_MOMENT_A_LIMIT_WAS_CROSSED + A_WEEK).unwrap();
+        assert!(there_is_a_reason_to_leave(&signals, the_moment_it_elapses));
+
+        let borrow_side = DeleverageSignals {
+            deposit_limit_crossed_at: 0,
+            borrow_limit_crossed_at: A_MOMENT_A_LIMIT_WAS_CROSSED,
+            ..signals
+        };
+        assert!(there_is_a_reason_to_leave(
+            &borrow_side,
+            the_moment_it_elapses
+        ));
+    }
+
+    #[test]
+    fn a_marker_on_the_obligation_alone_is_a_reason_to_leave() {
+        let marked = DeleverageSignals {
+            obligation_margin_call_started_at: A_MOMENT_A_LIMIT_WAS_CROSSED,
+            ..DeleverageSignals::default()
+        };
+        assert!(there_is_a_reason_to_leave(&marked, 0));
+    }
+
+    #[test]
+    fn an_obsolete_reserve_or_a_retiring_program_is_a_reason_to_leave() {
+        let obsolete = DeleverageSignals {
+            reserve_status_obsolete: true,
+            ..DeleverageSignals::default()
+        };
+        assert!(there_is_a_reason_to_leave(&obsolete, 0));
+
+        let retiring = DeleverageSignals {
+            program_is_retiring: true,
+            ..DeleverageSignals::default()
+        };
+        assert!(there_is_a_reason_to_leave(&retiring, 0));
     }
 
     #[test]

@@ -5,6 +5,8 @@ import {
   performanceFeeOnRealisedProfit,
   protectAmounts,
   repayToReachTarget,
+  thereIsAReasonToLeave,
+  type DeleverageSignals,
 } from './guard.js';
 import { SCALED_FRACTION_ONE, wholeUnitsToScaledFraction } from './money.js';
 
@@ -164,5 +166,89 @@ describe('the fee the owner is charged at unwind', () => {
     expect(
       performanceFeeOnRealisedProfit(101n * USDC, 101n * USDC, TEN_PERCENT_BPS),
     ).toBe(0n);
+  });
+});
+
+describe('what counts as a reason to leave', () => {
+  const A_WEEK = 604_800n;
+  const A_MOMENT_A_LIMIT_WAS_CROSSED = 1_789_000_000n;
+  const NOTHING_IS_WRONG: DeleverageSignals = {
+    reserveStatusObsolete: false,
+    programIsRetiring: false,
+    obligationMarginCallStartedAt: 0n,
+    marketAutodeleverageEnabled: false,
+    reserveAutodeleverageEnabled: false,
+    depositLimitCrossedAt: 0n,
+    borrowLimitCrossedAt: 0n,
+    marginCallPeriodSeconds: A_WEEK,
+  };
+  const aReserveTheMarketIsDeleveraging: DeleverageSignals = {
+    ...NOTHING_IS_WRONG,
+    marketAutodeleverageEnabled: true,
+    reserveAutodeleverageEnabled: true,
+    depositLimitCrossedAt: A_MOMENT_A_LIMIT_WAS_CROSSED,
+  };
+  const afterTheMarginCall = A_MOMENT_A_LIMIT_WAS_CROSSED + A_WEEK;
+
+  it('leaves a healthy reserve on a live program alone', () => {
+    expect(thereIsAReasonToLeave(NOTHING_IS_WRONG, afterTheMarginCall)).toBe(false);
+  });
+
+  it('needs the market wide flag as well as the reserve one', () => {
+    expect(
+      thereIsAReasonToLeave(
+        { ...aReserveTheMarketIsDeleveraging, marketAutodeleverageEnabled: false },
+        afterTheMarginCall,
+      ),
+    ).toBe(false);
+    expect(
+      thereIsAReasonToLeave(
+        { ...aReserveTheMarketIsDeleveraging, reserveAutodeleverageEnabled: false },
+        afterTheMarginCall,
+      ),
+    ).toBe(false);
+  });
+
+  it('waits out the margin call period', () => {
+    expect(
+      thereIsAReasonToLeave(aReserveTheMarketIsDeleveraging, afterTheMarginCall - 1n),
+    ).toBe(false);
+    expect(
+      thereIsAReasonToLeave(aReserveTheMarketIsDeleveraging, afterTheMarginCall),
+    ).toBe(true);
+  });
+
+  it('acts on a borrow limit that was crossed just as readily', () => {
+    expect(
+      thereIsAReasonToLeave(
+        {
+          ...aReserveTheMarketIsDeleveraging,
+          depositLimitCrossedAt: 0n,
+          borrowLimitCrossedAt: A_MOMENT_A_LIMIT_WAS_CROSSED,
+        },
+        afterTheMarginCall,
+      ),
+    ).toBe(true);
+  });
+
+  it('acts on a marker against this one obligation alone', () => {
+    expect(
+      thereIsAReasonToLeave(
+        {
+          ...NOTHING_IS_WRONG,
+          obligationMarginCallStartedAt: A_MOMENT_A_LIMIT_WAS_CROSSED,
+        },
+        0n,
+      ),
+    ).toBe(true);
+  });
+
+  it('acts on an obsolete reserve or a retiring program', () => {
+    expect(
+      thereIsAReasonToLeave({ ...NOTHING_IS_WRONG, reserveStatusObsolete: true }, 0n),
+    ).toBe(true);
+    expect(
+      thereIsAReasonToLeave({ ...NOTHING_IS_WRONG, programIsRetiring: true }, 0n),
+    ).toBe(true);
   });
 });

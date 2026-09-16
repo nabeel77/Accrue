@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { DeleverageSignals } from '@accrue/core';
+
 import {
   decideWhatToDo,
   mostStretchedFirst,
@@ -22,6 +24,24 @@ const limits: GuardLimits = {
 
 const now = { unixTimestamp: 1_800_000_000 };
 
+const A_WEEK = 604_800n;
+const nothingIsWrong: DeleverageSignals = {
+  reserveStatusObsolete: false,
+  programIsRetiring: false,
+  obligationMarginCallStartedAt: 0n,
+  marketAutodeleverageEnabled: false,
+  reserveAutodeleverageEnabled: false,
+  depositLimitCrossedAt: 0n,
+  borrowLimitCrossedAt: 0n,
+  marginCallPeriodSeconds: A_WEEK,
+};
+const aReserveTheMarketIsDeleveraging: DeleverageSignals = {
+  ...nothingIsWrong,
+  marketAutodeleverageEnabled: true,
+  reserveAutodeleverageEnabled: true,
+  depositLimitCrossedAt: BigInt(now.unixTimestamp) - A_WEEK,
+};
+
 function aPosition(overrides: Partial<PositionUnderWatch> = {}): PositionUnderWatch {
   return {
     isOpen: true,
@@ -33,7 +53,7 @@ function aPosition(overrides: Partial<PositionUnderWatch> = {}): PositionUnderWa
     lastGrowAt: 0,
     loanToValueBps: 4_000,
     destinationBalance: 1_000_000_000n,
-    reserveIsFlagged: false,
+    deleverage: nothingIsWrong,
     oldestPriceAgeSlots: 10,
     ...overrides,
   };
@@ -131,16 +151,62 @@ describe('what the keeper proposes', () => {
   });
 
   it('hands a position back when the market has flagged its reserve', () => {
-    const position = aPosition({ reserveIsFlagged: true });
+    const position = aPosition({
+      deleverage: { ...nothingIsWrong, reserveStatusObsolete: true },
+    });
     expect(decideWhatToDo(position, limits, now)).toEqual({ kind: 'leave' });
   });
 
   it('leaves the flag alone when the owner switched that off', () => {
-    const position = aPosition({ reserveIsFlagged: true, exitOnFlagEnabled: false });
+    const position = aPosition({
+      deleverage: { ...nothingIsWrong, reserveStatusObsolete: true },
+      exitOnFlagEnabled: false,
+    });
     expect(decideWhatToDo(position, limits, now)).toEqual({
       kind: 'wait',
       reason: 'above the grow level and below the guard level',
     });
+  });
+
+  it('waits while the market itself is not deleveraging', () => {
+    const position = aPosition({
+      deleverage: {
+        ...aReserveTheMarketIsDeleveraging,
+        marketAutodeleverageEnabled: false,
+      },
+    });
+    expect(decideWhatToDo(position, limits, now)).toEqual({
+      kind: 'wait',
+      reason: 'above the grow level and below the guard level',
+    });
+  });
+
+  it('waits while the margin call period is still running', () => {
+    const position = aPosition({
+      deleverage: {
+        ...aReserveTheMarketIsDeleveraging,
+        depositLimitCrossedAt: BigInt(now.unixTimestamp) - A_WEEK + 1n,
+      },
+    });
+    expect(decideWhatToDo(position, limits, now)).toEqual({
+      kind: 'wait',
+      reason: 'above the grow level and below the guard level',
+    });
+  });
+
+  it('hands a position back once the margin call period has run out', () => {
+    const position = aPosition({ deleverage: aReserveTheMarketIsDeleveraging });
+    expect(decideWhatToDo(position, limits, now)).toEqual({ kind: 'leave' });
+  });
+
+  it('hands a position back on a margin call against that one obligation', () => {
+    const position = aPosition({
+      deleverage: {
+        ...nothingIsWrong,
+        obligationMarginCallStartedAt: BigInt(now.unixTimestamp),
+      },
+    });
+    expect(decideWhatToDo(position, limits, now)).toEqual({ kind: 'leave' });
   });
 
   it('hands every position back once the program is retiring', () => {
@@ -150,7 +216,10 @@ describe('what the keeper proposes', () => {
   });
 
   it('protects before it leaves, because a flagged reserve still liquidates', () => {
-    const position = aPosition({ loanToValueBps: 5_500, reserveIsFlagged: true });
+    const position = aPosition({
+      deleverage: { ...nothingIsWrong, reserveStatusObsolete: true },
+      loanToValueBps: 5_500,
+    });
     expect(decideWhatToDo(position, limits, now)).toEqual({ kind: 'protect' });
   });
 

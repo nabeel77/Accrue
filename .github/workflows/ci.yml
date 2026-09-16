@@ -81,6 +81,13 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: the other clusters still build and lint
+        run: |
+          cargo clippy --package accrue --no-default-features --features devnet -- -D warnings
+          cargo clippy --package accrue --no-default-features --features localnet -- -D warnings
+          cargo build --package accrue --no-default-features --features devnet
+          cargo build --package accrue --no-default-features --features localnet
+
       - name: anchor build
         run: anchor build
 

@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fs, str::FromStr};
 
 use accrue::kamino::{
-    decode_obligation, decode_reserve, ObligationSnapshot, ReserveSnapshot, OBLIGATION_ACCOUNT_LEN,
-    RESERVE_ACCOUNT_LEN,
+    decode_lending_market, decode_obligation, decode_reserve, ObligationSnapshot, ReserveSnapshot,
+    LENDING_MARKET_ACCOUNT_LEN, OBLIGATION_ACCOUNT_LEN, RESERVE_ACCOUNT_LEN,
 };
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
@@ -315,7 +315,7 @@ fn the_nvdax_reserve_decodes_the_numbers_the_product_is_built_on() {
         u16::from(reserve.liquidation_threshold_pct) * 100
     );
     assert!(reserve.is_active());
-    assert!(!reserve.is_flagged_for_exit());
+    assert!(!reserve.is_obsolete());
 }
 
 #[test]
@@ -375,7 +375,7 @@ fn a_reserve_reports_the_limit_timestamps_a_deleveraging_would_set() {
             reserve.borrow_limit_crossed_timestamp, 0,
             "{label} has not crossed its borrow limit"
         );
-        assert!(!reserve.is_being_deleveraged());
+        assert!(!reserve.autodeleverage_enabled);
     }
 
     let retired = decode_fixture_reserve(&snapshot, "reserve_metax").unwrap();
@@ -383,6 +383,69 @@ fn a_reserve_reports_the_limit_timestamps_a_deleveraging_would_set() {
         retired.deposit_limit_crossed_timestamp, 1_753_830_774,
         "the retired reserve records the moment it crossed its deposit limit, which is what proves the offset"
     );
+}
+
+#[test]
+fn the_market_and_the_obligation_report_the_deleveraging_fields_leave_reads() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+
+    let market_fixture = snapshot.account_by_label("xstocks_market").unwrap();
+    let market_data = BASE64_STANDARD.decode(&market_fixture.data_base64).unwrap();
+    assert_eq!(market_data.len(), LENDING_MARKET_ACCOUNT_LEN);
+    let market = decode_lending_market(&market_data).unwrap();
+    assert!(
+        !market.autodeleverage_enabled,
+        "the xStocks market is not deleveraging anything today"
+    );
+
+    let obligation = decode_fixture_obligation(&snapshot, OBLIGATION_FIXTURE_LABEL).unwrap();
+    assert_eq!(obligation.autodeleverage_margin_call_started_timestamp, 0);
+    assert_eq!(obligation.autodeleverage_target_ltv_pct, 0);
+
+    for label in xstocks_market_reserve_labels(&snapshot) {
+        let reserve = decode_fixture_reserve(&snapshot, &label).unwrap();
+        assert_eq!(
+            reserve.deleveraging_margin_call_period_seconds, 604_800,
+            "{label} gives a week of margin call before it deleverages"
+        );
+    }
+}
+
+#[test]
+fn the_price_the_open_sizes_a_position_from_is_the_one_the_reserve_carries() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+
+    let usdc = decode_fixture_reserve(&snapshot, "reserve_usdc").unwrap();
+    let a_dollar = accrue::kamino::SCALED_FRACTION_ONE;
+    assert!(
+        usdc.liquidity_market_price_scaled > a_dollar * 98 / 100
+            && usdc.liquidity_market_price_scaled < a_dollar * 102 / 100,
+        "USDC decoded at {} of a dollar",
+        usdc.liquidity_market_price_scaled as f64 / a_dollar as f64
+    );
+    assert!(usdc.market_price_is_inside_the_heuristic().unwrap());
+
+    let nvdax = decode_fixture_reserve(&snapshot, "reserve_nvdax").unwrap();
+    assert!(
+        nvdax.market_price_is_inside_the_heuristic().unwrap(),
+        "NVDAx decoded at {} a share, outside the bounds the market allows for it",
+        nvdax.liquidity_market_price_scaled as f64 / a_dollar as f64
+    );
+    assert_eq!(nvdax.price_heuristic_lower, 1_000);
+    assert_eq!(nvdax.price_heuristic_upper, 2_500);
+    assert_eq!(nvdax.price_heuristic_exponent, 1);
+}
+
+#[test]
+fn every_reserve_carries_a_price_its_own_heuristic_accepts() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+    for label in xstocks_market_reserve_labels(&snapshot) {
+        let reserve = decode_fixture_reserve(&snapshot, &label).unwrap();
+        assert!(
+            reserve.market_price_is_inside_the_heuristic().unwrap(),
+            "{label} carries a price outside the bounds the market wrote for it"
+        );
+    }
 }
 
 #[test]

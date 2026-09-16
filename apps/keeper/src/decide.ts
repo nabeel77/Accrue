@@ -1,3 +1,5 @@
+import { thereIsAReasonToLeave, type DeleverageSignals } from '@accrue/core';
+
 export type GuardAction = 'protect' | 'grow' | 'leave';
 
 export type WaitingReason =
@@ -32,7 +34,7 @@ export interface PositionUnderWatch {
   readonly lastGrowAt: number;
   readonly loanToValueBps: number;
   readonly destinationBalance: bigint;
-  readonly reserveIsFlagged: boolean;
+  readonly deleverage: DeleverageSignals;
   readonly oldestPriceAgeSlots: number;
 }
 
@@ -89,7 +91,11 @@ export function decideWhatToDo(
     }
   }
 
-  if (limits.sunset || (position.exitOnFlagEnabled && position.reserveIsFlagged)) {
+  const theMarketIsHandingItBack = thereIsAReasonToLeave(
+    { ...position.deleverage, programIsRetiring: limits.sunset },
+    BigInt(now.unixTimestamp),
+  );
+  if (limits.sunset || (position.exitOnFlagEnabled && theMarketIsHandingItBack)) {
     if (!priceIsFresh && position.destinationBalance > 0n) {
       return { kind: 'wait', reason: 'the oracle price is stale' };
     }

@@ -18,7 +18,7 @@ use crate::kamino::cpi::{
     ObligationContext, ReserveRefresh, WithdrawAccounts,
 };
 use crate::kamino::{
-    obligation_was_closed_by_the_market, read_obligation_borrowed_value_scaled,
+    obligation_was_closed_by_the_market, read_obligation_adjusted_debt_value_scaled,
     read_obligation_deposited_amount, read_obligation_deposited_value_scaled,
     read_obligation_has_debt, read_reserve_account,
 };
@@ -290,7 +290,7 @@ fn withdrawable_collateral(accounts: &Rescue<'_>) -> Result<u64> {
     if max_loan_to_value_bps == 0 {
         return Ok(0);
     }
-    let debt_value = read_obligation_borrowed_value_scaled(&obligation)?;
+    let debt_value = read_obligation_adjusted_debt_value_scaled(&obligation)?;
     let deposited_value = read_obligation_deposited_value_scaled(&obligation)?;
     if deposited_value == 0 {
         return Ok(0);
