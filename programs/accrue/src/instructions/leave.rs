@@ -6,6 +6,7 @@ use crate::constants::{
     KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
+use crate::guard::{there_is_a_reason_to_leave, DeleverageSignals};
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
     require_the_vaults_the_borrow_reserve_names,
@@ -19,8 +20,10 @@ use crate::kamino::cpi::{
     withdraw_collateral, ObligationContext, RepayAccounts, ReserveRefresh, WithdrawAccounts,
 };
 use crate::kamino::{
-    read_obligation_borrowed_amount_scaled, read_obligation_deposited_amount,
-    read_obligation_has_debt, read_reserve_account, scaled_fraction_to_whole_units_rounding_up,
+    read_lending_market_account, read_obligation_borrowed_amount_scaled,
+    read_obligation_deposited_amount, read_obligation_has_debt,
+    read_obligation_margin_call_started_at, read_reserve_account,
+    scaled_fraction_to_whole_units_rounding_up,
 };
 use crate::scope::{
     minimum_output_the_oracle_allows, read_scope_price, require_price_is_fresh, SwapSide,
@@ -183,11 +186,25 @@ pub fn handle_leave<'info>(
             accounts.position.strategy.exit_on_flag_enabled,
             AccrueError::ExitOnFlagNotEnabled
         );
-        require!(
-            collateral_reserve.is_flagged_for_exit(),
-            AccrueError::NoReasonToLeave
-        );
     }
+
+    let signals = DeleverageSignals {
+        reserve_status_obsolete: collateral_reserve.is_obsolete(),
+        program_is_retiring: accounts.config.sunset,
+        obligation_margin_call_started_at: read_obligation_margin_call_started_at(
+            &accounts.obligation.to_account_info(),
+        )?,
+        market_autodeleverage_enabled: read_lending_market_account(&accounts.lending_market)?
+            .autodeleverage_enabled,
+        reserve_autodeleverage_enabled: collateral_reserve.autodeleverage_enabled,
+        deposit_limit_crossed_at: collateral_reserve.deposit_limit_crossed_timestamp,
+        borrow_limit_crossed_at: collateral_reserve.borrow_limit_crossed_timestamp,
+        margin_call_period_seconds: collateral_reserve.deleveraging_margin_call_period_seconds,
+    };
+    require!(
+        there_is_a_reason_to_leave(&signals, Clock::get()?.unix_timestamp),
+        AccrueError::NoReasonToLeave
+    );
 
     let borrow_reserve = read_reserve_account(&accounts.borrow_reserve)?;
     require_borrow_reserve_of_position(

@@ -55,7 +55,21 @@ export function watchThePosition(reading: ChainReading): Candidate<GuardSubject>
       lastGrowAt: Number(reading.position.lastGrowAt),
       loanToValueBps,
       destinationBalance: reading.destinationBalance,
-      reserveIsFlagged: reading.market.collateralReserve.isFlaggedForExit,
+      deleverage: {
+        reserveStatusObsolete: reading.market.collateralReserve.isObsolete,
+        programIsRetiring: false,
+        obligationMarginCallStartedAt:
+          reading.market.obligation.autodeleverageMarginCallStartedTimestamp,
+        marketAutodeleverageEnabled: reading.market.lendingMarket.autodeleverageEnabled,
+        reserveAutodeleverageEnabled:
+          reading.market.collateralReserve.autodeleverageEnabled,
+        depositLimitCrossedAt:
+          reading.market.collateralReserve.depositLimitCrossedTimestamp,
+        borrowLimitCrossedAt:
+          reading.market.collateralReserve.borrowLimitCrossedTimestamp,
+        marginCallPeriodSeconds:
+          reading.market.collateralReserve.deleveragingMarginCallPeriodSeconds,
+      },
       oldestPriceAgeSlots,
     },
     subject: {

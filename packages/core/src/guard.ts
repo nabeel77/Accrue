@@ -107,3 +107,56 @@ export function performanceFeeOnRealisedProfit(
     usdcFromSalesTotal > usdcRepaidTotal ? usdcFromSalesTotal - usdcRepaidTotal : 0n;
   return (profit * BigInt(feeBpsAtOpen)) / BASIS_POINTS_DENOMINATOR;
 }
+
+export interface DeleverageSignals {
+  readonly reserveStatusObsolete: boolean;
+  readonly programIsRetiring: boolean;
+  readonly obligationMarginCallStartedAt: bigint;
+  readonly marketAutodeleverageEnabled: boolean;
+  readonly reserveAutodeleverageEnabled: boolean;
+  readonly depositLimitCrossedAt: bigint;
+  readonly borrowLimitCrossedAt: bigint;
+  readonly marginCallPeriodSeconds: bigint;
+}
+
+function aMarginCallPeriodHasElapsed(
+  startedAt: bigint,
+  periodSeconds: bigint,
+  now: bigint,
+): boolean {
+  return startedAt !== 0n && now >= startedAt + periodSeconds;
+}
+
+/**
+ * The bar for emptying a position without asking its owner: the market has to be taking it apart,
+ * not merely to have the setting switched on. The same four cases the program checks.
+ */
+export function thereIsAReasonToLeave(
+  signals: DeleverageSignals,
+  nowUnixTimestamp: bigint,
+): boolean {
+  if (
+    signals.reserveStatusObsolete ||
+    signals.programIsRetiring ||
+    signals.obligationMarginCallStartedAt !== 0n
+  ) {
+    return true;
+  }
+
+  if (!signals.marketAutodeleverageEnabled || !signals.reserveAutodeleverageEnabled) {
+    return false;
+  }
+
+  return (
+    aMarginCallPeriodHasElapsed(
+      signals.depositLimitCrossedAt,
+      signals.marginCallPeriodSeconds,
+      nowUnixTimestamp,
+    ) ||
+    aMarginCallPeriodHasElapsed(
+      signals.borrowLimitCrossedAt,
+      signals.marginCallPeriodSeconds,
+      nowUnixTimestamp,
+    )
+  );
+}

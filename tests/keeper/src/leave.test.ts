@@ -29,7 +29,7 @@ describe('a keeper round that hands a position back when its reserve is flagged'
 
     const ownerStockBefore = world.tokenBalance(opened.tokens.ownerCollateral);
     const round = await buildTheRound(world, opened);
-    expect(round.candidates[0]?.watched.reserveIsFlagged).toBe(true);
+    expect(round.candidates[0]?.watched.deleverage.reserveStatusObsolete).toBe(true);
 
     const runLog = createRunLogThatOnlyCounts();
     const sender = createLiteSvmSender(world);
@@ -72,7 +72,7 @@ describe('a keeper round that hands a position back when its reserve is flagged'
     const opened = await openAGuardedPosition(world);
 
     const round = await buildTheRound(world, opened);
-    expect(round.candidates[0]?.watched.reserveIsFlagged).toBe(false);
+    expect(round.candidates[0]?.watched.deleverage.reserveStatusObsolete).toBe(false);
 
     const runLog = createRunLogThatOnlyCounts();
     const report = await runOneRound(

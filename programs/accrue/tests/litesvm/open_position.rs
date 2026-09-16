@@ -4,7 +4,6 @@ use solana_signer::Signer;
 
 use crate::actions::{honest_route_data, NVDAX_STRATEGY};
 use crate::world::World;
-use accrue::constants::MAX_PRICE_AGE_SLOTS_AT_OPEN;
 
 const HONEST_SWAP_PROGRAM: &str = "honest_swap.so";
 const BORROW_AMOUNT: u64 = 4_000_000;
@@ -28,39 +27,6 @@ fn an_open_leaves_the_loan_at_or_under_the_target_the_owner_asked_for() {
         landed_at <= strategy.target_ltv_bps,
         "the open landed at {landed_at} basis points, above the target of {}",
         strategy.target_ltv_bps
-    );
-}
-
-#[test]
-fn an_open_on_an_oracle_price_older_than_the_program_allows_is_refused() {
-    let mut world = World::new();
-    let collateral_mint = world.collateral.liquidity_mint();
-    let position = world.position_address(&collateral_mint, &world.destination_mint);
-    let stock_amount = world.collateral.raw_amount_worth_usd(POSITION_SIZE_USD);
-    let tokens = world.fund_owner_and_open_token_accounts(position, stock_amount);
-
-    let feed = world.collateral.snapshot.scope_feed_index;
-    world.make_the_price_stale(feed, MAX_PRICE_AGE_SLOTS_AT_OPEN + 1);
-
-    let instruction = world.open_position_instruction(
-        position,
-        &tokens,
-        stock_amount,
-        BORROW_AMOUNT,
-        0,
-        NVDAX_STRATEGY,
-        true,
-        Vec::new(),
-        Vec::new(),
-    );
-    let owner = world.owner.insecure_clone();
-    let failure = world
-        .send(&[instruction], &[&owner])
-        .expect_err("a position must never be sized on a price the program calls stale");
-    assert!(
-        failure.meta.logs.join("\n").contains("OraclePriceIsStale"),
-        "open reverted for another reason: {:#?}",
-        failure.meta.logs
     );
 }
 

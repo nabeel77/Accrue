@@ -557,3 +557,51 @@ fn close_position_returns_the_rent_and_refuses_while_anything_is_left() {
         "the position accounts held rent worth returning"
     );
 }
+
+const RESERVE_BORROW_FACTOR_PCT_OFFSET: usize = 5_008;
+
+fn set_borrow_factor(world: &mut World, percent: u64) {
+    let reserve = world.borrow.address;
+    let mut account = world.svm.get_account(&reserve).unwrap();
+    account.data[RESERVE_BORROW_FACTOR_PCT_OFFSET..RESERVE_BORROW_FACTOR_PCT_OFFSET + 8]
+        .copy_from_slice(&percent.to_le_bytes());
+    world.svm.set_account(reserve, account).unwrap();
+}
+
+fn stock_returned_by_a_rescue(borrow_factor_pct: u64) -> u64 {
+    let mut world = World::new();
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    set_borrow_factor(&mut world, borrow_factor_pct);
+    world.refresh_the_market_from_outside();
+    world.refresh_the_obligation_from_outside(opened.obligation);
+
+    let owner = world.owner.insecure_clone();
+    let before = world.token_balance(&opened.tokens.owner_collateral);
+    let instruction = world.rescue_instruction(&opened, owner.pubkey());
+    world
+        .send(&[instruction], &[&owner])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "rescue reverted: {:?} {:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    world.token_balance(&opened.tokens.owner_collateral) - before
+}
+
+#[test]
+fn rescue_withdraws_less_when_the_market_weights_the_debt_more_heavily() {
+    let at_one_for_one = stock_returned_by_a_rescue(100);
+    let weighted_higher = stock_returned_by_a_rescue(200);
+
+    assert!(
+        at_one_for_one > 0,
+        "a rescue with room under the limit must return some stock"
+    );
+    assert!(
+        weighted_higher < at_one_for_one,
+        "a heavier borrow factor must leave more stock behind: {weighted_higher} against {at_one_for_one}"
+    );
+}

@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 
-use super::fraction::{read_pubkey_at, read_u128_at, read_u16_at, read_u64_at, read_u8_at};
+use super::fraction::{
+    read_pubkey_at, read_u128_at, read_u16_at, read_u64_at, read_u8_at, SCALED_FRACTION_ONE,
+};
 use crate::error::AccrueError;
 
 pub const RESERVE_ACCOUNT_LEN: usize = 8624;
@@ -33,6 +35,9 @@ const OFFSET_CONFIG_BORROW_LIMIT: usize = 5024;
 const OFFSET_CONFIG_DEPOSIT_WITHDRAWAL_CAP: usize = 5416;
 const OFFSET_CONFIG_DEBT_WITHDRAWAL_CAP: usize = 5448;
 const OFFSET_CONFIG_AUTODELEVERAGE_ENABLED: usize = 5502;
+const OFFSET_CONFIG_PRICE_HEURISTIC_LOWER: usize = 5064;
+const OFFSET_CONFIG_PRICE_HEURISTIC_UPPER: usize = 5072;
+const OFFSET_CONFIG_PRICE_HEURISTIC_EXPONENT: usize = 5080;
 const OFFSET_CONFIG_SCOPE_PRICE_ACCOUNT: usize = 5112;
 const OFFSET_CONFIG_SCOPE_PRICE_CHAIN: usize = 5144;
 
@@ -95,6 +100,9 @@ pub struct ReserveSnapshot {
     pub deposit_limit: u64,
     pub borrow_limit: u64,
     pub autodeleverage_enabled: bool,
+    pub price_heuristic_lower: u64,
+    pub price_heuristic_upper: u64,
+    pub price_heuristic_exponent: u64,
     pub deleveraging_margin_call_period_seconds: u64,
     pub deposit_withdrawal_cap: WithdrawalCap,
     pub debt_withdrawal_cap: WithdrawalCap,
@@ -119,16 +127,6 @@ impl ReserveSnapshot {
         self.status == RESERVE_STATUS_OBSOLETE
     }
 
-    pub fn is_being_deleveraged(&self) -> bool {
-        self.autodeleverage_enabled
-            && (self.deposit_limit_crossed_timestamp != 0
-                || self.borrow_limit_crossed_timestamp != 0)
-    }
-
-    pub fn is_flagged_for_exit(&self) -> bool {
-        self.is_obsolete() || self.is_being_deleveraged()
-    }
-
     pub fn max_loan_to_value_bps(&self) -> Result<u16> {
         u16::from(self.loan_to_value_pct)
             .checked_mul(BASIS_POINTS_PER_PERCENT)
@@ -149,6 +147,27 @@ impl ReserveSnapshot {
             AccrueError::ReserveHasNoScopeFeed
         );
         Ok(self.scope_feed_index)
+    }
+
+    pub fn market_price_is_inside_the_heuristic(&self) -> Result<bool> {
+        let divisor = 10u128
+            .checked_pow(
+                u32::try_from(self.price_heuristic_exponent)
+                    .map_err(|_| AccrueError::KaminoFieldOutOfRange)?,
+            )
+            .ok_or(AccrueError::MathOverflow)?;
+        let lower = u128::from(self.price_heuristic_lower)
+            .checked_mul(SCALED_FRACTION_ONE)
+            .ok_or(AccrueError::MathOverflow)?
+            .checked_div(divisor)
+            .ok_or(AccrueError::MathOverflow)?;
+        let upper = u128::from(self.price_heuristic_upper)
+            .checked_mul(SCALED_FRACTION_ONE)
+            .ok_or(AccrueError::MathOverflow)?
+            .checked_div(divisor)
+            .ok_or(AccrueError::MathOverflow)?;
+        Ok(self.liquidity_market_price_scaled >= lower
+            && self.liquidity_market_price_scaled <= upper)
     }
 
     pub fn borrow_factor_pct(&self) -> Result<u64> {
@@ -218,6 +237,9 @@ pub fn decode_reserve(data: &[u8]) -> Result<ReserveSnapshot> {
         deposit_limit: read_u64_at(data, OFFSET_CONFIG_DEPOSIT_LIMIT)?,
         borrow_limit: read_u64_at(data, OFFSET_CONFIG_BORROW_LIMIT)?,
         autodeleverage_enabled: read_u8_at(data, OFFSET_CONFIG_AUTODELEVERAGE_ENABLED)? != 0,
+        price_heuristic_lower: read_u64_at(data, OFFSET_CONFIG_PRICE_HEURISTIC_LOWER)?,
+        price_heuristic_upper: read_u64_at(data, OFFSET_CONFIG_PRICE_HEURISTIC_UPPER)?,
+        price_heuristic_exponent: read_u64_at(data, OFFSET_CONFIG_PRICE_HEURISTIC_EXPONENT)?,
         deleveraging_margin_call_period_seconds: read_u64_at(
             data,
             OFFSET_CONFIG_DELEVERAGING_MARGIN_CALL_PERIOD_SECS,

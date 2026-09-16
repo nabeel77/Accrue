@@ -20,6 +20,8 @@ const OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF: usize = 2224;
 const OFFSET_ALLOWED_BORROW_VALUE_SF: usize = 2240;
 const OFFSET_UNHEALTHY_BORROW_VALUE_SF: usize = 2256;
 const OFFSET_ELEVATION_GROUP: usize = 2285;
+const OFFSET_AUTODELEVERAGE_TARGET_LTV_PCT: usize = 2321;
+const OFFSET_AUTODELEVERAGE_MARGIN_CALL_STARTED_TIMESTAMP: usize = 2336;
 const OFFSET_HAS_DEBT: usize = 2287;
 const OFFSET_REFERRER: usize = 2288;
 
@@ -64,6 +66,8 @@ pub struct ObligationSnapshot {
     pub elevation_group: u8,
     pub has_debt: bool,
     pub referrer: Pubkey,
+    pub autodeleverage_target_ltv_pct: u8,
+    pub autodeleverage_margin_call_started_timestamp: u64,
 }
 
 impl ObligationSnapshot {
@@ -197,20 +201,20 @@ pub fn read_obligation_deposited_value_scaled(account: &AccountInfo<'_>) -> Resu
     read_u128_at(&data, OFFSET_DEPOSITED_VALUE_SF)
 }
 
-pub fn read_obligation_borrowed_value_scaled(account: &AccountInfo<'_>) -> Result<u128> {
-    if obligation_was_closed_by_the_market(account) {
-        return Ok(0);
-    }
-    let data = borrow_kamino_account(account)?;
-    read_u128_at(&data, OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF)
-}
-
 pub fn read_obligation_adjusted_debt_value_scaled(account: &AccountInfo<'_>) -> Result<u128> {
     if obligation_was_closed_by_the_market(account) {
         return Ok(0);
     }
     let data = borrow_kamino_account(account)?;
     read_u128_at(&data, OFFSET_BORROW_FACTOR_ADJUSTED_DEBT_VALUE_SF)
+}
+
+pub fn read_obligation_margin_call_started_at(account: &AccountInfo<'_>) -> Result<u64> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    read_u64_at(&data, OFFSET_AUTODELEVERAGE_MARGIN_CALL_STARTED_TIMESTAMP)
 }
 
 pub fn read_obligation_has_debt(account: &AccountInfo<'_>) -> Result<bool> {
@@ -308,5 +312,10 @@ pub fn decode_obligation(data: &[u8]) -> Result<ObligationSnapshot> {
         elevation_group: read_u8_at(data, OFFSET_ELEVATION_GROUP)?,
         has_debt: read_u8_at(data, OFFSET_HAS_DEBT)? != 0,
         referrer: read_pubkey_at(data, OFFSET_REFERRER)?,
+        autodeleverage_target_ltv_pct: read_u8_at(data, OFFSET_AUTODELEVERAGE_TARGET_LTV_PCT)?,
+        autodeleverage_margin_call_started_timestamp: read_u64_at(
+            data,
+            OFFSET_AUTODELEVERAGE_MARGIN_CALL_STARTED_TIMESTAMP,
+        )?,
     })
 }

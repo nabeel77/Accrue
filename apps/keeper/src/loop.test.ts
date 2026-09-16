@@ -26,7 +26,16 @@ function watched(overrides: Partial<PositionUnderWatch>): PositionUnderWatch {
     lastGrowAt: 0,
     loanToValueBps: 4_000,
     destinationBalance: 1_000n,
-    reserveIsFlagged: false,
+    deleverage: {
+      reserveStatusObsolete: false,
+      programIsRetiring: false,
+      obligationMarginCallStartedAt: 0n,
+      marketAutodeleverageEnabled: false,
+      reserveAutodeleverageEnabled: false,
+      depositLimitCrossedAt: 0n,
+      borrowLimitCrossedAt: 0n,
+      marginCallPeriodSeconds: 604_800n,
+    },
     oldestPriceAgeSlots: 1,
     ...overrides,
   };

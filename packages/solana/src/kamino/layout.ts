@@ -3,6 +3,9 @@ import { getBase58Decoder, type Address } from '@solana/kit';
 export const RESERVE_ACCOUNT_LENGTH = 8_624;
 export const OBLIGATION_ACCOUNT_LENGTH = 3_344;
 export const SCOPE_PRICES_ACCOUNT_LENGTH = 28_712;
+export const LENDING_MARKET_ACCOUNT_LENGTH = 4_664;
+
+const LENDING_MARKET_AUTODELEVERAGE_ENABLED = 123;
 
 export const SCALED_FRACTION_BITS = 60n;
 export const SCALED_FRACTION_ONE = 1n << SCALED_FRACTION_BITS;
@@ -26,6 +29,7 @@ const RESERVE_CONFIG_STATUS = 4_856;
 const RESERVE_CONFIG_LOAN_TO_VALUE_PCT = 4_872;
 const RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT = 4_873;
 const RESERVE_CONFIG_AUTODELEVERAGE_ENABLED = 5_502;
+const RESERVE_CONFIG_DELEVERAGING_MARGIN_CALL_PERIOD = 4_880;
 const RESERVE_CONFIG_BORROW_FACTOR_PCT = 5_008;
 const RESERVE_CONFIG_SCOPE_PRICE_ACCOUNT = 5_112;
 const RESERVE_CONFIG_SCOPE_PRICE_CHAIN = 5_144;
@@ -35,6 +39,7 @@ const OBLIGATION_DEPOSITED_VALUE = 1_192;
 const OBLIGATION_BORROWS = 1_208;
 const OBLIGATION_BORROWED_ASSETS_MARKET_VALUE = 2_224;
 const OBLIGATION_ADJUSTED_DEBT_VALUE = 2_208;
+const OBLIGATION_AUTODELEVERAGE_MARGIN_CALL_STARTED = 2_336;
 const OBLIGATION_HAS_DEBT = 2_287;
 const DEPOSIT_ENTRY_LENGTH = 136;
 const DEPOSIT_DEPOSITED_AMOUNT = 32;
@@ -72,7 +77,9 @@ export interface ReserveSnapshot {
   readonly maxLoanToValueBps: number;
   readonly liquidationThresholdBps: number;
   readonly isActive: boolean;
-  readonly isFlaggedForExit: boolean;
+  readonly isObsolete: boolean;
+  readonly autodeleverageEnabled: boolean;
+  readonly deleveragingMarginCallPeriodSeconds: bigint;
   readonly collateralFarm: Address | null;
   readonly debtFarm: Address | null;
   readonly scopePriceAccount: Address;
@@ -84,6 +91,7 @@ export interface ObligationSnapshot {
   readonly borrowedValueScaled: bigint;
   readonly adjustedDebtValueScaled: bigint;
   readonly hasDebt: boolean;
+  readonly autodeleverageMarginCallStartedTimestamp: bigint;
   readonly loanToValueBps: number;
   readonly depositReserves: readonly Address[];
   readonly borrowReserves: readonly Address[];
@@ -126,9 +134,7 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
     RESERVE_LIQUIDITY_BORROW_LIMIT_CROSSED,
     8,
   );
-  const beingDeleveraged =
-    autodeleverage &&
-    (depositLimitCrossedTimestamp !== 0n || borrowLimitCrossedTimestamp !== 0n);
+
   const collateralFarm = addressAt(data, RESERVE_FARM_COLLATERAL);
   const debtFarm = addressAt(data, RESERVE_FARM_DEBT);
   const scopeFeedIndex = Number(unsignedAt(data, RESERVE_CONFIG_SCOPE_PRICE_CHAIN, 2));
@@ -153,7 +159,13 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
     liquidationThresholdBps:
       (data[RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT] ?? 0) * BASIS_POINTS_PER_PERCENT,
     isActive: status === RESERVE_STATUS_ACTIVE,
-    isFlaggedForExit: status === RESERVE_STATUS_OBSOLETE || beingDeleveraged,
+    isObsolete: status === RESERVE_STATUS_OBSOLETE,
+    autodeleverageEnabled: autodeleverage,
+    deleveragingMarginCallPeriodSeconds: unsignedAt(
+      data,
+      RESERVE_CONFIG_DELEVERAGING_MARGIN_CALL_PERIOD,
+      8,
+    ),
     collateralFarm: isTheDefaultAddress(collateralFarm) ? null : collateralFarm,
     debtFarm: isTheDefaultAddress(debtFarm) ? null : debtFarm,
     scopePriceAccount: addressAt(data, RESERVE_CONFIG_SCOPE_PRICE_ACCOUNT),
@@ -200,6 +212,11 @@ export function decodeObligation(data: Uint8Array): ObligationSnapshot {
     depositReserves,
     borrowReserves,
     hasDebt: (data[OBLIGATION_HAS_DEBT] ?? 0) !== 0,
+    autodeleverageMarginCallStartedTimestamp: unsignedAt(
+      data,
+      OBLIGATION_AUTODELEVERAGE_MARGIN_CALL_STARTED,
+      8,
+    ),
     loanToValueBps:
       depositedValueScaled === 0n
         ? 0
@@ -243,4 +260,17 @@ export function scaledFractionToWholeUnits(scaled: bigint): bigint {
 
 function isTheDefaultAddress(candidate: Address): boolean {
   return candidate === '11111111111111111111111111111111';
+}
+
+export interface LendingMarketSnapshot {
+  readonly autodeleverageEnabled: boolean;
+}
+
+export function decodeLendingMarket(data: Uint8Array): LendingMarketSnapshot {
+  if (data.length !== LENDING_MARKET_ACCOUNT_LENGTH) {
+    throw new Error('that account is not the length a lending market is');
+  }
+  return {
+    autodeleverageEnabled: (data[LENDING_MARKET_AUTODELEVERAGE_ENABLED] ?? 0) !== 0,
+  };
 }
