@@ -1,9 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{
-    is_known_token_program, ASSOCIATED_TOKEN_PROGRAM_ID, JUPITER_V6_PROGRAM_ID,
-    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID,
-};
+use crate::constants::{is_known_token_program, KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID};
 use crate::error::AccrueError;
 use crate::kamino::read_obligation_deposited_amount;
 
@@ -219,17 +216,6 @@ pub fn assert_swap_route_touches_nothing_it_must_not(
             require!(
                 is_part_of_this_swap,
                 AccrueError::SwapRouteTouchesAForbiddenAccount
-            );
-        }
-
-        if account.executable {
-            let is_allowed_program = key == JUPITER_V6_PROGRAM_ID
-                || is_known_token_program(&key)
-                || key == ASSOCIATED_TOKEN_PROGRAM_ID
-                || key == anchor_lang::solana_program::system_program::ID;
-            require!(
-                is_allowed_program || !account.is_signer,
-                AccrueError::SwapRouteCallsAnUnknownProgram
             );
         }
     }

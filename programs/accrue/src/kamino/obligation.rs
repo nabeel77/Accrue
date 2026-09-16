@@ -94,7 +94,7 @@ impl ObligationSnapshot {
             return Ok(0);
         }
         let numerator = self
-            .borrowed_assets_market_value_scaled
+            .borrow_factor_adjusted_debt_value_scaled
             .checked_mul(10_000)
             .ok_or(AccrueError::MathOverflow)?;
         let ratio = numerator
@@ -124,28 +124,35 @@ fn borrow_kamino_account<'a>(
     Ok(data)
 }
 
-pub fn read_obligation_reserves_in_order(account: &AccountInfo<'_>) -> Result<Vec<Pubkey>> {
+pub const MAX_OBLIGATION_RESERVES: usize = MAX_OBLIGATION_DEPOSITS + MAX_OBLIGATION_BORROWS;
+
+pub fn read_obligation_reserves_in_order(
+    account: &AccountInfo<'_>,
+    into: &mut [Pubkey; MAX_OBLIGATION_RESERVES],
+) -> Result<usize> {
     if obligation_was_closed_by_the_market(account) {
-        return Ok(Vec::new());
+        return Ok(0);
     }
     let data = borrow_kamino_account(account)?;
-    let mut reserves = Vec::new();
+    let mut found = 0;
 
     for index in 0..MAX_OBLIGATION_DEPOSITS {
         let base = OFFSET_DEPOSITS.saturating_add(index.saturating_mul(DEPOSIT_ENTRY_LEN));
         let reserve = read_pubkey_at(&data, base)?;
         if reserve != Pubkey::default() {
-            reserves.push(reserve);
+            *into.get_mut(found).ok_or(AccrueError::MathOverflow)? = reserve;
+            found = found.saturating_add(1);
         }
     }
     for index in 0..MAX_OBLIGATION_BORROWS {
         let base = OFFSET_BORROWS.saturating_add(index.saturating_mul(BORROW_ENTRY_LEN));
         let reserve = read_pubkey_at(&data, base)?;
         if reserve != Pubkey::default() {
-            reserves.push(reserve);
+            *into.get_mut(found).ok_or(AccrueError::MathOverflow)? = reserve;
+            found = found.saturating_add(1);
         }
     }
-    Ok(reserves)
+    Ok(found)
 }
 
 pub fn read_obligation_deposited_amount(
@@ -198,6 +205,14 @@ pub fn read_obligation_borrowed_value_scaled(account: &AccountInfo<'_>) -> Resul
     read_u128_at(&data, OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF)
 }
 
+pub fn read_obligation_adjusted_debt_value_scaled(account: &AccountInfo<'_>) -> Result<u128> {
+    if obligation_was_closed_by_the_market(account) {
+        return Ok(0);
+    }
+    let data = borrow_kamino_account(account)?;
+    read_u128_at(&data, OFFSET_BORROW_FACTOR_ADJUSTED_DEBT_VALUE_SF)
+}
+
 pub fn read_obligation_has_debt(account: &AccountInfo<'_>) -> Result<bool> {
     if obligation_was_closed_by_the_market(account) {
         return Ok(false);
@@ -215,7 +230,7 @@ pub fn read_obligation_loan_to_value_bps(account: &AccountInfo<'_>) -> Result<u1
     if deposited == 0 {
         return Ok(0);
     }
-    let borrowed = read_u128_at(&data, OFFSET_BORROWED_ASSETS_MARKET_VALUE_SF)?;
+    let borrowed = read_u128_at(&data, OFFSET_BORROW_FACTOR_ADJUSTED_DEBT_VALUE_SF)?;
     let ratio = borrowed
         .checked_mul(10_000)
         .ok_or(AccrueError::MathOverflow)?

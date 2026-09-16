@@ -91,6 +91,8 @@ export type UpdateConfigInstructionData = {
   admin: Option<Address>;
   collateral: Option<CollateralEntry>;
   destination: Option<DestinationEntry>;
+  borrowMint: Option<Address>;
+  borrowReserve: Option<Address>;
 };
 
 export type UpdateConfigInstructionDataArgs = {
@@ -100,6 +102,8 @@ export type UpdateConfigInstructionDataArgs = {
   admin: OptionOrNullable<Address>;
   collateral: OptionOrNullable<CollateralEntryArgs>;
   destination: OptionOrNullable<DestinationEntryArgs>;
+  borrowMint: OptionOrNullable<Address>;
+  borrowReserve: OptionOrNullable<Address>;
 };
 
 export function getUpdateConfigInstructionDataEncoder(): Encoder<UpdateConfigInstructionDataArgs> {
@@ -112,6 +116,8 @@ export function getUpdateConfigInstructionDataEncoder(): Encoder<UpdateConfigIns
       ["admin", getOptionEncoder(getAddressEncoder())],
       ["collateral", getOptionEncoder(getCollateralEntryEncoder())],
       ["destination", getOptionEncoder(getDestinationEntryEncoder())],
+      ["borrowMint", getOptionEncoder(getAddressEncoder())],
+      ["borrowReserve", getOptionEncoder(getAddressEncoder())],
     ]),
     (value) => ({ ...value, discriminator: UPDATE_CONFIG_DISCRIMINATOR }),
   );
@@ -126,6 +132,8 @@ export function getUpdateConfigInstructionDataDecoder(): Decoder<UpdateConfigIns
     ["admin", getOptionDecoder(getAddressDecoder())],
     ["collateral", getOptionDecoder(getCollateralEntryDecoder())],
     ["destination", getOptionDecoder(getDestinationEntryDecoder())],
+    ["borrowMint", getOptionDecoder(getAddressDecoder())],
+    ["borrowReserve", getOptionDecoder(getAddressDecoder())],
   ]);
 }
 
@@ -151,6 +159,8 @@ export type UpdateConfigAsyncInput<
   adminArg: UpdateConfigInstructionDataArgs["admin"];
   collateral: UpdateConfigInstructionDataArgs["collateral"];
   destination: UpdateConfigInstructionDataArgs["destination"];
+  borrowMint: UpdateConfigInstructionDataArgs["borrowMint"];
+  borrowReserve: UpdateConfigInstructionDataArgs["borrowReserve"];
 };
 
 export async function getUpdateConfigInstructionAsync<
@@ -206,6 +216,8 @@ export type UpdateConfigInput<
   adminArg: UpdateConfigInstructionDataArgs["admin"];
   collateral: UpdateConfigInstructionDataArgs["collateral"];
   destination: UpdateConfigInstructionDataArgs["destination"];
+  borrowMint: UpdateConfigInstructionDataArgs["borrowMint"];
+  borrowReserve: UpdateConfigInstructionDataArgs["borrowReserve"];
 };
 
 export function getUpdateConfigInstruction<

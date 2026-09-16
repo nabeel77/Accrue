@@ -11,6 +11,7 @@ use crate::guard::{
 };
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
+    require_the_vaults_the_borrow_reserve_names,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
@@ -21,7 +22,7 @@ use crate::kamino::cpi::{
     BorrowAccounts, ObligationContext, ReserveRefresh,
 };
 use crate::kamino::{
-    read_obligation_borrowed_value_scaled, read_obligation_deposited_value_scaled,
+    read_obligation_adjusted_debt_value_scaled, read_obligation_deposited_value_scaled,
     read_obligation_loan_to_value_bps, read_reserve_account,
 };
 use crate::scope::{
@@ -141,7 +142,13 @@ pub fn handle_grow<'info>(
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
+    )?;
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        Some(&accounts.borrow_reserve_fee_receiver.key()),
     )?;
     require_keys_eq!(
         accounts.borrow_token_program.key(),
@@ -209,9 +216,10 @@ pub fn handle_grow<'info>(
     let destination_price_scaled = destination_price.usd_per_whole_token_scaled()?;
 
     let room_to_target = borrow_to_reach_target(
-        read_obligation_borrowed_value_scaled(&obligation)?,
+        read_obligation_adjusted_debt_value_scaled(&obligation)?,
         read_obligation_deposited_value_scaled(&obligation)?,
         accounts.position.strategy.target_ltv_bps,
+        borrow_reserve.borrow_factor_pct()?,
     )?;
     let usdc_decimals = accounts.borrow_mint.decimals;
     let borrowing =

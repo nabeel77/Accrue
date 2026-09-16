@@ -28,8 +28,13 @@ fn plan_the_grow(world: &World, opened: &OpenedPosition) -> PlannedGrow {
     let usdc_price = world.scope_price_scaled(world.borrow.snapshot.scope_feed_index);
     let destination_price = world.scope_price_scaled(ONYC_SCOPE_FEED_INDEX);
 
-    let room =
-        borrow_to_reach_target(borrowed, deposited, position.strategy.target_ltv_bps).unwrap();
+    let room = borrow_to_reach_target(
+        borrowed,
+        deposited,
+        position.strategy.target_ltv_bps,
+        world.borrow_factor_pct(),
+    )
+    .unwrap();
     let borrowing = raw_amount_worth_rounding_down(room, USDC_DECIMALS, usdc_price).unwrap();
 
     let selling = SwapSide {

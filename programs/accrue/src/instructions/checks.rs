@@ -22,14 +22,26 @@ pub fn require_collateral_reserve_of_position(
     Ok(())
 }
 
-pub fn require_reserve_on_the_positions_market(
+pub fn require_the_borrow_reserve_the_position_recorded(
     position: &Position,
-    reserve: &ReserveSnapshot,
+    reserve_address: &Pubkey,
 ) -> Result<()> {
     require_keys_eq!(
-        reserve.lending_market,
-        position.market,
-        AccrueError::CollateralNotAllowed
+        *reserve_address,
+        position.borrow_reserve,
+        AccrueError::WrongBorrowReserve
+    );
+    Ok(())
+}
+
+pub fn require_the_borrow_mint_the_position_recorded(
+    position: &Position,
+    borrow_mint: &Pubkey,
+) -> Result<()> {
+    require_keys_eq!(
+        *borrow_mint,
+        position.borrow_mint,
+        AccrueError::WrongBorrowReserve
     );
     Ok(())
 }
@@ -37,18 +49,49 @@ pub fn require_reserve_on_the_positions_market(
 pub fn require_borrow_reserve_of_position(
     position: &Position,
     reserve: &ReserveSnapshot,
+    reserve_address: &Pubkey,
     borrow_mint: &Pubkey,
 ) -> Result<()> {
     require_keys_eq!(
-        reserve.liquidity_mint,
+        *reserve_address,
+        position.borrow_reserve,
+        AccrueError::WrongBorrowReserve
+    );
+    require_keys_eq!(
         *borrow_mint,
-        AccrueError::CollateralNotAllowed
+        position.borrow_mint,
+        AccrueError::WrongBorrowReserve
+    );
+    require_keys_eq!(
+        reserve.liquidity_mint,
+        position.borrow_mint,
+        AccrueError::WrongBorrowReserve
     );
     require_keys_eq!(
         reserve.lending_market,
         position.market,
-        AccrueError::CollateralNotAllowed
+        AccrueError::WrongBorrowReserve
     );
+    Ok(())
+}
+
+pub fn require_the_vaults_the_borrow_reserve_names(
+    reserve: &ReserveSnapshot,
+    liquidity_supply: &Pubkey,
+    fee_receiver: Option<&Pubkey>,
+) -> Result<()> {
+    require_keys_eq!(
+        *liquidity_supply,
+        reserve.liquidity_supply_vault,
+        AccrueError::WrongBorrowReserve
+    );
+    if let Some(fee_receiver) = fee_receiver {
+        require_keys_eq!(
+            *fee_receiver,
+            reserve.liquidity_fee_vault,
+            AccrueError::WrongBorrowReserve
+        );
+    }
     Ok(())
 }
 

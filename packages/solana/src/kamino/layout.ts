@@ -14,6 +14,8 @@ const RESERVE_LIQUIDITY_MINT = 128;
 const RESERVE_LIQUIDITY_SUPPLY_VAULT = 160;
 const RESERVE_LIQUIDITY_FEE_VAULT = 192;
 const RESERVE_LIQUIDITY_AVAILABLE_AMOUNT = 224;
+const RESERVE_LIQUIDITY_DEPOSIT_LIMIT_CROSSED = 280;
+const RESERVE_LIQUIDITY_BORROW_LIMIT_CROSSED = 288;
 const RESERVE_LIQUIDITY_MARKET_PRICE = 248;
 const RESERVE_LIQUIDITY_MINT_DECIMALS = 272;
 const RESERVE_LIQUIDITY_TOKEN_PROGRAM = 408;
@@ -24,6 +26,7 @@ const RESERVE_CONFIG_STATUS = 4_856;
 const RESERVE_CONFIG_LOAN_TO_VALUE_PCT = 4_872;
 const RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT = 4_873;
 const RESERVE_CONFIG_AUTODELEVERAGE_ENABLED = 5_502;
+const RESERVE_CONFIG_BORROW_FACTOR_PCT = 5_008;
 const RESERVE_CONFIG_SCOPE_PRICE_ACCOUNT = 5_112;
 const RESERVE_CONFIG_SCOPE_PRICE_CHAIN = 5_144;
 
@@ -31,6 +34,7 @@ const OBLIGATION_DEPOSITS = 96;
 const OBLIGATION_DEPOSITED_VALUE = 1_192;
 const OBLIGATION_BORROWS = 1_208;
 const OBLIGATION_BORROWED_ASSETS_MARKET_VALUE = 2_224;
+const OBLIGATION_ADJUSTED_DEBT_VALUE = 2_208;
 const OBLIGATION_HAS_DEBT = 2_287;
 const DEPOSIT_ENTRY_LENGTH = 136;
 const DEPOSIT_DEPOSITED_AMOUNT = 32;
@@ -59,6 +63,9 @@ export interface ReserveSnapshot {
   readonly liquidityFeeVault: Address;
   readonly liquidityAvailableAmount: bigint;
   readonly liquidityMarketPriceScaled: bigint;
+  readonly borrowFactorPct: number;
+  readonly depositLimitCrossedTimestamp: bigint;
+  readonly borrowLimitCrossedTimestamp: bigint;
   readonly collateralMint: Address;
   readonly collateralMintTotalSupply: bigint;
   readonly collateralSupplyVault: Address;
@@ -75,6 +82,7 @@ export interface ReserveSnapshot {
 export interface ObligationSnapshot {
   readonly depositedValueScaled: bigint;
   readonly borrowedValueScaled: bigint;
+  readonly adjustedDebtValueScaled: bigint;
   readonly hasDebt: boolean;
   readonly loanToValueBps: number;
   readonly depositReserves: readonly Address[];
@@ -108,6 +116,19 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
 
   const status = data[RESERVE_CONFIG_STATUS] ?? 0;
   const autodeleverage = (data[RESERVE_CONFIG_AUTODELEVERAGE_ENABLED] ?? 0) !== 0;
+  const depositLimitCrossedTimestamp = unsignedAt(
+    data,
+    RESERVE_LIQUIDITY_DEPOSIT_LIMIT_CROSSED,
+    8,
+  );
+  const borrowLimitCrossedTimestamp = unsignedAt(
+    data,
+    RESERVE_LIQUIDITY_BORROW_LIMIT_CROSSED,
+    8,
+  );
+  const beingDeleveraged =
+    autodeleverage &&
+    (depositLimitCrossedTimestamp !== 0n || borrowLimitCrossedTimestamp !== 0n);
   const collateralFarm = addressAt(data, RESERVE_FARM_COLLATERAL);
   const debtFarm = addressAt(data, RESERVE_FARM_DEBT);
   const scopeFeedIndex = Number(unsignedAt(data, RESERVE_CONFIG_SCOPE_PRICE_CHAIN, 2));
@@ -121,6 +142,9 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
     liquidityFeeVault: addressAt(data, RESERVE_LIQUIDITY_FEE_VAULT),
     liquidityAvailableAmount: unsignedAt(data, RESERVE_LIQUIDITY_AVAILABLE_AMOUNT, 8),
     liquidityMarketPriceScaled: unsignedAt(data, RESERVE_LIQUIDITY_MARKET_PRICE, 16),
+    borrowFactorPct: Number(unsignedAt(data, RESERVE_CONFIG_BORROW_FACTOR_PCT, 8)),
+    depositLimitCrossedTimestamp,
+    borrowLimitCrossedTimestamp,
     collateralMint: addressAt(data, RESERVE_COLLATERAL_MINT),
     collateralMintTotalSupply: unsignedAt(data, RESERVE_COLLATERAL_MINT_TOTAL_SUPPLY, 8),
     collateralSupplyVault: addressAt(data, RESERVE_COLLATERAL_SUPPLY_VAULT),
@@ -129,7 +153,7 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
     liquidationThresholdBps:
       (data[RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT] ?? 0) * BASIS_POINTS_PER_PERCENT,
     isActive: status === RESERVE_STATUS_ACTIVE,
-    isFlaggedForExit: status === RESERVE_STATUS_OBSOLETE || autodeleverage,
+    isFlaggedForExit: status === RESERVE_STATUS_OBSOLETE || beingDeleveraged,
     collateralFarm: isTheDefaultAddress(collateralFarm) ? null : collateralFarm,
     debtFarm: isTheDefaultAddress(debtFarm) ? null : debtFarm,
     scopePriceAccount: addressAt(data, RESERVE_CONFIG_SCOPE_PRICE_ACCOUNT),
@@ -152,6 +176,7 @@ export function decodeObligation(data: Uint8Array): ObligationSnapshot {
     OBLIGATION_BORROWED_ASSETS_MARKET_VALUE,
     16,
   );
+  const adjustedDebtValueScaled = unsignedAt(data, OBLIGATION_ADJUSTED_DEBT_VALUE, 16);
 
   const depositReserves: Address[] = [];
   for (let index = 0; index < MAX_OBLIGATION_DEPOSITS; index += 1) {
@@ -171,13 +196,14 @@ export function decodeObligation(data: Uint8Array): ObligationSnapshot {
   return {
     depositedValueScaled,
     borrowedValueScaled,
+    adjustedDebtValueScaled,
     depositReserves,
     borrowReserves,
     hasDebt: (data[OBLIGATION_HAS_DEBT] ?? 0) !== 0,
     loanToValueBps:
       depositedValueScaled === 0n
         ? 0
-        : Number((borrowedValueScaled * 10_000n) / depositedValueScaled),
+        : Number((adjustedDebtValueScaled * 10_000n) / depositedValueScaled),
     depositedAmountFor(reserve: Address): bigint {
       for (let index = 0; index < MAX_OBLIGATION_DEPOSITS; index += 1) {
         const base = OBLIGATION_DEPOSITS + index * DEPOSIT_ENTRY_LENGTH;

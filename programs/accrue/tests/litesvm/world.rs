@@ -306,6 +306,8 @@ impl World {
             data: accrue::instruction::InitializeConfig {
                 admin: self.admin.pubkey(),
                 guardian: self.guardian.pubkey(),
+                borrow_mint: self.borrow.liquidity_mint(),
+                borrow_reserve: self.borrow.address,
                 limits: default_limits(),
             }
             .data(),
@@ -596,12 +598,18 @@ impl World {
             });
     }
 
+    /// The pair the guard reads: the debt weighted the way the market liquidates on, and the
+    /// deposited value it is measured against.
     pub fn obligation_values_scaled(&self, obligation: &Address) -> (u128, u128) {
         let snapshot = self.decoded_obligation(obligation).unwrap();
         (
-            snapshot.borrowed_assets_market_value_scaled,
+            snapshot.borrow_factor_adjusted_debt_value_scaled,
             snapshot.deposited_value_scaled,
         )
+    }
+
+    pub fn borrow_factor_pct(&self) -> u64 {
+        self.borrow.snapshot.borrow_factor_pct
     }
 
     pub fn obligation_loan_to_value_bps(&self, obligation: &Address) -> u16 {

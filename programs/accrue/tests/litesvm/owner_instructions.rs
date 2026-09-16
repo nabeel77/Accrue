@@ -10,6 +10,13 @@ const HONEST_SWAP_PROGRAM: &str = "honest_swap.so";
 const BORROW_AMOUNT: u64 = 4_000_000;
 const POSITION_SIZE_USD: u64 = 20;
 
+fn the_account_is_gone(world: &World, address: &Address) -> bool {
+    world
+        .svm
+        .get_account(address)
+        .is_none_or(|account| account.data.is_empty())
+}
+
 fn read_position(world: &World, address: &Address) -> Position {
     let account = world.svm.get_account(address).unwrap();
     Position::try_deserialize(&mut account.data.as_slice()).unwrap()
@@ -294,6 +301,92 @@ fn unwind_sells_the_destination_and_pays_the_fee_only_on_the_profit() {
 }
 
 #[test]
+fn unwind_never_charges_the_fee_on_principal_the_owner_repaid_from_their_wallet() {
+    let mut world = World::new();
+    world.install_swap_program(HONEST_SWAP_PROGRAM);
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    let repaid_from_the_wallet = BORROW_AMOUNT / 2;
+    world.set_token_account(
+        opened.tokens.owner_usdc,
+        world.borrow.liquidity_mint(),
+        world.owner.pubkey(),
+        repaid_from_the_wallet,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+    let owner = world.owner.insecure_clone();
+    let repay = world.repay_instruction(&opened, owner.pubkey(), repaid_from_the_wallet);
+    world.send(&[repay], &[&owner]).unwrap_or_else(|failure| {
+        panic!("repay reverted: {:?} {:#?}", failure.err, failure.meta.logs)
+    });
+
+    let destination_bought = 4_000_000_000;
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        destination_bought,
+        world.destination_token_program,
+    );
+    world.set_token_account(
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        opened.address,
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let sale_proceeds = BORROW_AMOUNT + 160_000;
+    let route_accounts = world.swap_route_accounts(
+        opened.address,
+        opened.tokens.position_destination,
+        world.destination_mint,
+        world.destination_token_program,
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        accrue::constants::TOKEN_PROGRAM_ID,
+        None,
+    );
+    let instruction = world.unwind_instruction(
+        &opened,
+        owner.pubkey(),
+        sale_proceeds,
+        honest_route_data(destination_bought, sale_proceeds),
+        route_accounts,
+    );
+    world
+        .send(&[instruction], &[&owner])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "unwind reverted: {:?} {:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    let position = read_position(&world, &opened.address);
+    assert_eq!(position.usdc_from_sales_total, sale_proceeds);
+    assert!(
+        position.usdc_repaid_total > repaid_from_the_wallet,
+        "the wallet repayment and the unwind repayment must both be counted"
+    );
+
+    let repaid_inside_unwind = position.usdc_repaid_total - repaid_from_the_wallet;
+    let charged = world.token_balance(&world.treasury_usdc_account);
+    let expected = (sale_proceeds - position.usdc_repaid_total) / 10;
+    let the_old_formula_would_have_charged = (sale_proceeds - repaid_inside_unwind) / 10;
+
+    assert_eq!(
+        charged, expected,
+        "the fee base is every dollar the sales raised minus every dollar repaid"
+    );
+    assert!(
+        charged < the_old_formula_would_have_charged,
+        "charging on the unwind repayment alone would have taken {the_old_formula_would_have_charged} rather than {charged}"
+    );
+    assert_eq!(world.obligation_debt(&opened.obligation), 0);
+}
+
+#[test]
 fn unwind_reverts_when_the_sale_cannot_cover_the_debt() {
     let mut world = World::new();
     world.install_swap_program(HONEST_SWAP_PROGRAM);
@@ -346,6 +439,67 @@ fn unwind_reverts_when_the_sale_cannot_cover_the_debt() {
         "a reverted unwind leaves the destination untouched"
     );
     assert_eq!(world.token_balance(&world.treasury_usdc_account), 0);
+}
+
+#[test]
+fn the_same_seeds_can_be_opened_again_after_a_close() {
+    let mut world = World::new();
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+    let owner = world.owner.insecure_clone();
+
+    let unwind = world.unwind_instruction(&opened, owner.pubkey(), 0, Vec::new(), Vec::new());
+    world.send(&[unwind], &[&owner]).unwrap_or_else(|failure| {
+        panic!(
+            "unwind reverted: {:?} {:#?}",
+            failure.err, failure.meta.logs
+        )
+    });
+    let close = world.close_position_instruction(&opened, owner.pubkey());
+    world.send(&[close], &[&owner]).unwrap_or_else(|failure| {
+        panic!(
+            "close_position reverted: {:?} {:#?}",
+            failure.err, failure.meta.logs
+        )
+    });
+    assert!(the_account_is_gone(&world, &opened.address));
+
+    let metadata = world.user_metadata_address(&opened.address);
+    let farm_stake = world.borrow_obligation_farm_state(&opened.obligation);
+    assert!(
+        world.lamports_of(&metadata) > 0,
+        "the lending market keeps the metadata record after a close"
+    );
+    assert!(
+        world.lamports_of(&farm_stake) > 0,
+        "the lending market keeps the farm stake after a close"
+    );
+
+    let reopened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+    assert_eq!(
+        reopened.address, opened.address,
+        "the same owner, stock and destination must land on the same seeds"
+    );
+    assert_eq!(
+        world.position(&reopened.address).state,
+        PositionState::AwaitingSwap
+    );
+    assert!(world.obligation_debt(&reopened.obligation) > 0);
+
+    let unwind = world.unwind_instruction(&reopened, owner.pubkey(), 0, Vec::new(), Vec::new());
+    world.send(&[unwind], &[&owner]).unwrap_or_else(|failure| {
+        panic!(
+            "the second unwind reverted: {:?} {:#?}",
+            failure.err, failure.meta.logs
+        )
+    });
+    let close = world.close_position_instruction(&reopened, owner.pubkey());
+    world.send(&[close], &[&owner]).unwrap_or_else(|failure| {
+        panic!(
+            "the second close reverted: {:?} {:#?}",
+            failure.err, failure.meta.logs
+        )
+    });
+    assert!(the_account_is_gone(&world, &reopened.address));
 }
 
 #[test]

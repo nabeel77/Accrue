@@ -334,6 +334,55 @@ fn the_usdc_reserve_decodes_as_the_borrow_side() {
         "there must be USDC left to borrow"
     );
     assert!(reserve.borrow_limit > 0);
+    assert_eq!(
+        reserve.borrow_factor_pct, 100,
+        "the market weights USDC debt at one for one today"
+    );
+    assert_eq!(reserve.borrow_factor_pct().unwrap(), 100);
+}
+
+#[test]
+fn every_reserve_reports_the_borrow_factor_the_market_weights_its_debt_by() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+
+    for label in xstocks_market_reserve_labels(&snapshot) {
+        let reserve = decode_fixture_reserve(&snapshot, &label).unwrap();
+        assert!(
+            reserve.borrow_factor_pct >= 100 && reserve.borrow_factor_pct <= 1_000,
+            "{label} decoded a borrow factor of {}, which is outside anything the market uses",
+            reserve.borrow_factor_pct
+        );
+    }
+
+    let stock = decode_fixture_reserve(&snapshot, "reserve_nvdax").unwrap();
+    assert_eq!(
+        stock.borrow_factor_pct, 225,
+        "a stock reserve weights its debt well above one, which is why the guard has to divide by it"
+    );
+}
+
+#[test]
+fn a_reserve_reports_the_limit_timestamps_a_deleveraging_would_set() {
+    let snapshot = load_mainnet_snapshot().unwrap();
+
+    for label in ["reserve_usdc", "reserve_nvdax", "reserve_spyx"] {
+        let reserve = decode_fixture_reserve(&snapshot, label).unwrap();
+        assert_eq!(
+            reserve.deposit_limit_crossed_timestamp, 0,
+            "{label} has not crossed its deposit limit"
+        );
+        assert_eq!(
+            reserve.borrow_limit_crossed_timestamp, 0,
+            "{label} has not crossed its borrow limit"
+        );
+        assert!(!reserve.is_being_deleveraged());
+    }
+
+    let retired = decode_fixture_reserve(&snapshot, "reserve_metax").unwrap();
+    assert_eq!(
+        retired.deposit_limit_crossed_timestamp, 1_753_830_774,
+        "the retired reserve records the moment it crossed its deposit limit, which is what proves the offset"
+    );
 }
 
 #[test]

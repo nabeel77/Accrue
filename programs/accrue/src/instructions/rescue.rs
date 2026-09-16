@@ -6,6 +6,9 @@ use crate::constants::{
     TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
+use crate::instructions::checks::{
+    require_the_borrow_mint_the_position_recorded, require_the_borrow_reserve_the_position_recorded,
+};
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
     InvariantCheck, PositionAccounts, SwapCheck,
@@ -130,6 +133,12 @@ pub struct Rescue<'info> {
 
 pub fn handle_rescue(context: Context<Rescue>) -> Result<()> {
     let accounts = &context.accounts;
+
+    require_the_borrow_reserve_the_position_recorded(
+        &accounts.position,
+        &accounts.borrow_reserve.key(),
+    )?;
+    require_the_borrow_mint_the_position_recorded(&accounts.position, &accounts.borrow_mint.key())?;
 
     let owner_key = accounts.owner.key();
     let collateral_mint_key = accounts.position.collateral_mint;

@@ -24,133 +24,140 @@ export const ACCRUE_ERROR__KAMINO_ACCOUNT_TOO_SHORT = 0x1772; // 6002
 export const ACCRUE_ERROR__KAMINO_FIELD_OUT_OF_RANGE = 0x1773; // 6003
 /** ReserveHasNoScopeFeed: That reserve names no Scope price feed */
 export const ACCRUE_ERROR__RESERVE_HAS_NO_SCOPE_FEED = 0x1774; // 6004
+/** ReserveHasNoBorrowFactor: That reserve reports a borrow factor of zero */
+export const ACCRUE_ERROR__RESERVE_HAS_NO_BORROW_FACTOR = 0x1775; // 6005
 /** ReserveNamesNoFarm: That reserve names no farm, so no farm account belongs in this call */
-export const ACCRUE_ERROR__RESERVE_NAMES_NO_FARM = 0x1775; // 6005
+export const ACCRUE_ERROR__RESERVE_NAMES_NO_FARM = 0x1776; // 6006
 /** FarmAccountMissing: That reserve names a farm and the farm accounts were not passed */
-export const ACCRUE_ERROR__FARM_ACCOUNT_MISSING = 0x1776; // 6006
+export const ACCRUE_ERROR__FARM_ACCOUNT_MISSING = 0x1777; // 6007
 /** WrongFarmAccount: That is not the farm account the reserve names */
-export const ACCRUE_ERROR__WRONG_FARM_ACCOUNT = 0x1777; // 6007
+export const ACCRUE_ERROR__WRONG_FARM_ACCOUNT = 0x1778; // 6008
 /** ObligationNamesAnUnknownReserve: The obligation names a reserve this instruction was not given */
-export const ACCRUE_ERROR__OBLIGATION_NAMES_AN_UNKNOWN_RESERVE = 0x1778; // 6008
+export const ACCRUE_ERROR__OBLIGATION_NAMES_AN_UNKNOWN_RESERVE = 0x1779; // 6009
 /** PerformanceFeeAboveCeiling: The performance fee is above the ceiling written in the program */
-export const ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING = 0x1779; // 6009
+export const ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING = 0x177a; // 6010
 /** SlippageAboveCeiling: The slippage limit is above the ceiling written in the program */
-export const ACCRUE_ERROR__SLIPPAGE_ABOVE_CEILING = 0x177a; // 6010
+export const ACCRUE_ERROR__SLIPPAGE_ABOVE_CEILING = 0x177b; // 6011
 /** KeeperBountyAboveCeiling: The keeper bounty is above the ceiling written in the program */
-export const ACCRUE_ERROR__KEEPER_BOUNTY_ABOVE_CEILING = 0x177b; // 6011
+export const ACCRUE_ERROR__KEEPER_BOUNTY_ABOVE_CEILING = 0x177c; // 6012
 /** ShareOfAvailableAboveCeiling: The share of available liquidity is above the ceiling written in the program */
-export const ACCRUE_ERROR__SHARE_OF_AVAILABLE_ABOVE_CEILING = 0x177c; // 6012
+export const ACCRUE_ERROR__SHARE_OF_AVAILABLE_ABOVE_CEILING = 0x177d; // 6013
 /** PriceAgeAboveCeiling: The price age is outside the range the program allows */
-export const ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING = 0x177d; // 6013
+export const ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING = 0x177e; // 6014
 /** IntervalBelowFloor: The interval is below the floor written in the program */
-export const ACCRUE_ERROR__INTERVAL_BELOW_FLOOR = 0x177e; // 6014
+export const ACCRUE_ERROR__INTERVAL_BELOW_FLOOR = 0x177f; // 6015
 /** PositionSizeLimitsInverted: The minimum position size is above the maximum */
-export const ACCRUE_ERROR__POSITION_SIZE_LIMITS_INVERTED = 0x177f; // 6015
+export const ACCRUE_ERROR__POSITION_SIZE_LIMITS_INVERTED = 0x1780; // 6016
 /** UnknownTokenProgram: That token program is neither Token nor Token 2022 */
-export const ACCRUE_ERROR__UNKNOWN_TOKEN_PROGRAM = 0x1780; // 6016
+export const ACCRUE_ERROR__UNKNOWN_TOKEN_PROGRAM = 0x1781; // 6017
 /** CollateralEntryIncomplete: The collateral entry is missing a mint, a reserve or a price account */
-export const ACCRUE_ERROR__COLLATERAL_ENTRY_INCOMPLETE = 0x1781; // 6017
+export const ACCRUE_ERROR__COLLATERAL_ENTRY_INCOMPLETE = 0x1782; // 6018
 /** DestinationEntryIncomplete: The destination entry is missing a mint or a price account */
-export const ACCRUE_ERROR__DESTINATION_ENTRY_INCOMPLETE = 0x1782; // 6018
+export const ACCRUE_ERROR__DESTINATION_ENTRY_INCOMPLETE = 0x1783; // 6019
+/** BorrowSideIncomplete: The borrow side needs both a mint and a reserve */
+export const ACCRUE_ERROR__BORROW_SIDE_INCOMPLETE = 0x1784; // 6020
+/** WrongBorrowReserve: That is not the borrow reserve this position borrowed from */
+export const ACCRUE_ERROR__WRONG_BORROW_RESERVE = 0x1785; // 6021
 /** AllowListFull: The allow list is full */
-export const ACCRUE_ERROR__ALLOW_LIST_FULL = 0x1783; // 6019
+export const ACCRUE_ERROR__ALLOW_LIST_FULL = 0x1786; // 6022
 /** CollateralNotAllowed: That collateral is not enabled */
-export const ACCRUE_ERROR__COLLATERAL_NOT_ALLOWED = 0x1784; // 6020
+export const ACCRUE_ERROR__COLLATERAL_NOT_ALLOWED = 0x1787; // 6023
 /** DestinationNotAllowed: That destination is not enabled */
-export const ACCRUE_ERROR__DESTINATION_NOT_ALLOWED = 0x1785; // 6021
+export const ACCRUE_ERROR__DESTINATION_NOT_ALLOWED = 0x1788; // 6024
 /** OpensArePaused: New positions are paused */
-export const ACCRUE_ERROR__OPENS_ARE_PAUSED = 0x1786; // 6022
+export const ACCRUE_ERROR__OPENS_ARE_PAUSED = 0x1789; // 6025
 /** GrowsArePaused: Growing is paused */
-export const ACCRUE_ERROR__GROWS_ARE_PAUSED = 0x1787; // 6023
+export const ACCRUE_ERROR__GROWS_ARE_PAUSED = 0x178a; // 6026
 /** ProgramIsRetiring: The program is retiring and will not open new positions */
-export const ACCRUE_ERROR__PROGRAM_IS_RETIRING = 0x1788; // 6024
+export const ACCRUE_ERROR__PROGRAM_IS_RETIRING = 0x178b; // 6027
 /** ReserveLeavesNoGuardRoom: This reserve leaves no room between its liquidation threshold and the guard */
-export const ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM = 0x1789; // 6025
+export const ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM = 0x178c; // 6028
 /** ProtectLevelTooHigh: The guard level is too close to the liquidation threshold */
-export const ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH = 0x178a; // 6026
+export const ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH = 0x178d; // 6029
 /** TargetLevelTooHigh: The borrow level is too close to the guard level or above what the market allows */
-export const ACCRUE_ERROR__TARGET_LEVEL_TOO_HIGH = 0x178b; // 6027
+export const ACCRUE_ERROR__TARGET_LEVEL_TOO_HIGH = 0x178e; // 6030
 /** TargetLevelTooLow: The borrow level must be above zero */
-export const ACCRUE_ERROR__TARGET_LEVEL_TOO_LOW = 0x178c; // 6028
+export const ACCRUE_ERROR__TARGET_LEVEL_TOO_LOW = 0x178f; // 6031
 /** GrowLevelTooHigh: The grow level must sit below the borrow level */
-export const ACCRUE_ERROR__GROW_LEVEL_TOO_HIGH = 0x178d; // 6029
+export const ACCRUE_ERROR__GROW_LEVEL_TOO_HIGH = 0x1790; // 6032
 /** NotThePositionOwner: Only the owner of this position may do that */
-export const ACCRUE_ERROR__NOT_THE_POSITION_OWNER = 0x178e; // 6030
+export const ACCRUE_ERROR__NOT_THE_POSITION_OWNER = 0x1791; // 6033
 /** WrongPositionState: This position is not in the state that instruction needs */
-export const ACCRUE_ERROR__WRONG_POSITION_STATE = 0x178f; // 6031
+export const ACCRUE_ERROR__WRONG_POSITION_STATE = 0x1792; // 6034
 /** PositionSizeOutOfRange: The position size is outside the limits in the config */
-export const ACCRUE_ERROR__POSITION_SIZE_OUT_OF_RANGE = 0x1790; // 6032
+export const ACCRUE_ERROR__POSITION_SIZE_OUT_OF_RANGE = 0x1793; // 6035
 /** BorrowTooLargeAShareOfLiquidity: That borrow would take too large a share of the liquidity left */
-export const ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY = 0x1791; // 6033
+export const ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY = 0x1794; // 6036
 /** LoanToValueAboveTarget: The resulting loan to value is above the target */
-export const ACCRUE_ERROR__LOAN_TO_VALUE_ABOVE_TARGET = 0x1792; // 6034
+export const ACCRUE_ERROR__LOAN_TO_VALUE_ABOVE_TARGET = 0x1795; // 6037
 /** DebtStillOutstanding: The position still owes the lending market */
-export const ACCRUE_ERROR__DEBT_STILL_OUTSTANDING = 0x1793; // 6035
+export const ACCRUE_ERROR__DEBT_STILL_OUTSTANDING = 0x1796; // 6038
 /** TokensStillHeld: The position still holds tokens */
-export const ACCRUE_ERROR__TOKENS_STILL_HELD = 0x1794; // 6036
+export const ACCRUE_ERROR__TOKENS_STILL_HELD = 0x1797; // 6039
 /** CollateralBalanceMoved: The stock token account changed during an instruction that must not move it */
-export const ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED = 0x1795; // 6037
+export const ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED = 0x1798; // 6040
 /** ObligationCollateralMoved: The obligation collateral changed during a swap */
-export const ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED = 0x1796; // 6038
+export const ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED = 0x1799; // 6041
 /** SwapSpentTooMuch: The swap spent more than it was allowed to */
-export const ACCRUE_ERROR__SWAP_SPENT_TOO_MUCH = 0x1797; // 6039
+export const ACCRUE_ERROR__SWAP_SPENT_TOO_MUCH = 0x179a; // 6042
 /** SwapReturnedTooLittle: The swap returned less than the minimum */
-export const ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE = 0x1798; // 6040
+export const ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE = 0x179b; // 6043
 /** TokenLeftForAForbiddenAddress: A token left the position for an address that is not allowed */
-export const ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS = 0x1799; // 6041
+export const ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS = 0x179c; // 6044
 /** PositionLamportsTaken: Lamports were taken out of a position account */
-export const ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN = 0x179a; // 6042
+export const ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN = 0x179d; // 6045
 /** PositionAccountMissing: A position account no longer exists */
-export const ACCRUE_ERROR__POSITION_ACCOUNT_MISSING = 0x179b; // 6043
+export const ACCRUE_ERROR__POSITION_ACCOUNT_MISSING = 0x179e; // 6046
 /** SwapRouteTouchesAForbiddenAccount: The swap route was handed an account it must never receive */
-export const ACCRUE_ERROR__SWAP_ROUTE_TOUCHES_A_FORBIDDEN_ACCOUNT = 0x179c; // 6044
+export const ACCRUE_ERROR__SWAP_ROUTE_TOUCHES_A_FORBIDDEN_ACCOUNT = 0x179f; // 6047
 /** SwapRouteCallsAnUnknownProgram: The swap route called a program the constants module does not list */
-export const ACCRUE_ERROR__SWAP_ROUTE_CALLS_AN_UNKNOWN_PROGRAM = 0x179d; // 6045
+export const ACCRUE_ERROR__SWAP_ROUTE_CALLS_AN_UNKNOWN_PROGRAM = 0x17a0; // 6048
 /** MinimumOutputTooLow: The minimum output the caller supplied is below what the oracle allows */
-export const ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW = 0x179e; // 6046
+export const ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW = 0x17a1; // 6049
 /** PositionTokenAccountOwnerChanged: A position token account is no longer owned by the position */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED = 0x179f; // 6047
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED = 0x17a2; // 6050
 /** PositionTokenAccountHasADelegate: A position token account was given a delegate */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE = 0x17a0; // 6048
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE = 0x17a3; // 6051
 /** PositionTokenAccountHasACloseAuthority: A position token account was given a close authority */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY = 0x17a1; // 6049
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY = 0x17a4; // 6052
 /** NotAScopeAccount: That account is not owned by the oracle program */
-export const ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT = 0x17a2; // 6050
+export const ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT = 0x17a5; // 6053
 /** ScopeAccountTooShort: The oracle account is shorter than its layout */
-export const ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT = 0x17a3; // 6051
+export const ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT = 0x17a6; // 6054
 /** OraclePriceIsZero: The oracle price is zero */
-export const ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO = 0x17a4; // 6052
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO = 0x17a7; // 6055
 /** OraclePriceIsStale: The oracle price is older than the config allows for a call by anyone */
-export const ACCRUE_ERROR__ORACLE_PRICE_IS_STALE = 0x17a5; // 6053
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_STALE = 0x17a8; // 6056
 /** IntervalHasNotElapsed: Not enough time has passed since the last time the guard acted */
-export const ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED = 0x17a6; // 6054
+export const ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED = 0x17a9; // 6057
 /** GuardLevelNotReached: The loan to value is below the level the guard acts at */
-export const ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED = 0x17a7; // 6055
+export const ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED = 0x17aa; // 6058
 /** GrowLevelExceeded: The loan to value is above the level growing is allowed at */
-export const ACCRUE_ERROR__GROW_LEVEL_EXCEEDED = 0x17a8; // 6056
+export const ACCRUE_ERROR__GROW_LEVEL_EXCEEDED = 0x17ab; // 6059
 /** GrowNotEnabled: Growing is switched off for this position */
-export const ACCRUE_ERROR__GROW_NOT_ENABLED = 0x17a9; // 6057
+export const ACCRUE_ERROR__GROW_NOT_ENABLED = 0x17ac; // 6060
 /** NothingToSell: The position holds no destination token to sell */
-export const ACCRUE_ERROR__NOTHING_TO_SELL = 0x17aa; // 6058
+export const ACCRUE_ERROR__NOTHING_TO_SELL = 0x17ad; // 6061
 /** NothingToBorrow: There is nothing to borrow before the position reaches its target */
-export const ACCRUE_ERROR__NOTHING_TO_BORROW = 0x17ab; // 6059
+export const ACCRUE_ERROR__NOTHING_TO_BORROW = 0x17ae; // 6062
 /** NoReasonToLeave: The lending market has not flagged this reserve and the program is not retiring */
-export const ACCRUE_ERROR__NO_REASON_TO_LEAVE = 0x17ac; // 6060
+export const ACCRUE_ERROR__NO_REASON_TO_LEAVE = 0x17af; // 6063
 /** ExitOnFlagNotEnabled: Leaving on a flag is switched off for this position */
-export const ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED = 0x17ad; // 6061
+export const ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED = 0x17b0; // 6064
 /** BountyAccountIsNotTheCallers: The bounty account does not belong to the caller */
-export const ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS = 0x17ae; // 6062
+export const ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS = 0x17b1; // 6065
 /** NothingToSwap: The position has no USDC to swap */
-export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x17af; // 6063
+export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x17b2; // 6066
 /** WrongTreasury: The treasury account in the config does not match the one passed */
-export const ACCRUE_ERROR__WRONG_TREASURY = 0x17b0; // 6064
+export const ACCRUE_ERROR__WRONG_TREASURY = 0x17b3; // 6067
 /** NotTheAdmin: Only the admin key may do that */
-export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17b1; // 6065
+export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17b4; // 6068
 /** NotTheGuardianOrAdmin: Only the guardian or the admin may do that */
-export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17b2; // 6066
+export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17b5; // 6069
 
 export type AccrueError =
   | typeof ACCRUE_ERROR__ALLOW_LIST_FULL
+  | typeof ACCRUE_ERROR__BORROW_SIDE_INCOMPLETE
   | typeof ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY
   | typeof ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS
   | typeof ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED
@@ -199,6 +206,7 @@ export type AccrueError =
   | typeof ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__PROGRAM_IS_RETIRING
   | typeof ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH
+  | typeof ACCRUE_ERROR__RESERVE_HAS_NO_BORROW_FACTOR
   | typeof ACCRUE_ERROR__RESERVE_HAS_NO_SCOPE_FEED
   | typeof ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM
   | typeof ACCRUE_ERROR__RESERVE_NAMES_NO_FARM
@@ -214,6 +222,7 @@ export type AccrueError =
   | typeof ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS
   | typeof ACCRUE_ERROR__TOKENS_STILL_HELD
   | typeof ACCRUE_ERROR__UNKNOWN_TOKEN_PROGRAM
+  | typeof ACCRUE_ERROR__WRONG_BORROW_RESERVE
   | typeof ACCRUE_ERROR__WRONG_FARM_ACCOUNT
   | typeof ACCRUE_ERROR__WRONG_POSITION_STATE
   | typeof ACCRUE_ERROR__WRONG_TREASURY;
@@ -222,6 +231,7 @@ let accrueErrorMessages: Record<AccrueError, string> | undefined;
 if (process.env['NODE_ENV'] !== "production") {
   accrueErrorMessages = {
     [ACCRUE_ERROR__ALLOW_LIST_FULL]: `The allow list is full`,
+    [ACCRUE_ERROR__BORROW_SIDE_INCOMPLETE]: `The borrow side needs both a mint and a reserve`,
     [ACCRUE_ERROR__BORROW_TOO_LARGE_A_SHARE_OF_LIQUIDITY]: `That borrow would take too large a share of the liquidity left`,
     [ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS]: `The bounty account does not belong to the caller`,
     [ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED]: `The stock token account changed during an instruction that must not move it`,
@@ -270,6 +280,7 @@ if (process.env['NODE_ENV'] !== "production") {
     [ACCRUE_ERROR__PRICE_AGE_ABOVE_CEILING]: `The price age is outside the range the program allows`,
     [ACCRUE_ERROR__PROGRAM_IS_RETIRING]: `The program is retiring and will not open new positions`,
     [ACCRUE_ERROR__PROTECT_LEVEL_TOO_HIGH]: `The guard level is too close to the liquidation threshold`,
+    [ACCRUE_ERROR__RESERVE_HAS_NO_BORROW_FACTOR]: `That reserve reports a borrow factor of zero`,
     [ACCRUE_ERROR__RESERVE_HAS_NO_SCOPE_FEED]: `That reserve names no Scope price feed`,
     [ACCRUE_ERROR__RESERVE_LEAVES_NO_GUARD_ROOM]: `This reserve leaves no room between its liquidation threshold and the guard`,
     [ACCRUE_ERROR__RESERVE_NAMES_NO_FARM]: `That reserve names no farm, so no farm account belongs in this call`,
@@ -285,6 +296,7 @@ if (process.env['NODE_ENV'] !== "production") {
     [ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS]: `A token left the position for an address that is not allowed`,
     [ACCRUE_ERROR__TOKENS_STILL_HELD]: `The position still holds tokens`,
     [ACCRUE_ERROR__UNKNOWN_TOKEN_PROGRAM]: `That token program is neither Token nor Token 2022`,
+    [ACCRUE_ERROR__WRONG_BORROW_RESERVE]: `That is not the borrow reserve this position borrowed from`,
     [ACCRUE_ERROR__WRONG_FARM_ACCOUNT]: `That is not the farm account the reserve names`,
     [ACCRUE_ERROR__WRONG_POSITION_STATE]: `This position is not in the state that instruction needs`,
     [ACCRUE_ERROR__WRONG_TREASURY]: `The treasury account in the config does not match the one passed`,

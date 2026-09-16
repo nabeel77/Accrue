@@ -68,6 +68,8 @@ export type Config = {
   admin: Address;
   guardian: Address;
   treasury: Address;
+  borrowMint: Address;
+  borrowReserve: Address;
   keeperBountyBps: number;
   keeperBountyCapUsdc: bigint;
   performanceFeeBps: number;
@@ -91,6 +93,8 @@ export type ConfigArgs = {
   admin: Address;
   guardian: Address;
   treasury: Address;
+  borrowMint: Address;
+  borrowReserve: Address;
   keeperBountyBps: number;
   keeperBountyCapUsdc: number | bigint;
   performanceFeeBps: number;
@@ -118,6 +122,8 @@ export function getConfigEncoder(): Encoder<ConfigArgs> {
       ["admin", getAddressEncoder()],
       ["guardian", getAddressEncoder()],
       ["treasury", getAddressEncoder()],
+      ["borrowMint", getAddressEncoder()],
+      ["borrowReserve", getAddressEncoder()],
       ["keeperBountyBps", getU16Encoder()],
       ["keeperBountyCapUsdc", getU64Encoder()],
       ["performanceFeeBps", getU16Encoder()],
@@ -147,6 +153,8 @@ export function getConfigDecoder(): Decoder<Config> {
     ["admin", getAddressDecoder()],
     ["guardian", getAddressDecoder()],
     ["treasury", getAddressDecoder()],
+    ["borrowMint", getAddressDecoder()],
+    ["borrowReserve", getAddressDecoder()],
     ["keeperBountyBps", getU16Decoder()],
     ["keeperBountyCapUsdc", getU64Decoder()],
     ["performanceFeeBps", getU16Decoder()],

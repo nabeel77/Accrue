@@ -3,9 +3,11 @@ use anchor_spl::token_interface::{Mint, TokenAccount};
 
 use crate::constants::{
     BASIS_POINTS_DENOMINATOR, CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, JUPITER_V6_PROGRAM_ID,
-    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
+    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, MAX_PRICE_AGE_SLOTS_AT_OPEN,
+    PERCENT_DENOMINATOR, POSITION_SEED, TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
+use crate::instructions::checks::require_the_vaults_the_borrow_reserve_names;
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, CollateralMovement, InvariantCheck,
     PositionAccounts, SwapCheck,
@@ -18,9 +20,11 @@ use crate::kamino::cpi::{
     FARM_MODE_DEBT,
 };
 use crate::kamino::{
-    read_obligation_deposited_amount, read_reserve_account, scaled_fraction_to_whole_units,
+    read_obligation_borrowed_amount_scaled, read_obligation_deposited_amount, read_reserve_account,
+    scaled_fraction_to_whole_units, scaled_fraction_to_whole_units_rounding_up,
     SCALED_FRACTION_ONE,
 };
+use crate::scope::{read_scope_price, require_price_is_fresh, usd_value_of_scaled};
 use crate::state::{Config, Position, PositionState, Strategy};
 use crate::swap::{execute_jupiter_swap, JupiterSwap};
 
@@ -183,99 +187,11 @@ pub fn handle_open_position<'info>(
     jupiter_route_data: Vec<u8>,
 ) -> Result<()> {
     let accounts = &context.accounts;
-    accounts.config.require_opens_allowed()?;
-
-    let collateral_entry = accounts
-        .config
-        .enabled_collateral_entry(&accounts.collateral_mint.key())?;
-    let destination_entry = accounts
-        .config
-        .enabled_destination_entry(&accounts.destination_mint.key())?;
-
-    require_keys_eq!(
-        accounts.collateral_reserve.key(),
-        collateral_entry.reserve,
-        AccrueError::CollateralNotAllowed
-    );
-    require_keys_eq!(
-        accounts.scope_prices.key(),
-        collateral_entry.scope_price_account,
-        AccrueError::CollateralNotAllowed
-    );
-    require_keys_eq!(
-        accounts.collateral_token_program.key(),
-        collateral_entry.token_program,
-        AccrueError::UnknownTokenProgram
-    );
-    require_keys_eq!(
-        accounts.destination_token_program.key(),
-        destination_entry.token_program,
-        AccrueError::UnknownTokenProgram
-    );
-
-    let collateral_reserve = read_reserve_account(&accounts.collateral_reserve)?;
-    let borrow_reserve = read_reserve_account(&accounts.borrow_reserve)?;
-
-    require_keys_eq!(
-        collateral_reserve.lending_market,
-        accounts.lending_market.key(),
-        AccrueError::CollateralNotAllowed
-    );
-    require_keys_eq!(
-        borrow_reserve.lending_market,
-        accounts.lending_market.key(),
-        AccrueError::CollateralNotAllowed
-    );
-    require_keys_eq!(
-        collateral_reserve.liquidity_mint,
-        accounts.collateral_mint.key(),
-        AccrueError::CollateralNotAllowed
-    );
-    require_keys_eq!(
-        borrow_reserve.liquidity_mint,
-        accounts.borrow_mint.key(),
-        AccrueError::CollateralNotAllowed
-    );
-    require!(
-        collateral_reserve.is_active(),
-        AccrueError::CollateralNotAllowed
-    );
-    require!(
-        borrow_reserve.is_active(),
-        AccrueError::CollateralNotAllowed
-    );
-
-    strategy.validate_against_reserve(
-        collateral_reserve.max_loan_to_value_bps()?,
-        collateral_reserve.liquidation_threshold_bps()?,
-    )?;
-
-    require!(collateral_amount > 0, AccrueError::PositionSizeOutOfRange);
-    require!(borrow_amount > 0, AccrueError::PositionSizeOutOfRange);
-
-    let collateral_value_usd = collateral_value_in_whole_usd(
+    let plan = refresh_everything_then_size_the_position(
+        accounts,
         collateral_amount,
-        collateral_reserve.liquidity_market_price_scaled,
-        collateral_reserve.liquidity_mint_decimals,
-    )?;
-    require!(
-        collateral_value_usd >= u128::from(accounts.config.min_position_usd)
-            && collateral_value_usd <= u128::from(accounts.config.max_position_usd),
-        AccrueError::PositionSizeOutOfRange
-    );
-
-    require_borrow_within_target(
         borrow_amount,
-        borrow_reserve.liquidity_mint_decimals,
-        borrow_reserve.liquidity_market_price_scaled,
-        collateral_value_usd,
-        strategy.target_ltv_bps,
-    )?;
-
-    require_borrow_within_available_share(
-        borrow_amount,
-        borrow_reserve.liquidity_available_amount,
-        accounts.config.max_share_of_available_bps,
+        strategy,
     )?;
 
     let owner_key = accounts.owner.key();
@@ -319,13 +235,13 @@ pub fn handle_open_position<'info>(
     )?;
 
     let collateral_farms = farm_accounts_for_reserve(
-        collateral_reserve.farm_collateral,
+        plan.collateral_farm,
         optional_account_info(&accounts.collateral_reserve_farm_state),
         optional_account_info(&accounts.collateral_obligation_farm_state),
         accounts.farms_program.to_account_info(),
     )?;
     let borrow_farms = farm_accounts_for_reserve(
-        borrow_reserve.farm_debt,
+        plan.borrow_farm,
         optional_account_info(&accounts.borrow_reserve_farm_state),
         optional_account_info(&accounts.borrow_obligation_farm_state),
         accounts.farms_program.to_account_info(),
@@ -355,7 +271,7 @@ pub fn handle_open_position<'info>(
         destination_token_account: accounts.position_destination_account.to_account_info(),
         obligation: accounts.obligation.to_account_info(),
     };
-    let ledger_before = read_position_ledger(&position_accounts, &collateral_entry.reserve)?;
+    let ledger_before = read_position_ledger(&position_accounts, &plan.collateral_reserve)?;
 
     let both_reserves = [
         accounts.collateral_reserve.to_account_info(),
@@ -412,16 +328,14 @@ pub fn handle_open_position<'info>(
         &position_seeds,
     )?;
 
-    for reserve in &both_reserves {
-        refresh_reserve(
-            &ReserveRefresh {
-                reserve: reserve.clone(),
-                lending_market: accounts.lending_market.to_account_info(),
-                scope_prices: accounts.scope_prices.to_account_info(),
-            },
-            &accounts.kamino_program.to_account_info(),
-        )?;
-    }
+    refresh_reserve(
+        &ReserveRefresh {
+            reserve: accounts.collateral_reserve.to_account_info(),
+            lending_market: accounts.lending_market.to_account_info(),
+            scope_prices: accounts.scope_prices.to_account_info(),
+        },
+        &accounts.kamino_program.to_account_info(),
+    )?;
     refresh_obligation(
         &accounts.obligation.to_account_info(),
         &accounts.lending_market.to_account_info(),
@@ -444,9 +358,16 @@ pub fn handle_open_position<'info>(
         &position_seeds,
     )?;
 
+    require_the_open_landed_at_or_under_target(
+        &accounts.obligation.to_account_info(),
+        &accounts.borrow_reserve.key(),
+        &plan,
+        strategy.target_ltv_bps,
+    )?;
+
     let deposited_collateral = read_obligation_deposited_amount(
         &accounts.obligation.to_account_info(),
-        &collateral_entry.reserve,
+        &plan.collateral_reserve,
     )?;
     let collateral_movement = CollateralMovement::ExactlyIn(
         deposited_collateral
@@ -479,7 +400,7 @@ pub fn handle_open_position<'info>(
 
     assert_invariants_hold(&InvariantCheck {
         accounts: &position_accounts,
-        collateral_reserve: &collateral_entry.reserve,
+        collateral_reserve: &plan.collateral_reserve,
         before: &ledger_before,
         collateral_movement,
         swap,
@@ -490,7 +411,9 @@ pub fn handle_open_position<'info>(
     position.owner = owner_key;
     position.collateral_mint = collateral_mint_key;
     position.destination_mint = destination_mint_key;
+    position.borrow_mint = context.accounts.borrow_mint.key();
     position.market = context.accounts.lending_market.key();
+    position.borrow_reserve = context.accounts.borrow_reserve.key();
     position.obligation = context.accounts.obligation.key();
     position.collateral_token_account = context.accounts.position_collateral_account.key();
     position.usdc_token_account = context.accounts.position_usdc_account.key();
@@ -509,9 +432,210 @@ pub fn handle_open_position<'info>(
     position.grow_count = 0;
     position.usdc_borrowed_total = 0;
     position.usdc_repaid_total = 0;
+    position.usdc_from_sales_total = 0;
     position.bump = context.bumps.position;
     position.record_borrow(borrow_amount)?;
 
+    Ok(())
+}
+
+pub struct OpenPlan {
+    collateral_reserve: Pubkey,
+    collateral_farm: Pubkey,
+    borrow_farm: Pubkey,
+    collateral_value_scaled: u128,
+    borrow_price_scaled: u128,
+    borrow_decimals: u8,
+    borrow_factor_pct: u64,
+}
+
+#[inline(never)]
+fn refresh_everything_then_size_the_position(
+    accounts: &OpenPosition<'_>,
+    collateral_amount: u64,
+    borrow_amount: u64,
+    strategy: Strategy,
+) -> Result<OpenPlan> {
+    accounts.config.require_opens_allowed()?;
+
+    let collateral_entry = accounts
+        .config
+        .enabled_collateral_entry(&accounts.collateral_mint.key())?;
+    let destination_entry = accounts
+        .config
+        .enabled_destination_entry(&accounts.destination_mint.key())?;
+
+    require_keys_eq!(
+        accounts.collateral_reserve.key(),
+        collateral_entry.reserve,
+        AccrueError::CollateralNotAllowed
+    );
+    require_keys_eq!(
+        accounts.scope_prices.key(),
+        collateral_entry.scope_price_account,
+        AccrueError::CollateralNotAllowed
+    );
+    require_keys_eq!(
+        accounts.collateral_token_program.key(),
+        collateral_entry.token_program,
+        AccrueError::UnknownTokenProgram
+    );
+    require_keys_eq!(
+        accounts.destination_token_program.key(),
+        destination_entry.token_program,
+        AccrueError::UnknownTokenProgram
+    );
+    require_keys_eq!(
+        accounts.borrow_mint.key(),
+        accounts.config.borrow_mint,
+        AccrueError::WrongBorrowReserve
+    );
+    require_keys_eq!(
+        accounts.borrow_reserve.key(),
+        accounts.config.borrow_reserve,
+        AccrueError::WrongBorrowReserve
+    );
+
+    for reserve in [
+        accounts.collateral_reserve.to_account_info(),
+        accounts.borrow_reserve.to_account_info(),
+    ] {
+        refresh_reserve(
+            &ReserveRefresh {
+                reserve,
+                lending_market: accounts.lending_market.to_account_info(),
+                scope_prices: accounts.scope_prices.to_account_info(),
+            },
+            &accounts.kamino_program.to_account_info(),
+        )?;
+    }
+
+    let collateral_reserve = read_reserve_account(&accounts.collateral_reserve)?;
+    let borrow_reserve = read_reserve_account(&accounts.borrow_reserve)?;
+
+    require_keys_eq!(
+        collateral_reserve.lending_market,
+        accounts.lending_market.key(),
+        AccrueError::CollateralNotAllowed
+    );
+    require_keys_eq!(
+        borrow_reserve.lending_market,
+        accounts.lending_market.key(),
+        AccrueError::CollateralNotAllowed
+    );
+    require_keys_eq!(
+        collateral_reserve.liquidity_mint,
+        accounts.collateral_mint.key(),
+        AccrueError::CollateralNotAllowed
+    );
+    require_keys_eq!(
+        borrow_reserve.liquidity_mint,
+        accounts.borrow_mint.key(),
+        AccrueError::CollateralNotAllowed
+    );
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        Some(&accounts.borrow_reserve_fee_receiver.key()),
+    )?;
+    require!(
+        collateral_reserve.is_active(),
+        AccrueError::CollateralNotAllowed
+    );
+    require!(
+        borrow_reserve.is_active(),
+        AccrueError::CollateralNotAllowed
+    );
+
+    strategy.validate_against_reserve(
+        collateral_reserve.max_loan_to_value_bps()?,
+        collateral_reserve.liquidation_threshold_bps()?,
+    )?;
+
+    require!(collateral_amount > 0, AccrueError::PositionSizeOutOfRange);
+    require!(borrow_amount > 0, AccrueError::PositionSizeOutOfRange);
+
+    let slot = Clock::get()?.slot;
+    let collateral_price = read_scope_price(
+        &accounts.scope_prices,
+        collateral_reserve.scope_feed_index()?,
+    )?;
+    require_price_is_fresh(&collateral_price, slot, MAX_PRICE_AGE_SLOTS_AT_OPEN)?;
+    let borrow_price =
+        read_scope_price(&accounts.scope_prices, borrow_reserve.scope_feed_index()?)?;
+    require_price_is_fresh(&borrow_price, slot, MAX_PRICE_AGE_SLOTS_AT_OPEN)?;
+
+    let collateral_value_usd = collateral_value_in_whole_usd(
+        collateral_amount,
+        collateral_price.usd_per_whole_token_scaled()?,
+        collateral_reserve.liquidity_mint_decimals,
+    )?;
+    require!(
+        collateral_value_usd >= u128::from(accounts.config.min_position_usd)
+            && collateral_value_usd <= u128::from(accounts.config.max_position_usd),
+        AccrueError::PositionSizeOutOfRange
+    );
+
+    require_borrow_within_target(
+        borrow_amount,
+        borrow_reserve.liquidity_mint_decimals,
+        borrow_price.usd_per_whole_token_scaled()?,
+        borrow_reserve.borrow_factor_pct()?,
+        collateral_value_usd,
+        strategy.target_ltv_bps,
+    )?;
+
+    require_borrow_within_available_share(
+        borrow_amount,
+        borrow_reserve.liquidity_available_amount,
+        accounts.config.max_share_of_available_bps,
+    )?;
+
+    Ok(OpenPlan {
+        collateral_reserve: collateral_entry.reserve,
+        collateral_farm: collateral_reserve.farm_collateral,
+        borrow_farm: borrow_reserve.farm_debt,
+        collateral_value_scaled: usd_value_of_scaled(
+            collateral_amount,
+            collateral_reserve.liquidity_mint_decimals,
+            collateral_price.usd_per_whole_token_scaled()?,
+        )?,
+        borrow_price_scaled: borrow_price.usd_per_whole_token_scaled()?,
+        borrow_decimals: borrow_reserve.liquidity_mint_decimals,
+        borrow_factor_pct: borrow_reserve.borrow_factor_pct()?,
+    })
+}
+
+#[inline(never)]
+fn require_the_open_landed_at_or_under_target(
+    obligation: &AccountInfo<'_>,
+    borrow_reserve: &Pubkey,
+    plan: &OpenPlan,
+    target_ltv_bps: u16,
+) -> Result<()> {
+    let debt_raw = u64::try_from(scaled_fraction_to_whole_units_rounding_up(
+        read_obligation_borrowed_amount_scaled(obligation, borrow_reserve)?,
+    ))
+    .map_err(|_| AccrueError::MathOverflow)?;
+
+    let adjusted_debt_scaled =
+        usd_value_of_scaled(debt_raw, plan.borrow_decimals, plan.borrow_price_scaled)?
+            .checked_mul(u128::from(plan.borrow_factor_pct))
+            .ok_or(AccrueError::MathOverflow)?
+            .checked_div(u128::from(PERCENT_DENOMINATOR))
+            .ok_or(AccrueError::MathOverflow)?;
+
+    let allowed_scaled = plan
+        .collateral_value_scaled
+        .checked_mul(u128::from(target_ltv_bps))
+        .ok_or(AccrueError::MathOverflow)?
+        .checked_div(u128::from(BASIS_POINTS_DENOMINATOR))
+        .ok_or(AccrueError::MathOverflow)?;
+
+    require!(
+        adjusted_debt_scaled <= allowed_scaled,
+        AccrueError::LoanToValueAboveTarget
+    );
     Ok(())
 }
 
@@ -595,11 +719,16 @@ fn require_borrow_within_target(
     borrow_amount: u64,
     borrow_decimals: u8,
     borrow_price_scaled: u128,
+    borrow_factor_pct: u64,
     collateral_value_usd: u128,
     target_ltv_bps: u16,
 ) -> Result<()> {
     let borrow_value_usd =
-        collateral_value_in_whole_usd(borrow_amount, borrow_price_scaled, borrow_decimals)?;
+        collateral_value_in_whole_usd(borrow_amount, borrow_price_scaled, borrow_decimals)?
+            .checked_mul(u128::from(borrow_factor_pct))
+            .ok_or(AccrueError::MathOverflow)?
+            .checked_div(u128::from(PERCENT_DENOMINATOR))
+            .ok_or(AccrueError::MathOverflow)?;
     let allowed = collateral_value_usd
         .checked_mul(u128::from(target_ltv_bps))
         .ok_or(AccrueError::MathOverflow)?

@@ -9,7 +9,10 @@ crate-type = ["cdylib", "lib"]
 name = "accrue"
 
 [features]
-default = []
+default = ["mainnet"]
+mainnet = []
+devnet = []
+localnet = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []

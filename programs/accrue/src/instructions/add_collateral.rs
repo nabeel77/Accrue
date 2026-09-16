@@ -7,7 +7,7 @@ use crate::constants::{
 };
 use crate::error::AccrueError;
 use crate::instructions::checks::{
-    require_collateral_reserve_of_position, require_reserve_on_the_positions_market,
+    require_collateral_reserve_of_position, require_the_borrow_reserve_the_position_recorded,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, CollateralMovement, InvariantCheck,
@@ -132,7 +132,10 @@ pub fn handle_add_collateral(
     );
 
     let borrow_reserve = read_reserve_account(&accounts.borrow_reserve)?;
-    require_reserve_on_the_positions_market(&accounts.position, &borrow_reserve)?;
+    require_the_borrow_reserve_the_position_recorded(
+        &accounts.position,
+        &accounts.borrow_reserve.key(),
+    )?;
     require_keys_eq!(
         accounts.borrow_scope_prices.key(),
         borrow_reserve.scope_price_account()?,

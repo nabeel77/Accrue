@@ -68,7 +68,9 @@ export type Position = {
   owner: Address;
   collateralMint: Address;
   destinationMint: Address;
+  borrowMint: Address;
   market: Address;
+  borrowReserve: Address;
   obligation: Address;
   collateralTokenAccount: Address;
   usdcTokenAccount: Address;
@@ -83,6 +85,7 @@ export type Position = {
   growCount: number;
   usdcBorrowedTotal: bigint;
   usdcRepaidTotal: bigint;
+  usdcFromSalesTotal: bigint;
   bump: number;
 };
 
@@ -90,7 +93,9 @@ export type PositionArgs = {
   owner: Address;
   collateralMint: Address;
   destinationMint: Address;
+  borrowMint: Address;
   market: Address;
+  borrowReserve: Address;
   obligation: Address;
   collateralTokenAccount: Address;
   usdcTokenAccount: Address;
@@ -105,6 +110,7 @@ export type PositionArgs = {
   growCount: number;
   usdcBorrowedTotal: number | bigint;
   usdcRepaidTotal: number | bigint;
+  usdcFromSalesTotal: number | bigint;
   bump: number;
 };
 
@@ -116,7 +122,9 @@ export function getPositionEncoder(): FixedSizeEncoder<PositionArgs> {
       ["owner", getAddressEncoder()],
       ["collateralMint", getAddressEncoder()],
       ["destinationMint", getAddressEncoder()],
+      ["borrowMint", getAddressEncoder()],
       ["market", getAddressEncoder()],
+      ["borrowReserve", getAddressEncoder()],
       ["obligation", getAddressEncoder()],
       ["collateralTokenAccount", getAddressEncoder()],
       ["usdcTokenAccount", getAddressEncoder()],
@@ -131,6 +139,7 @@ export function getPositionEncoder(): FixedSizeEncoder<PositionArgs> {
       ["growCount", getU32Encoder()],
       ["usdcBorrowedTotal", getU64Encoder()],
       ["usdcRepaidTotal", getU64Encoder()],
+      ["usdcFromSalesTotal", getU64Encoder()],
       ["bump", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: POSITION_DISCRIMINATOR }),
@@ -144,7 +153,9 @@ export function getPositionDecoder(): FixedSizeDecoder<Position> {
     ["owner", getAddressDecoder()],
     ["collateralMint", getAddressDecoder()],
     ["destinationMint", getAddressDecoder()],
+    ["borrowMint", getAddressDecoder()],
     ["market", getAddressDecoder()],
+    ["borrowReserve", getAddressDecoder()],
     ["obligation", getAddressDecoder()],
     ["collateralTokenAccount", getAddressDecoder()],
     ["usdcTokenAccount", getAddressDecoder()],
@@ -159,6 +170,7 @@ export function getPositionDecoder(): FixedSizeDecoder<Position> {
     ["growCount", getU32Decoder()],
     ["usdcBorrowedTotal", getU64Decoder()],
     ["usdcRepaidTotal", getU64Decoder()],
+    ["usdcFromSalesTotal", getU64Decoder()],
     ["bump", getU8Decoder()],
   ]);
 }
@@ -222,5 +234,5 @@ export async function fetchAllMaybePosition(
 }
 
 export function getPositionSize(): number {
-  return 324;
+  return 396;
 }

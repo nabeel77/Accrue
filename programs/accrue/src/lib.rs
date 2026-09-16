@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+pub mod clusters;
 pub mod constants;
 pub mod error;
 pub mod guard;
@@ -25,9 +26,18 @@ pub mod accrue {
         context: Context<InitializeConfig>,
         admin: Pubkey,
         guardian: Pubkey,
+        borrow_mint: Pubkey,
+        borrow_reserve: Pubkey,
         limits: ConfigLimits,
     ) -> Result<()> {
-        handle_initialize_config(context, admin, guardian, limits)
+        handle_initialize_config(
+            context,
+            admin,
+            guardian,
+            borrow_mint,
+            borrow_reserve,
+            limits,
+        )
     }
 
     pub fn update_config(context: Context<UpdateConfig>, update: ConfigUpdate) -> Result<()> {

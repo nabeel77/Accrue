@@ -17,6 +17,8 @@ const OFFSET_LIQUIDITY_AVAILABLE_AMOUNT: usize = 224;
 const OFFSET_LIQUIDITY_BORROWED_AMOUNT_SF: usize = 232;
 const OFFSET_LIQUIDITY_MARKET_PRICE_SF: usize = 248;
 const OFFSET_LIQUIDITY_MINT_DECIMALS: usize = 272;
+const OFFSET_LIQUIDITY_DEPOSIT_LIMIT_CROSSED_TIMESTAMP: usize = 280;
+const OFFSET_LIQUIDITY_BORROW_LIMIT_CROSSED_TIMESTAMP: usize = 288;
 const OFFSET_LIQUIDITY_TOKEN_PROGRAM: usize = 408;
 const OFFSET_COLLATERAL_MINT: usize = 2560;
 const OFFSET_COLLATERAL_MINT_TOTAL_SUPPLY: usize = 2592;
@@ -25,6 +27,7 @@ const OFFSET_CONFIG_STATUS: usize = 4856;
 const OFFSET_CONFIG_LOAN_TO_VALUE_PCT: usize = 4872;
 const OFFSET_CONFIG_LIQUIDATION_THRESHOLD_PCT: usize = 4873;
 const OFFSET_CONFIG_DELEVERAGING_MARGIN_CALL_PERIOD_SECS: usize = 4880;
+const OFFSET_CONFIG_BORROW_FACTOR_PCT: usize = 5008;
 const OFFSET_CONFIG_DEPOSIT_LIMIT: usize = 5016;
 const OFFSET_CONFIG_BORROW_LIMIT: usize = 5024;
 const OFFSET_CONFIG_DEPOSIT_WITHDRAWAL_CAP: usize = 5416;
@@ -77,7 +80,10 @@ pub struct ReserveSnapshot {
     pub liquidity_fee_vault: Pubkey,
     pub liquidity_token_program: Pubkey,
     pub liquidity_mint_decimals: u8,
+    pub borrow_factor_pct: u64,
     pub liquidity_available_amount: u64,
+    pub deposit_limit_crossed_timestamp: u64,
+    pub borrow_limit_crossed_timestamp: u64,
     pub liquidity_borrowed_amount_scaled: u128,
     pub liquidity_market_price_scaled: u128,
     pub collateral_mint: Pubkey,
@@ -113,8 +119,14 @@ impl ReserveSnapshot {
         self.status == RESERVE_STATUS_OBSOLETE
     }
 
+    pub fn is_being_deleveraged(&self) -> bool {
+        self.autodeleverage_enabled
+            && (self.deposit_limit_crossed_timestamp != 0
+                || self.borrow_limit_crossed_timestamp != 0)
+    }
+
     pub fn is_flagged_for_exit(&self) -> bool {
-        self.is_obsolete() || self.autodeleverage_enabled
+        self.is_obsolete() || self.is_being_deleveraged()
     }
 
     pub fn max_loan_to_value_bps(&self) -> Result<u16> {
@@ -137,6 +149,14 @@ impl ReserveSnapshot {
             AccrueError::ReserveHasNoScopeFeed
         );
         Ok(self.scope_feed_index)
+    }
+
+    pub fn borrow_factor_pct(&self) -> Result<u64> {
+        require!(
+            self.borrow_factor_pct > 0,
+            AccrueError::ReserveHasNoBorrowFactor
+        );
+        Ok(self.borrow_factor_pct)
     }
 
     pub fn liquidation_threshold_bps(&self) -> Result<u16> {
@@ -177,7 +197,16 @@ pub fn decode_reserve(data: &[u8]) -> Result<ReserveSnapshot> {
         liquidity_fee_vault: read_pubkey_at(data, OFFSET_LIQUIDITY_FEE_VAULT)?,
         liquidity_token_program: read_pubkey_at(data, OFFSET_LIQUIDITY_TOKEN_PROGRAM)?,
         liquidity_mint_decimals,
+        borrow_factor_pct: read_u64_at(data, OFFSET_CONFIG_BORROW_FACTOR_PCT)?,
         liquidity_available_amount: read_u64_at(data, OFFSET_LIQUIDITY_AVAILABLE_AMOUNT)?,
+        deposit_limit_crossed_timestamp: read_u64_at(
+            data,
+            OFFSET_LIQUIDITY_DEPOSIT_LIMIT_CROSSED_TIMESTAMP,
+        )?,
+        borrow_limit_crossed_timestamp: read_u64_at(
+            data,
+            OFFSET_LIQUIDITY_BORROW_LIMIT_CROSSED_TIMESTAMP,
+        )?,
         liquidity_borrowed_amount_scaled: read_u128_at(data, OFFSET_LIQUIDITY_BORROWED_AMOUNT_SF)?,
         liquidity_market_price_scaled: read_u128_at(data, OFFSET_LIQUIDITY_MARKET_PRICE_SF)?,
         collateral_mint: read_pubkey_at(data, OFFSET_COLLATERAL_MINT)?,

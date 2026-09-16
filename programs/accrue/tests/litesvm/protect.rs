@@ -37,6 +37,7 @@ pub fn plan_the_sale(world: &World, opened: &OpenedPosition) -> PlannedSale {
         deposited,
         position.strategy.target_ltv_bps,
         config.keeper_bounty_bps,
+        world.borrow_factor_pct(),
     )
     .unwrap();
 

@@ -8,6 +8,7 @@ use crate::constants::{
 use crate::error::AccrueError;
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
+    require_the_vaults_the_borrow_reserve_names,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
@@ -192,7 +193,13 @@ pub fn handle_leave<'info>(
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
+    )?;
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        None,
     )?;
     require_keys_eq!(
         accounts.borrow_token_program.key(),
@@ -290,6 +297,11 @@ pub fn handle_leave<'info>(
         SwapCheck::BoundsCheckedAroundTheCall
     };
 
+    let usdc_from_the_sale =
+        token_account_amount(&accounts.position_usdc_account.to_account_info())?
+            .checked_sub(ledger_before.usdc_balance)
+            .ok_or(AccrueError::SwapSpentTooMuch)?;
+
     refresh_the_market(accounts, &both_reserves)?;
 
     let obligation = accounts.obligation.to_account_info();
@@ -377,6 +389,7 @@ pub fn handle_leave<'info>(
     })?;
 
     let position = &mut context.accounts.position;
+    position.record_sale(usdc_from_the_sale)?;
     position.record_repay(repaying)?;
     position.state = PositionState::Closed;
     Ok(())

@@ -7,6 +7,7 @@ use crate::constants::{
 use crate::error::AccrueError;
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
+    require_the_vaults_the_borrow_reserve_names,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, CollateralMovement, InvariantCheck,
@@ -110,7 +111,13 @@ pub fn handle_repay(context: Context<Repay>, requested_amount: u64) -> Result<()
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
+    )?;
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        None,
     )?;
     require_keys_eq!(
         accounts.borrow_token_program.key(),
