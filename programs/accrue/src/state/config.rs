@@ -49,6 +49,8 @@ pub struct Config {
     pub admin: Pubkey,
     pub guardian: Pubkey,
     pub treasury: Pubkey,
+    pub borrow_mint: Pubkey,
+    pub borrow_reserve: Pubkey,
     pub keeper_bounty_bps: u16,
     pub keeper_bounty_cap_usdc: u64,
     pub performance_fee_bps: u16,
@@ -240,6 +242,18 @@ impl Config {
             AccrueError::AllowListFull
         );
         self.allowed_destinations.push(entry);
+        Ok(())
+    }
+
+    pub fn set_borrow_side(&mut self, mint: Pubkey, reserve: Pubkey) -> Result<()> {
+        require_keys_neq!(mint, Pubkey::default(), AccrueError::BorrowSideIncomplete);
+        require_keys_neq!(
+            reserve,
+            Pubkey::default(),
+            AccrueError::BorrowSideIncomplete
+        );
+        self.borrow_mint = mint;
+        self.borrow_reserve = reserve;
         Ok(())
     }
 

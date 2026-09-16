@@ -83,6 +83,24 @@ describe('reading the lending market the way the keeper does', () => {
     expect(decodeReserve(fixtureData('reserve_metax')).isFlaggedForExit).toBe(true);
   });
 
+  it('reads the borrow factor the market weights each reserve by', () => {
+    expect(decodeReserve(fixtureData('reserve_usdc')).borrowFactorPct).toBe(100);
+    expect(decodeReserve(fixtureData('reserve_nvdax')).borrowFactorPct).toBe(225);
+  });
+
+  it('reads the limit timestamps a deleveraging would set', () => {
+    for (const label of ['reserve_usdc', 'reserve_nvdax', 'reserve_spyx']) {
+      const reserve = decodeReserve(fixtureData(label));
+      expect(reserve.depositLimitCrossedTimestamp).toBe(0n);
+      expect(reserve.borrowLimitCrossedTimestamp).toBe(0n);
+      expect(reserve.isFlaggedForExit).toBe(false);
+    }
+
+    expect(decodeReserve(fixtureData('reserve_metax')).depositLimitCrossedTimestamp).toBe(
+      1_753_830_774n,
+    );
+  });
+
   it('reads a real obligation and agrees with its own totals', () => {
     const obligation = decodeObligation(fixtureData('obligation_with_debt'));
 
@@ -91,8 +109,11 @@ describe('reading the lending market the way the keeper does', () => {
     expect(obligation.borrowedValueScaled).toBeGreaterThan(0n);
     expect(obligation.loanToValueBps).toBe(
       Number(
-        (obligation.borrowedValueScaled * 10_000n) / obligation.depositedValueScaled,
+        (obligation.adjustedDebtValueScaled * 10_000n) / obligation.depositedValueScaled,
       ),
+    );
+    expect(obligation.adjustedDebtValueScaled).toBeGreaterThanOrEqual(
+      obligation.borrowedValueScaled,
     );
     expect(obligation.loanToValueBps).toBeGreaterThan(0);
     expect(obligation.loanToValueBps).toBeLessThan(10_000);

@@ -310,6 +310,8 @@ fn a_config_can_only_be_written_once() {
         data: anchor_lang::InstructionData::data(&accrue::instruction::InitializeConfig {
             admin: stranger.pubkey(),
             guardian: stranger.pubkey(),
+            borrow_mint: stranger.pubkey(),
+            borrow_reserve: stranger.pubkey(),
             limits: default_limits(),
         }),
     };
@@ -350,4 +352,144 @@ fn a_position_left_in_awaiting_swap_can_still_be_rescued() {
     )
     .unwrap();
     assert_eq!(position.state, PositionState::Closing);
+}
+
+const ANOTHER_RESERVE_ON_THE_SAME_MARKET: &str = "reserve_spyx";
+
+fn another_reserve_address() -> solana_address::Address {
+    crate::snapshot::load_mainnet_snapshot()
+        .unwrap()
+        .address_of(ANOTHER_RESERVE_ON_THE_SAME_MARKET)
+        .unwrap()
+}
+
+fn instead_of(
+    instruction: &mut solana_instruction::Instruction,
+    was: solana_address::Address,
+    now: solana_address::Address,
+) {
+    let mut swapped = 0;
+    for meta in instruction.accounts.iter_mut() {
+        if meta.pubkey == was {
+            meta.pubkey = now;
+            swapped += 1;
+        }
+    }
+    assert!(
+        swapped > 0,
+        "the account to swap was not in the instruction"
+    );
+}
+
+fn reverted_because(failure: &litesvm::types::FailedTransactionMetadata, error_name: &str) -> bool {
+    failure.meta.logs.join("\n").contains(error_name)
+}
+
+#[test]
+fn open_position_refuses_a_borrow_reserve_the_config_does_not_name() {
+    let mut world = World::new();
+    let collateral_mint = world.collateral.liquidity_mint();
+    let position = world.position_address(&collateral_mint, &world.destination_mint);
+    let stock_amount = world.collateral.raw_amount_worth_usd(POSITION_SIZE_USD);
+    let tokens = world.fund_owner_and_open_token_accounts(position, stock_amount);
+
+    let mut instruction = world.open_position_instruction(
+        position,
+        &tokens,
+        stock_amount,
+        BORROW_AMOUNT,
+        0,
+        NVDAX_STRATEGY,
+        true,
+        Vec::new(),
+        Vec::new(),
+    );
+    instead_of(
+        &mut instruction,
+        world.borrow.address,
+        another_reserve_address(),
+    );
+
+    let owner = world.owner.insecure_clone();
+    let failure = world
+        .send(&[instruction], &[&owner])
+        .expect_err("a borrow reserve the config does not name must be refused");
+    assert!(
+        reverted_because(&failure, "WrongBorrowReserve"),
+        "open reverted for another reason: {:#?}",
+        failure.meta.logs
+    );
+}
+
+#[test]
+fn protect_refuses_a_borrow_reserve_the_position_did_not_borrow_from() {
+    let mut world = World::new();
+    world.install_swap_program("honest_swap.so");
+    let opened = world.open_a_guarded_position();
+    world.move_the_price(world.collateral.snapshot.scope_feed_index, 78, 100);
+    world.refresh_the_market_from_outside();
+    world.refresh_the_obligation_from_outside(opened.obligation);
+
+    let keeper = world.stranger.insecure_clone();
+    let bounty_account = world.create_token_account(
+        world.borrow.liquidity_mint(),
+        keeper.pubkey(),
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+    let debt_before = world.obligation_debt(&opened.obligation);
+
+    let mut instruction = world.protect_instruction(
+        &opened,
+        keeper.pubkey(),
+        bounty_account,
+        0,
+        crate::actions::honest_route_data(1, 1),
+        crate::protect::selling_route(&world, &opened, None),
+    );
+    instead_of(
+        &mut instruction,
+        world.borrow.address,
+        another_reserve_address(),
+    );
+
+    let failure = world
+        .send(&[instruction], &[&keeper])
+        .expect_err("protect must only ever talk to the reserve the position borrowed from");
+    assert!(
+        reverted_because(&failure, "WrongBorrowReserve"),
+        "protect reverted for another reason: {:#?}",
+        failure.meta.logs
+    );
+    assert_eq!(world.obligation_debt(&opened.obligation), debt_before);
+    assert_eq!(world.token_balance(&bounty_account), 0);
+}
+
+#[test]
+fn rescue_refuses_a_borrow_reserve_the_position_did_not_borrow_from() {
+    let mut world = World::new();
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+    let owner = world.owner.insecure_clone();
+    let usdc_before = world.token_balance(&opened.tokens.position_usdc);
+
+    let mut instruction = world.rescue_instruction(&opened, owner.pubkey());
+    instead_of(
+        &mut instruction,
+        world.borrow.address,
+        another_reserve_address(),
+    );
+
+    let failure = world
+        .send(&[instruction], &[&owner])
+        .expect_err("rescue has no conditions but it still only talks to the right reserve");
+    assert!(
+        reverted_because(&failure, "WrongBorrowReserve"),
+        "rescue reverted for another reason: {:#?}",
+        failure.meta.logs
+    );
+    assert_eq!(
+        world.token_balance(&opened.tokens.position_usdc),
+        usdc_before,
+        "a refused rescue moved nothing"
+    );
 }

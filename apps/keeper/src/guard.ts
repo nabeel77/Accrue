@@ -103,10 +103,11 @@ export function destinationToSellForProtect(
 ): bigint {
   const usdcDecimals = subject.borrowReserve.liquidityMintDecimals;
   const amounts = protectAmounts(
-    subject.obligation.borrowedValueScaled,
+    subject.obligation.adjustedDebtValueScaled,
     subject.obligation.depositedValueScaled,
     subject.position.strategy.targetLtvBps,
     config.keeperBountyBps,
+    subject.borrowReserve.borrowFactorPct,
   );
 
   const repayNeeded = rawAmountWorthRoundingUp(
@@ -143,9 +144,10 @@ export function destinationToSellForProtect(
 export function usdcToBorrowForGrow(subject: GuardSubject): bigint {
   return rawAmountWorthRoundingDown(
     borrowToReachTarget(
-      subject.obligation.borrowedValueScaled,
+      subject.obligation.adjustedDebtValueScaled,
       subject.obligation.depositedValueScaled,
       subject.position.strategy.targetLtvBps,
+      subject.borrowReserve.borrowFactorPct,
     ),
     subject.borrowReserve.liquidityMintDecimals,
     subject.usdcPriceScaled,

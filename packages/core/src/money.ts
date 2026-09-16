@@ -1,4 +1,5 @@
 export const BASIS_POINTS_DENOMINATOR = 10_000n;
+export const PERCENT_DENOMINATOR = 100n;
 
 /** The lending market keeps every value as a fraction scaled by two to the sixtieth. */
 export const SCALED_FRACTION_BITS = 60n;

@@ -12,6 +12,8 @@ pub enum AccrueError {
     KaminoFieldOutOfRange,
     #[msg("That reserve names no Scope price feed")]
     ReserveHasNoScopeFeed,
+    #[msg("That reserve reports a borrow factor of zero")]
+    ReserveHasNoBorrowFactor,
     #[msg("That reserve names no farm, so no farm account belongs in this call")]
     ReserveNamesNoFarm,
     #[msg("That reserve names a farm and the farm accounts were not passed")]
@@ -41,6 +43,10 @@ pub enum AccrueError {
     CollateralEntryIncomplete,
     #[msg("The destination entry is missing a mint or a price account")]
     DestinationEntryIncomplete,
+    #[msg("The borrow side needs both a mint and a reserve")]
+    BorrowSideIncomplete,
+    #[msg("That is not the borrow reserve this position borrowed from")]
+    WrongBorrowReserve,
     #[msg("The allow list is full")]
     AllowListFull,
 

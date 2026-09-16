@@ -10,7 +10,10 @@ use crate::world::World;
 
 const RESERVE_STATUS_OFFSET: usize = 4_856;
 const RESERVE_AUTODELEVERAGE_OFFSET: usize = 5_502;
+const RESERVE_DEPOSIT_LIMIT_CROSSED_OFFSET: usize = 280;
+const RESERVE_BORROW_LIMIT_CROSSED_OFFSET: usize = 288;
 const RESERVE_STATUS_OBSOLETE: u8 = 2;
+const A_MOMENT_THE_LIMIT_WAS_CROSSED: u64 = 1_753_830_774;
 
 fn a_position_a_keeper_could_leave(swap_program: &str) -> (World, OpenedPosition, Keypair) {
     let mut world = World::new();
@@ -28,6 +31,25 @@ fn set_reserve_byte(world: &mut World, reserve: Address, offset: usize, value: u
     let mut account = world.svm.get_account(&reserve).unwrap();
     account.data[offset] = value;
     world.svm.set_account(reserve, account).unwrap();
+}
+
+fn set_reserve_timestamp(world: &mut World, reserve: Address, offset: usize, value: u64) {
+    let mut account = world.svm.get_account(&reserve).unwrap();
+    account.data[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+    world.svm.set_account(reserve, account).unwrap();
+}
+
+/// What the market looks like once it has actually started deleveraging a reserve: the setting is
+/// on and the reserve has recorded the moment it crossed a limit.
+fn start_deleveraging_the_collateral_reserve(world: &mut World) {
+    let reserve = world.collateral.address;
+    set_reserve_byte(world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    set_reserve_timestamp(
+        world,
+        reserve,
+        RESERVE_DEPOSIT_LIMIT_CROSSED_OFFSET,
+        A_MOMENT_THE_LIMIT_WAS_CROSSED,
+    );
 }
 
 /// Leaving sells everything the position holds, at the price the oracle reports.
@@ -119,8 +141,7 @@ fn a_reserve_flagged_for_deleverage_lets_anyone_hand_the_position_back() {
     let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
     let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
 
-    let reserve = world.collateral.address;
-    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    start_deleveraging_the_collateral_reserve(&mut world);
 
     let instruction = world.leave_instruction(
         &opened,
@@ -142,6 +163,65 @@ fn a_reserve_flagged_for_deleverage_lets_anyone_hand_the_position_back() {
 }
 
 #[test]
+fn the_deleverage_setting_on_its_own_is_not_a_reason_to_leave() {
+    let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
+    let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
+
+    let reserve = world.collateral.address;
+    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+
+    let debt_before = world.obligation_debt(&opened.obligation);
+    let instruction = world.leave_instruction(
+        &opened,
+        keeper.pubkey(),
+        world.an_honest_fill(held, usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world.send(&[instruction], &[&keeper]).expect_err(
+        "a market wide setting with no deleveraging under way must not empty a position",
+    );
+
+    assert_eq!(world.obligation_debt(&opened.obligation), debt_before);
+    assert_eq!(
+        world.token_balance(&opened.tokens.position_destination),
+        held
+    );
+}
+
+#[test]
+fn a_reserve_that_crossed_its_borrow_limit_while_deleveraging_lets_anyone_leave() {
+    let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
+    let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
+
+    let reserve = world.collateral.address;
+    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    set_reserve_timestamp(
+        &mut world,
+        reserve,
+        RESERVE_BORROW_LIMIT_CROSSED_OFFSET,
+        A_MOMENT_THE_LIMIT_WAS_CROSSED,
+    );
+
+    let instruction = world.leave_instruction(
+        &opened,
+        keeper.pubkey(),
+        world.an_honest_fill(held, usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world
+        .send(&[instruction], &[&keeper])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "leave reverted: {:?}\n{:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    assert_eq!(world.obligation_debt(&opened.obligation), 0);
+    assert_eq!(world.position(&opened.address).state, PositionState::Closed);
+}
+
+#[test]
 fn a_flag_the_owner_switched_off_is_not_a_reason_to_leave() {
     let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
     let owner = world.owner.insecure_clone();
@@ -156,8 +236,7 @@ fn a_flag_the_owner_switched_off_is_not_a_reason_to_leave() {
     );
     world.send(&[instruction], &[&owner]).unwrap();
 
-    let reserve = world.collateral.address;
-    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    start_deleveraging_the_collateral_reserve(&mut world);
 
     let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
     let debt_before = world.obligation_debt(&opened.obligation);
@@ -221,8 +300,7 @@ fn leaving_pays_the_owner_and_never_the_caller() {
         0,
         TOKEN_PROGRAM_ID,
     );
-    let reserve = world.collateral.address;
-    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    start_deleveraging_the_collateral_reserve(&mut world);
 
     let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
     let owner_usdc_before = world.token_balance(&opened.tokens.owner_usdc);
@@ -245,8 +323,7 @@ fn leaving_pays_the_owner_and_never_the_caller() {
 #[test]
 fn a_hostile_route_on_leave_takes_nothing() {
     let (mut world, opened, keeper) = a_position_a_keeper_could_leave("hostile_swap.so");
-    let reserve = world.collateral.address;
-    set_reserve_byte(&mut world, reserve, RESERVE_AUTODELEVERAGE_OFFSET, 1);
+    start_deleveraging_the_collateral_reserve(&mut world);
 
     let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
     let debt_before = world.obligation_debt(&opened.obligation);

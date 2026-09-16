@@ -138,6 +138,7 @@ pub fn handle_withdraw_collateral(
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
     )?;
     require_keys_eq!(

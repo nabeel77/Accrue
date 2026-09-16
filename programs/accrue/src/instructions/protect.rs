@@ -9,6 +9,7 @@ use crate::error::AccrueError;
 use crate::guard::{protect_amounts, require_the_interval_has_elapsed};
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
+    require_the_vaults_the_borrow_reserve_names,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
@@ -19,7 +20,7 @@ use crate::kamino::cpi::{
     ObligationContext, RepayAccounts, ReserveRefresh,
 };
 use crate::kamino::{
-    read_obligation_borrowed_amount_scaled, read_obligation_borrowed_value_scaled,
+    read_obligation_adjusted_debt_value_scaled, read_obligation_borrowed_amount_scaled,
     read_obligation_deposited_value_scaled, read_obligation_loan_to_value_bps,
     read_reserve_account, scaled_fraction_to_whole_units_rounding_up,
 };
@@ -140,7 +141,13 @@ pub fn handle_protect<'info>(
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
+    )?;
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        None,
     )?;
     require_keys_eq!(
         accounts.borrow_token_program.key(),
@@ -210,10 +217,11 @@ pub fn handle_protect<'info>(
     let destination_price_scaled = destination_price.usd_per_whole_token_scaled()?;
 
     let amounts = protect_amounts(
-        read_obligation_borrowed_value_scaled(&obligation)?,
+        read_obligation_adjusted_debt_value_scaled(&obligation)?,
         read_obligation_deposited_value_scaled(&obligation)?,
         accounts.position.strategy.target_ltv_bps,
         accounts.config.keeper_bounty_bps,
+        borrow_reserve.borrow_factor_pct()?,
     )?;
 
     let usdc_decimals = accounts.borrow_mint.decimals;
@@ -376,6 +384,7 @@ pub fn handle_protect<'info>(
         .protect_count
         .checked_add(1)
         .ok_or(AccrueError::MathOverflow)?;
+    position.record_sale(usdc_raised)?;
     position.record_repay(repaying)?;
     Ok(())
 }

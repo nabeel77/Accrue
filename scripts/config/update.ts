@@ -66,6 +66,8 @@ const { values } = parseArgs({
     'destination-scope-account': { type: 'string' },
     'destination-scope-feed': { type: 'string' },
     'destination-enabled': { type: 'string' },
+    'borrow-mint': { type: 'string' },
+    'borrow-reserve': { type: 'string' },
   },
 });
 
@@ -165,6 +167,8 @@ async function main(): Promise<void> {
     adminArg: addressOption('admin'),
     collateral: collateralEntry(),
     destination: destinationEntry(),
+    borrowMint: addressOption('borrow-mint'),
+    borrowReserve: addressOption('borrow-reserve'),
   };
 
   const nothingToDo = Object.values(update).every((field) => field.__option === 'None');

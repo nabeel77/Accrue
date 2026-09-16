@@ -13,7 +13,9 @@ function encodeAPositionIn(state: PositionState): Uint8Array {
       owner: SOME_ADDRESS,
       collateralMint: SOME_ADDRESS,
       destinationMint: SOME_ADDRESS,
+      borrowMint: SOME_ADDRESS,
       market: SOME_ADDRESS,
+      borrowReserve: SOME_ADDRESS,
       obligation: SOME_ADDRESS,
       collateralTokenAccount: SOME_ADDRESS,
       usdcTokenAccount: SOME_ADDRESS,
@@ -34,6 +36,7 @@ function encodeAPositionIn(state: PositionState): Uint8Array {
       growCount: 0,
       usdcBorrowedTotal: 0n,
       usdcRepaidTotal: 0n,
+      usdcFromSalesTotal: 0n,
       bump: 255,
     }),
   );

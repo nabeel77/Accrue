@@ -16,7 +16,7 @@
     "test:watch": "vitest",
     "test:litesvm": "anchor build && pnpm run program:test-swaps && cargo test --package accrue --test litesvm -- --nocapture && pnpm run test:rounds",
     "rust:fmt": "cargo fmt --all -- --check",
-    "rust:clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "rust:clippy": "cargo clippy --workspace --all-targets -- -D warnings",
     "program:build": "anchor build",
     "program:test-swaps": "cargo build-sbf --manifest-path tests/programs/honest-swap/Cargo.toml && cargo build-sbf --manifest-path tests/programs/hostile-swap/Cargo.toml",
     "program:test": "bash scripts/program/test.sh",

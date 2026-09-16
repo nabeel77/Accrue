@@ -25,6 +25,8 @@ pub struct ConfigUpdate {
     pub admin: Option<Pubkey>,
     pub collateral: Option<CollateralEntry>,
     pub destination: Option<DestinationEntry>,
+    pub borrow_mint: Option<Pubkey>,
+    pub borrow_reserve: Option<Pubkey>,
 }
 
 pub fn handle_update_config(context: Context<UpdateConfig>, update: ConfigUpdate) -> Result<()> {
@@ -49,6 +51,11 @@ pub fn handle_update_config(context: Context<UpdateConfig>, update: ConfigUpdate
     }
     if let Some(entry) = update.destination {
         config.upsert_destination(entry)?;
+    }
+    if update.borrow_mint.is_some() || update.borrow_reserve.is_some() {
+        let mint = update.borrow_mint.unwrap_or(config.borrow_mint);
+        let reserve = update.borrow_reserve.unwrap_or(config.borrow_reserve);
+        config.set_borrow_side(mint, reserve)?;
     }
 
     config.version = config

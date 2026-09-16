@@ -85,12 +85,16 @@ export type InitializeConfigInstructionData = {
   discriminator: ReadonlyUint8Array;
   admin: Address;
   guardian: Address;
+  borrowMint: Address;
+  borrowReserve: Address;
   limits: ConfigLimits;
 };
 
 export type InitializeConfigInstructionDataArgs = {
   admin: Address;
   guardian: Address;
+  borrowMint: Address;
+  borrowReserve: Address;
   limits: ConfigLimitsArgs;
 };
 
@@ -100,6 +104,8 @@ export function getInitializeConfigInstructionDataEncoder(): FixedSizeEncoder<In
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["admin", getAddressEncoder()],
       ["guardian", getAddressEncoder()],
+      ["borrowMint", getAddressEncoder()],
+      ["borrowReserve", getAddressEncoder()],
       ["limits", getConfigLimitsEncoder()],
     ]),
     (value) => ({ ...value, discriminator: INITIALIZE_CONFIG_DISCRIMINATOR }),
@@ -111,6 +117,8 @@ export function getInitializeConfigInstructionDataDecoder(): FixedSizeDecoder<In
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["admin", getAddressDecoder()],
     ["guardian", getAddressDecoder()],
+    ["borrowMint", getAddressDecoder()],
+    ["borrowReserve", getAddressDecoder()],
     ["limits", getConfigLimitsDecoder()],
   ]);
 }
@@ -137,6 +145,8 @@ export type InitializeConfigAsyncInput<
   systemProgram?: Address<TAccountSystemProgram>;
   admin: InitializeConfigInstructionDataArgs["admin"];
   guardian: InitializeConfigInstructionDataArgs["guardian"];
+  borrowMint: InitializeConfigInstructionDataArgs["borrowMint"];
+  borrowReserve: InitializeConfigInstructionDataArgs["borrowReserve"];
   limits: InitializeConfigInstructionDataArgs["limits"];
 };
 
@@ -223,6 +233,8 @@ export type InitializeConfigInput<
   systemProgram?: Address<TAccountSystemProgram>;
   admin: InitializeConfigInstructionDataArgs["admin"];
   guardian: InitializeConfigInstructionDataArgs["guardian"];
+  borrowMint: InitializeConfigInstructionDataArgs["borrowMint"];
+  borrowReserve: InitializeConfigInstructionDataArgs["borrowReserve"];
   limits: InitializeConfigInstructionDataArgs["limits"];
 };
 

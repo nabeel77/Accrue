@@ -20,6 +20,8 @@ async function main(): Promise<void> {
     treasury: address(requiredVariable('ACCRUE_TREASURY_USDC_ACCOUNT')),
     admin: admin.address,
     guardian: address(requiredVariable('ACCRUE_GUARDIAN')),
+    borrowMint: address(requiredVariable('ACCRUE_BORROW_MINT')),
+    borrowReserve: address(requiredVariable('ACCRUE_BORROW_RESERVE')),
     limits: {
       keeperBountyBps: requiredNumber('ACCRUE_CONFIG_KEEPER_BOUNTY_BPS'),
       keeperBountyCapUsdc: BigInt(

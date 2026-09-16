@@ -207,11 +207,8 @@ pub fn refresh_obligation<'info>(
     lending_market: &AccountInfo<'info>,
     known_reserves: &[AccountInfo<'info>],
 ) -> Result<()> {
-    let wanted = super::read_obligation_reserves_in_order(obligation)?;
-    let mut ordered_reserves: Vec<AccountInfo<'info>> = Vec::with_capacity(wanted.len());
-    for reserve in &wanted {
-        ordered_reserves.push(find_reserve(known_reserves, reserve)?);
-    }
+    let mut wanted = [Pubkey::default(); super::obligation::MAX_OBLIGATION_RESERVES];
+    let found = super::read_obligation_reserves_in_order(obligation, &mut wanted)?;
 
     let mut instruction = RefreshObligation {
         lending_market: lending_market.key(),
@@ -219,8 +216,11 @@ pub fn refresh_obligation<'info>(
     }
     .instruction();
 
-    let mut account_infos = vec![lending_market.clone(), obligation.clone()];
-    for reserve in ordered_reserves {
+    let mut account_infos = Vec::with_capacity(found.saturating_add(2));
+    account_infos.push(lending_market.clone());
+    account_infos.push(obligation.clone());
+    for wanted_reserve in wanted.iter().take(found) {
+        let reserve = find_reserve(known_reserves, wanted_reserve)?;
         instruction
             .accounts
             .push(solana_instruction::AccountMeta::new(reserve.key(), false));
@@ -242,10 +242,18 @@ fn find_reserve<'info>(
         .ok_or_else(|| AccrueError::ObligationNamesAnUnknownReserve.into())
 }
 
+fn the_market_has_not_created_this_yet(account: &AccountInfo<'_>) -> bool {
+    account.lamports() == 0 || *account.owner == anchor_lang::solana_program::system_program::ID
+}
+
 pub fn init_user_metadata<'info>(
     accounts: &InitUserMetadataAccounts<'info>,
     position_seeds: &[&[u8]],
 ) -> Result<()> {
+    if !the_market_has_not_created_this_yet(&accounts.user_metadata) {
+        return Ok(());
+    }
+
     let instruction = InitUserMetadata {
         owner: accounts.position.key(),
         fee_payer: accounts.fee_payer.key(),
@@ -277,6 +285,10 @@ pub fn init_obligation<'info>(
     accounts: &InitObligationAccounts<'info>,
     position_seeds: &[&[u8]],
 ) -> Result<()> {
+    if !the_market_has_not_created_this_yet(&accounts.obligation) {
+        return Ok(());
+    }
+
     let instruction = InitObligation {
         obligation_owner: accounts.position.key(),
         fee_payer: accounts.fee_payer.key(),
@@ -314,6 +326,10 @@ pub fn init_obligation_farm<'info>(
     mode: u8,
     position_seeds: &[&[u8]],
 ) -> Result<()> {
+    if !the_market_has_not_created_this_yet(&accounts.obligation_farm_user_state) {
+        return Ok(());
+    }
+
     let instruction = InitObligationFarmsForReserve {
         payer: accounts.fee_payer.key(),
         owner: accounts.position.key(),

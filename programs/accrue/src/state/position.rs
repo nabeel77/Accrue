@@ -71,7 +71,9 @@ pub struct Position {
     pub owner: Pubkey,
     pub collateral_mint: Pubkey,
     pub destination_mint: Pubkey,
+    pub borrow_mint: Pubkey,
     pub market: Pubkey,
+    pub borrow_reserve: Pubkey,
     pub obligation: Pubkey,
     pub collateral_token_account: Pubkey,
     pub usdc_token_account: Pubkey,
@@ -86,6 +88,7 @@ pub struct Position {
     pub grow_count: u32,
     pub usdc_borrowed_total: u64,
     pub usdc_repaid_total: u64,
+    pub usdc_from_sales_total: u64,
     pub bump: u8,
 }
 
@@ -147,6 +150,14 @@ impl Position {
     pub fn record_repay(&mut self, amount: u64) -> Result<()> {
         self.usdc_repaid_total = self
             .usdc_repaid_total
+            .checked_add(amount)
+            .ok_or(AccrueError::MathOverflow)?;
+        Ok(())
+    }
+
+    pub fn record_sale(&mut self, amount: u64) -> Result<()> {
+        self.usdc_from_sales_total = self
+            .usdc_from_sales_total
             .checked_add(amount)
             .ok_or(AccrueError::MathOverflow)?;
         Ok(())

@@ -259,6 +259,38 @@ fn a_route_handed_the_stock_account_is_refused_before_it_runs() {
 }
 
 #[test]
+fn a_route_handed_the_config_is_refused_because_the_program_owns_it() {
+    let (mut world, opened) = a_position_with_a_hostile_router();
+    let before = Untouched::read(&world, &opened);
+    let config = world.config_address;
+    let route = buying_route(&world, &opened, Some(config));
+
+    let failure = world
+        .buy_destination(
+            &opened,
+            3_900_000_000,
+            hostile_route_data(ATTACK_HONEST_FILL, BORROW_AMOUNT, 3_900_000_000),
+            route,
+        )
+        .expect_err("the config is owned by this program and must never reach a route");
+    assert!(
+        failure
+            .meta
+            .logs
+            .join("\n")
+            .contains("SwapRouteTouchesAForbiddenAccount"),
+        "the route was refused for another reason: {:#?}",
+        failure.meta.logs
+    );
+    assert_eq!(
+        world.svm.get_account(&config).unwrap().owner,
+        accrue::ID,
+        "the deny list works on the owner, so the test only means something while this holds"
+    );
+    before.assert_still_true(&world, &opened, "handing over the config");
+}
+
+#[test]
 fn a_route_handed_a_lending_market_account_is_refused_before_it_runs() {
     let (mut world, opened) = a_position_with_a_hostile_router();
     let before = Untouched::read(&world, &opened);

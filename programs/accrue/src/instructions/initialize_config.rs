@@ -27,6 +27,8 @@ pub fn handle_initialize_config(
     context: Context<InitializeConfig>,
     admin: Pubkey,
     guardian: Pubkey,
+    borrow_mint: Pubkey,
+    borrow_reserve: Pubkey,
     limits: ConfigLimits,
 ) -> Result<()> {
     limits.validate()?;
@@ -35,6 +37,7 @@ pub fn handle_initialize_config(
     config.admin = admin;
     config.guardian = guardian;
     config.treasury = context.accounts.treasury.key();
+    config.set_borrow_side(borrow_mint, borrow_reserve)?;
     config.allowed_collateral = Vec::new();
     config.allowed_destinations = Vec::new();
     config.open_paused = false;

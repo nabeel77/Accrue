@@ -2,13 +2,14 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
 
 use crate::constants::{
-    BASIS_POINTS_DENOMINATOR, CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, JUPITER_V6_PROGRAM_ID,
-    KAMINO_FARMS_PROGRAM_ID, KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
+    CONFIG_SEED, INSTRUCTIONS_SYSVAR_ID, JUPITER_V6_PROGRAM_ID, KAMINO_FARMS_PROGRAM_ID,
+    KAMINO_LEND_PROGRAM_ID, POSITION_SEED, TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
+use crate::guard::performance_fee_on_realised_profit;
 use crate::instructions::checks::{
     require_borrow_reserve_of_position, require_collateral_reserve_of_position,
-    require_treasury_holds_the_borrow_mint,
+    require_the_vaults_the_borrow_reserve_names, require_treasury_holds_the_borrow_mint,
 };
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, token_account_amount, CollateralMovement,
@@ -178,7 +179,13 @@ pub fn handle_unwind<'info>(
     require_borrow_reserve_of_position(
         &accounts.position,
         &borrow_reserve,
+        &accounts.borrow_reserve.key(),
         &accounts.borrow_mint.key(),
+    )?;
+    require_the_vaults_the_borrow_reserve_names(
+        &borrow_reserve,
+        &accounts.borrow_reserve_liquidity_supply.key(),
+        None,
     )?;
     require_keys_eq!(
         accounts.borrow_token_program.key(),
@@ -317,9 +324,19 @@ pub fn handle_unwind<'info>(
         )?;
     }
 
-    let fee = performance_fee_on_profit(
-        usdc_from_the_sale,
-        repaid,
+    let sales_total = accounts
+        .position
+        .usdc_from_sales_total
+        .checked_add(usdc_from_the_sale)
+        .ok_or(AccrueError::MathOverflow)?;
+    let repaid_total = accounts
+        .position
+        .usdc_repaid_total
+        .checked_add(repaid)
+        .ok_or(AccrueError::MathOverflow)?;
+    let fee = performance_fee_on_realised_profit(
+        sales_total,
+        repaid_total,
         accounts.position.fee_bps_at_open,
     )?;
     if fee > 0 {
@@ -346,6 +363,7 @@ pub fn handle_unwind<'info>(
     })?;
 
     let position = &mut context.accounts.position;
+    position.record_sale(usdc_from_the_sale)?;
     position.record_repay(repaid)?;
     position.state = PositionState::Closed;
     Ok(())
@@ -379,22 +397,6 @@ fn sell_the_destination<'info>(
         position_seeds,
     )?;
     Ok(SwapCheck::BoundsCheckedAroundTheCall)
-}
-
-fn performance_fee_on_profit(
-    usdc_from_the_sale: u64,
-    repaid: u64,
-    fee_bps_at_open: u16,
-) -> Result<u64> {
-    let Some(profit) = usdc_from_the_sale.checked_sub(repaid) else {
-        return Ok(0);
-    };
-    let fee = u128::from(profit)
-        .checked_mul(u128::from(fee_bps_at_open))
-        .ok_or(AccrueError::MathOverflow)?
-        .checked_div(u128::from(BASIS_POINTS_DENOMINATOR))
-        .ok_or(AccrueError::MathOverflow)?;
-    u64::try_from(fee).map_err(|_| AccrueError::MathOverflow.into())
 }
 
 fn obligation_context<'info>(accounts: &Unwind<'info>) -> ObligationContext<'info> {

@@ -17,7 +17,7 @@ import {
  * Where the state byte sits inside a Position account. Proved against the generated encoder in
  * `positions.test.ts`, so a change to the account layout fails a test rather than the filter.
  */
-export const POSITION_STATE_OFFSET = 274n;
+export const POSITION_STATE_OFFSET = 338n;
 
 export interface WatchedPosition {
   readonly address: Address;

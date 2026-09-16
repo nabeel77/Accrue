@@ -4,10 +4,65 @@ use solana_signer::Signer;
 
 use crate::actions::{honest_route_data, NVDAX_STRATEGY};
 use crate::world::World;
+use accrue::constants::MAX_PRICE_AGE_SLOTS_AT_OPEN;
 
 const HONEST_SWAP_PROGRAM: &str = "honest_swap.so";
 const BORROW_AMOUNT: u64 = 4_000_000;
 const POSITION_SIZE_USD: u64 = 20;
+
+#[test]
+fn an_open_leaves_the_loan_at_or_under_the_target_the_owner_asked_for() {
+    let mut world = World::new();
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    world.refresh_the_market_from_outside();
+    world.refresh_the_obligation_from_outside(opened.obligation);
+
+    let landed_at = world.obligation_loan_to_value_bps(&opened.obligation);
+    let strategy = world.position(&opened.address).strategy;
+    assert!(
+        landed_at > 0,
+        "a position that borrowed must report a loan to value"
+    );
+    assert!(
+        landed_at <= strategy.target_ltv_bps,
+        "the open landed at {landed_at} basis points, above the target of {}",
+        strategy.target_ltv_bps
+    );
+}
+
+#[test]
+fn an_open_on_an_oracle_price_older_than_the_program_allows_is_refused() {
+    let mut world = World::new();
+    let collateral_mint = world.collateral.liquidity_mint();
+    let position = world.position_address(&collateral_mint, &world.destination_mint);
+    let stock_amount = world.collateral.raw_amount_worth_usd(POSITION_SIZE_USD);
+    let tokens = world.fund_owner_and_open_token_accounts(position, stock_amount);
+
+    let feed = world.collateral.snapshot.scope_feed_index;
+    world.make_the_price_stale(feed, MAX_PRICE_AGE_SLOTS_AT_OPEN + 1);
+
+    let instruction = world.open_position_instruction(
+        position,
+        &tokens,
+        stock_amount,
+        BORROW_AMOUNT,
+        0,
+        NVDAX_STRATEGY,
+        true,
+        Vec::new(),
+        Vec::new(),
+    );
+    let owner = world.owner.insecure_clone();
+    let failure = world
+        .send(&[instruction], &[&owner])
+        .expect_err("a position must never be sized on a price the program calls stale");
+    assert!(
+        failure.meta.logs.join("\n").contains("OraclePriceIsStale"),
+        "open reverted for another reason: {:#?}",
+        failure.meta.logs
+    );
+}
 
 #[test]
 fn an_open_that_stops_after_the_borrow_leaves_the_loan_awaiting_its_swap() {
