@@ -108,6 +108,43 @@ export function performanceFeeOnRealisedProfit(
   return (profit * BigInt(feeBpsAtOpen)) / BASIS_POINTS_DENOMINATOR;
 }
 
+export interface ClosingCost {
+  /** What the lending market is owed right now, in raw USDC. */
+  readonly debt: bigint;
+  /** What the router says the yield token sells for, in raw USDC. */
+  readonly quotedUsdcOut: bigint;
+  /** The performance fee written into the position when it opened. */
+  readonly feeBpsAtOpen: number;
+  /** The lending market's borrow rate for the year, in basis points. */
+  readonly borrowRateBps: number;
+}
+
+const DAYS_IN_A_YEAR = 365n;
+
+/**
+ * What the owner should expect to add from their own wallet to close, for the review sheet. The
+ * sale rarely covers the loan on its own: the swap costs something, the fee comes off the profit,
+ * and interest runs from the first slot, so a day of it is counted in. Rounded up, because a
+ * number shown too low is the one that fails.
+ */
+export function usdcNeededToClose(cost: ClosingCost): bigint {
+  const interestForADay = divideRoundingUp(
+    cost.debt * BigInt(cost.borrowRateBps),
+    BASIS_POINTS_DENOMINATOR * DAYS_IN_A_YEAR,
+  );
+  const fee = performanceFeeOnRealisedProfit(
+    cost.quotedUsdcOut,
+    cost.debt,
+    cost.feeBpsAtOpen,
+  );
+  const owed = cost.debt + interestForADay + fee;
+  return owed > cost.quotedUsdcOut ? owed - cost.quotedUsdcOut : 0n;
+}
+
+function divideRoundingUp(numerator: bigint, denominator: bigint): bigint {
+  return numerator === 0n ? 0n : (numerator + denominator - 1n) / denominator;
+}
+
 export interface DeleverageSignals {
   readonly reserveStatusObsolete: boolean;
   readonly programIsRetiring: boolean;

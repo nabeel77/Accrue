@@ -13,6 +13,13 @@ import {
 
 const fixtures = resolve(import.meta.dirname, '../../../../tests/fixtures/accounts');
 
+// The lending market's own enum. Hidden is a display flag, not a retirement: a hidden reserve
+// still lends.
+const RESERVE_STATUS_OFFSET = 4_856;
+const STATUS_ACTIVE = 0;
+const STATUS_OBSOLETE = 1;
+const STATUS_HIDDEN = 2;
+
 function fixtureData(label: string): Uint8Array {
   const captured = JSON.parse(
     readFileSync(resolve(fixtures, `${label}.json`), 'utf8'),
@@ -85,8 +92,22 @@ describe('reading the lending market the way the keeper does', () => {
     expect(reserve.liquidityAvailableAmount).toBeGreaterThan(0n);
   });
 
-  it('sees a reserve the market retired', () => {
-    expect(decodeReserve(fixtureData('reserve_metax')).isObsolete).toBe(true);
+  it('reads the status the market left on METAx', () => {
+    expect(decodeReserve(fixtureData('reserve_metax')).status).toBe(STATUS_HIDDEN);
+  });
+
+  it('calls only an obsolete reserve a reason to leave', () => {
+    const wanted = [
+      { status: STATUS_ACTIVE, isObsolete: false },
+      { status: STATUS_OBSOLETE, isObsolete: true },
+      { status: STATUS_HIDDEN, isObsolete: false },
+    ];
+    for (const { status, isObsolete } of wanted) {
+      const data = Uint8Array.from(fixtureData('reserve_nvdax'));
+      data[RESERVE_STATUS_OFFSET] = status;
+      expect(decodeReserve(data).status).toBe(status);
+      expect(decodeReserve(data).isObsolete).toBe(isObsolete);
+    }
   });
 
   it('reads the deleveraging fields the leave rule weighs', () => {

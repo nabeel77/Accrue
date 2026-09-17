@@ -21,8 +21,7 @@ use crate::kamino::cpi::{
 };
 use crate::kamino::{
     read_lending_market_account, read_obligation_borrowed_amount_scaled,
-    read_obligation_deposited_amount, read_obligation_has_debt,
-    read_obligation_margin_call_started_at, read_reserve_account,
+    read_obligation_deposited_amount, read_obligation_margin_call_started_at, read_reserve_account,
     scaled_fraction_to_whole_units_rounding_up,
 };
 use crate::scope::{
@@ -354,10 +353,30 @@ pub fn handle_leave<'info>(
     }
 
     refresh_the_market(accounts, &both_reserves)?;
-    require!(
-        !read_obligation_has_debt(&obligation)?,
-        AccrueError::DebtStillOutstanding
-    );
+
+    // A permissionless call never reaches into the owner's wallet, so when the sale does not cover
+    // the loan the collateral stays where it is and the position is handed back part way. The
+    // owner finishes it with repay and close_position.
+    let still_owed = u64::try_from(scaled_fraction_to_whole_units_rounding_up(
+        read_obligation_borrowed_amount_scaled(&obligation, &borrow_reserve_key)?,
+    ))
+    .map_err(|_| AccrueError::MathOverflow)?;
+    if still_owed > 0 {
+        assert_invariants_hold(&InvariantCheck {
+            accounts: &position_accounts,
+            collateral_reserve: &collateral_reserve_key,
+            before: &ledger_before,
+            collateral_movement: CollateralMovement::MustNotMove,
+            swap,
+        })?;
+
+        let position = &mut context.accounts.position;
+        position.record_sale(usdc_from_the_sale)?;
+        position.record_repay(repaying)?;
+        position.usdc_owed_at_leave = still_owed;
+        position.state = PositionState::Closing;
+        return Ok(());
+    }
 
     let collateral_to_withdraw =
         read_obligation_deposited_amount(&obligation, &collateral_reserve_key)?;

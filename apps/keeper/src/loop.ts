@@ -75,7 +75,7 @@ export async function runOneRound<Subject>(
       });
       report(`${decision.kind} landed on ${shortenAddress(candidate.address)}`);
     } catch (failure) {
-      const reason = failure instanceof Error ? failure.message : 'unknown';
+      const reason = whyItFailed(failure);
       await runLog.record({
         positionAddress: candidate.address,
         kind: decision.kind,
@@ -91,6 +91,20 @@ export async function runOneRound<Subject>(
   }
 
   return { considered: round.candidates.length, attempted, landed };
+}
+
+/**
+ * A simulation failure says only that it failed; what the program refused is one or more causes
+ * down, and that is the part worth writing down.
+ */
+function whyItFailed(failure: unknown): string {
+  const reasons: string[] = [];
+  let current: unknown = failure;
+  while (current instanceof Error && reasons.length < 4) {
+    reasons.push(current.message);
+    current = (current as { cause?: unknown }).cause;
+  }
+  return reasons.length === 0 ? 'unknown' : reasons.join(': ');
 }
 
 export function sleep(seconds: number): Promise<void> {

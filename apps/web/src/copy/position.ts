@@ -1,0 +1,21 @@
+export const POSITION_COPY = {
+  guardCardTitle: 'Guard',
+  repaysAt: 'Repays at',
+  lastGuardAction: 'Last guard action',
+  keepersSeen: 'Keepers seen in the last hour',
+  details: 'Details',
+  change: 'Change',
+  protectNow: 'Protect now',
+  addCollateral: 'Add collateral',
+  repay: 'Repay',
+  unwind: 'Unwind',
+  repayAndClose: 'Repay and close',
+  liquidationPrice: 'Liquidated at',
+  distanceToLiquidation: 'Distance to liquidation',
+  currentNetRate: 'Net rate now',
+  closingTitle: 'This position is part way out',
+  closingNote:
+    'The guard sold what it could and repaid what it could. Pay the rest to finish.',
+  stillOwed: 'Still owed',
+  liveDebtUnavailable: 'The lending market could not be read just now.',
+} as const;

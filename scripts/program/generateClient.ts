@@ -56,6 +56,53 @@ function addFileExtensionsToRelativeImports(directory: string): void {
   }
 }
 
+/**
+ * Codama writes the address of every account the IDL gives a default into the client as a literal,
+ * and those literals are whatever cluster the IDL was built for. A client that stands in a mainnet
+ * address on devnet builds a transaction the program refuses, so each one is pointed at the
+ * cluster module instead. Only the phantom type parameter is cast; the value is the real address.
+ */
+const CLUSTER_ADDRESSES: Readonly<Record<string, string>> = {
+  KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD: 'KAMINO_LENDING_PROGRAM_ADDRESS',
+  FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr: 'KAMINO_FARMS_PROGRAM_ADDRESS',
+  JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4: 'JUPITER_V6_PROGRAM_ADDRESS',
+  HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ: 'SCOPE_PROGRAM_ADDRESS',
+};
+
+function pointDefaultAddressesAtTheClusterModule(directory: string): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      pointDefaultAddressesAtTheClusterModule(entryPath);
+      continue;
+    }
+    if (!entry.name.endsWith('.ts')) {
+      continue;
+    }
+    const original = readFileSync(entryPath, 'utf8');
+    const named = new Set<string>();
+    const rewritten = original.replace(
+      /"([1-9A-HJ-NP-Za-km-z]{32,44})" as Address<"\1">/gu,
+      (whole, address: string) => {
+        const constant = CLUSTER_ADDRESSES[address];
+        if (constant === undefined) {
+          return whole;
+        }
+        named.add(constant);
+        return `(${constant} as Address<"${address}">)`;
+      },
+    );
+    if (named.size === 0) {
+      continue;
+    }
+    const depth = entryPath.slice(clientDirectory.length + 1).split('/').length;
+    const upwards = '../'.repeat(depth);
+    const importLine = `import { ${[...named].sort().join(', ')} } from "${upwards}programIds.js";\n`;
+    writeFileSync(entryPath, importLine + rewritten);
+  }
+}
+
 addFileExtensionsToRelativeImports(clientDirectory);
+pointDefaultAddressesAtTheClusterModule(clientDirectory);
 
 console.log(`Generated the kit client into ${clientDirectory}`);

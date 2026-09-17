@@ -11,5 +11,9 @@
   "devDependencies": {
     "esbuild": "^0.25.9",
     "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@accrue/solana": "workspace:*",
+    "@solana/kit": "^8.3.0"
   }
 }

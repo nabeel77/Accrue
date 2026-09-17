@@ -25,6 +25,7 @@ import {
   type ReserveSnapshot,
   type ScopePrice,
 } from '@accrue/solana/kamino';
+import { KAMINO_LENDING_PROGRAM_ADDRESS } from '@accrue/solana';
 
 export interface MarketReading {
   readonly obligation: ObligationSnapshot;
@@ -82,10 +83,10 @@ export async function readTheMarketAfterARefresh(
       borrowReserve,
     ),
     withTheReservesTheObligationHolds(
-      getRefreshObligationInstruction({
-        lendingMarket: addresses.lendingMarket,
-        obligation: addresses.obligation,
-      }),
+      getRefreshObligationInstruction(
+        { lendingMarket: addresses.lendingMarket, obligation: addresses.obligation },
+        { programAddress: KAMINO_LENDING_PROGRAM_ADDRESS },
+      ),
       heldReserves,
     ),
   ];
@@ -131,11 +132,10 @@ function refreshReserveInstruction(
   lendingMarket: Address,
   snapshot: ReserveSnapshot,
 ): Instruction {
-  return getRefreshReserveInstruction({
-    reserve,
-    lendingMarket,
-    scopePrices: snapshot.scopePriceAccount,
-  });
+  return getRefreshReserveInstruction(
+    { reserve, lendingMarket, scopePrices: snapshot.scopePriceAccount },
+    { programAddress: KAMINO_LENDING_PROGRAM_ADDRESS },
+  );
 }
 
 function withTheReservesTheObligationHolds(

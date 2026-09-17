@@ -1,3 +1,4 @@
+use accrue::kamino::scaled_fraction_to_whole_units_rounding_up;
 use accrue::state::{Position, PositionState, Strategy};
 use anchor_lang::AccountDeserialize;
 use solana_address::Address;
@@ -603,5 +604,156 @@ fn rescue_withdraws_less_when_the_market_weights_the_debt_more_heavily() {
     assert!(
         weighted_higher < at_one_for_one,
         "a heavier borrow factor must leave more stock behind: {weighted_higher} against {at_one_for_one}"
+    );
+}
+
+// Every fresh position is worth a little less than it owes: the swap costs something and interest
+// starts at once. Closing has to work anyway, so the rest comes out of the owner's own account.
+#[test]
+fn unwind_takes_only_the_shortfall_from_the_owner_when_the_sale_falls_short() {
+    let mut world = World::new();
+    world.install_swap_program(HONEST_SWAP_PROGRAM);
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    let destination_bought = 4_000_000_000;
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        destination_bought,
+        world.destination_token_program,
+    );
+    world.set_token_account(
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        opened.address,
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let owner_usdc_before = 5_000_000;
+    world.set_token_account(
+        opened.tokens.owner_usdc,
+        world.borrow.liquidity_mint(),
+        world.owner.pubkey(),
+        owner_usdc_before,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let debt_before = u64::try_from(scaled_fraction_to_whole_units_rounding_up(
+        world.obligation_debt(&opened.obligation),
+    ))
+    .unwrap();
+    let sale_proceeds = debt_before - 250_000;
+    let route_accounts = world.swap_route_accounts(
+        opened.address,
+        opened.tokens.position_destination,
+        world.destination_mint,
+        world.destination_token_program,
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        accrue::constants::TOKEN_PROGRAM_ID,
+        None,
+    );
+
+    let owner = world.owner.insecure_clone();
+    let instruction = world.unwind_instruction(
+        &opened,
+        owner.pubkey(),
+        sale_proceeds,
+        honest_route_data(destination_bought, sale_proceeds),
+        route_accounts,
+    );
+    world
+        .send(&[instruction], &[&owner])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "unwind reverted: {:?} {:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    let shortfall = debt_before - sale_proceeds;
+    assert_eq!(world.obligation_debt(&opened.obligation), 0);
+    assert_eq!(
+        world.token_balance(&opened.tokens.owner_usdc),
+        owner_usdc_before - shortfall,
+        "the owner pays the shortfall and not a unit more"
+    );
+    assert_eq!(
+        world.token_balance(&world.treasury_usdc_account),
+        0,
+        "a sale that did not cover the loan made no profit to charge a fee on"
+    );
+    assert_eq!(world.token_balance(&opened.tokens.position_usdc), 0);
+    assert_eq!(world.position(&opened.address).state, PositionState::Closed);
+}
+
+#[test]
+fn unwind_names_the_shortfall_when_the_owner_cannot_cover_it() {
+    let mut world = World::new();
+    world.install_swap_program(HONEST_SWAP_PROGRAM);
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    let destination_bought = 4_000_000_000;
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        destination_bought,
+        world.destination_token_program,
+    );
+    world.set_token_account(
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        opened.address,
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+    world.set_token_account(
+        opened.tokens.owner_usdc,
+        world.borrow.liquidity_mint(),
+        world.owner.pubkey(),
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let debt_before = u64::try_from(scaled_fraction_to_whole_units_rounding_up(
+        world.obligation_debt(&opened.obligation),
+    ))
+    .unwrap();
+    let sale_proceeds = debt_before - 250_000;
+    let route_accounts = world.swap_route_accounts(
+        opened.address,
+        opened.tokens.position_destination,
+        world.destination_mint,
+        world.destination_token_program,
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        accrue::constants::TOKEN_PROGRAM_ID,
+        None,
+    );
+
+    let owner = world.owner.insecure_clone();
+    let instruction = world.unwind_instruction(
+        &opened,
+        owner.pubkey(),
+        sale_proceeds,
+        honest_route_data(destination_bought, sale_proceeds),
+        route_accounts,
+    );
+    let failure = world
+        .send(&[instruction], &[&owner])
+        .expect_err("an empty wallet cannot cover the shortfall");
+
+    let logs = format!("{:?}", failure.meta.logs);
+    assert!(
+        logs.contains("OwnerCannotCoverTheShortfall"),
+        "the refusal names its own error: {logs}"
+    );
+    let shortfall = debt_before - sale_proceeds;
+    assert!(
+        logs.contains(&format!("closing needs {shortfall} more USDC")),
+        "the refusal names the amount the app has to show: {logs}"
     );
 }

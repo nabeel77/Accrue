@@ -94,66 +94,68 @@ export const ACCRUE_ERROR__LOAN_TO_VALUE_ABOVE_TARGET = 0x1795; // 6037
 export const ACCRUE_ERROR__DEBT_STILL_OUTSTANDING = 0x1796; // 6038
 /** TokensStillHeld: The position still holds tokens */
 export const ACCRUE_ERROR__TOKENS_STILL_HELD = 0x1797; // 6039
+/** OwnerCannotCoverTheShortfall: Closing this position needs more USDC than the owner's account holds */
+export const ACCRUE_ERROR__OWNER_CANNOT_COVER_THE_SHORTFALL = 0x1798; // 6040
 /** CollateralBalanceMoved: The stock token account changed during an instruction that must not move it */
-export const ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED = 0x1798; // 6040
+export const ACCRUE_ERROR__COLLATERAL_BALANCE_MOVED = 0x1799; // 6041
 /** ObligationCollateralMoved: The obligation collateral changed during a swap */
-export const ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED = 0x1799; // 6041
+export const ACCRUE_ERROR__OBLIGATION_COLLATERAL_MOVED = 0x179a; // 6042
 /** SwapSpentTooMuch: The swap spent more than it was allowed to */
-export const ACCRUE_ERROR__SWAP_SPENT_TOO_MUCH = 0x179a; // 6042
+export const ACCRUE_ERROR__SWAP_SPENT_TOO_MUCH = 0x179b; // 6043
 /** SwapReturnedTooLittle: The swap returned less than the minimum */
-export const ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE = 0x179b; // 6043
+export const ACCRUE_ERROR__SWAP_RETURNED_TOO_LITTLE = 0x179c; // 6044
 /** TokenLeftForAForbiddenAddress: A token left the position for an address that is not allowed */
-export const ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS = 0x179c; // 6044
+export const ACCRUE_ERROR__TOKEN_LEFT_FOR_A_FORBIDDEN_ADDRESS = 0x179d; // 6045
 /** PositionLamportsTaken: Lamports were taken out of a position account */
-export const ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN = 0x179d; // 6045
+export const ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN = 0x179e; // 6046
 /** PositionAccountMissing: A position account no longer exists */
-export const ACCRUE_ERROR__POSITION_ACCOUNT_MISSING = 0x179e; // 6046
+export const ACCRUE_ERROR__POSITION_ACCOUNT_MISSING = 0x179f; // 6047
 /** SwapRouteTouchesAForbiddenAccount: The swap route was handed an account it must never receive */
-export const ACCRUE_ERROR__SWAP_ROUTE_TOUCHES_A_FORBIDDEN_ACCOUNT = 0x179f; // 6047
+export const ACCRUE_ERROR__SWAP_ROUTE_TOUCHES_A_FORBIDDEN_ACCOUNT = 0x17a0; // 6048
 /** SwapRouteCallsAnUnknownProgram: The swap route called a program the constants module does not list */
-export const ACCRUE_ERROR__SWAP_ROUTE_CALLS_AN_UNKNOWN_PROGRAM = 0x17a0; // 6048
+export const ACCRUE_ERROR__SWAP_ROUTE_CALLS_AN_UNKNOWN_PROGRAM = 0x17a1; // 6049
 /** MinimumOutputTooLow: The minimum output the caller supplied is below what the oracle allows */
-export const ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW = 0x17a1; // 6049
+export const ACCRUE_ERROR__MINIMUM_OUTPUT_TOO_LOW = 0x17a2; // 6050
 /** PositionTokenAccountOwnerChanged: A position token account is no longer owned by the position */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED = 0x17a2; // 6050
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_OWNER_CHANGED = 0x17a3; // 6051
 /** PositionTokenAccountHasADelegate: A position token account was given a delegate */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE = 0x17a3; // 6051
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_DELEGATE = 0x17a4; // 6052
 /** PositionTokenAccountHasACloseAuthority: A position token account was given a close authority */
-export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY = 0x17a4; // 6052
+export const ACCRUE_ERROR__POSITION_TOKEN_ACCOUNT_HAS_A_CLOSE_AUTHORITY = 0x17a5; // 6053
 /** NotAScopeAccount: That account is not owned by the oracle program */
-export const ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT = 0x17a5; // 6053
+export const ACCRUE_ERROR__NOT_A_SCOPE_ACCOUNT = 0x17a6; // 6054
 /** ScopeAccountTooShort: The oracle account is shorter than its layout */
-export const ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT = 0x17a6; // 6054
+export const ACCRUE_ERROR__SCOPE_ACCOUNT_TOO_SHORT = 0x17a7; // 6055
 /** OraclePriceIsZero: The oracle price is zero */
-export const ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO = 0x17a7; // 6055
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO = 0x17a8; // 6056
 /** OraclePriceIsStale: The oracle price is older than the config allows for a call by anyone */
-export const ACCRUE_ERROR__ORACLE_PRICE_IS_STALE = 0x17a8; // 6056
+export const ACCRUE_ERROR__ORACLE_PRICE_IS_STALE = 0x17a9; // 6057
 /** IntervalHasNotElapsed: Not enough time has passed since the last time the guard acted */
-export const ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED = 0x17a9; // 6057
+export const ACCRUE_ERROR__INTERVAL_HAS_NOT_ELAPSED = 0x17aa; // 6058
 /** GuardLevelNotReached: The loan to value is below the level the guard acts at */
-export const ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED = 0x17aa; // 6058
+export const ACCRUE_ERROR__GUARD_LEVEL_NOT_REACHED = 0x17ab; // 6059
 /** GrowLevelExceeded: The loan to value is above the level growing is allowed at */
-export const ACCRUE_ERROR__GROW_LEVEL_EXCEEDED = 0x17ab; // 6059
+export const ACCRUE_ERROR__GROW_LEVEL_EXCEEDED = 0x17ac; // 6060
 /** GrowNotEnabled: Growing is switched off for this position */
-export const ACCRUE_ERROR__GROW_NOT_ENABLED = 0x17ac; // 6060
+export const ACCRUE_ERROR__GROW_NOT_ENABLED = 0x17ad; // 6061
 /** NothingToSell: The position holds no destination token to sell */
-export const ACCRUE_ERROR__NOTHING_TO_SELL = 0x17ad; // 6061
+export const ACCRUE_ERROR__NOTHING_TO_SELL = 0x17ae; // 6062
 /** NothingToBorrow: There is nothing to borrow before the position reaches its target */
-export const ACCRUE_ERROR__NOTHING_TO_BORROW = 0x17ae; // 6062
+export const ACCRUE_ERROR__NOTHING_TO_BORROW = 0x17af; // 6063
 /** NoReasonToLeave: The lending market has not flagged this reserve and the program is not retiring */
-export const ACCRUE_ERROR__NO_REASON_TO_LEAVE = 0x17af; // 6063
+export const ACCRUE_ERROR__NO_REASON_TO_LEAVE = 0x17b0; // 6064
 /** ExitOnFlagNotEnabled: Leaving on a flag is switched off for this position */
-export const ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED = 0x17b0; // 6064
+export const ACCRUE_ERROR__EXIT_ON_FLAG_NOT_ENABLED = 0x17b1; // 6065
 /** BountyAccountIsNotTheCallers: The bounty account does not belong to the caller */
-export const ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS = 0x17b1; // 6065
+export const ACCRUE_ERROR__BOUNTY_ACCOUNT_IS_NOT_THE_CALLERS = 0x17b2; // 6066
 /** NothingToSwap: The position has no USDC to swap */
-export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x17b2; // 6066
+export const ACCRUE_ERROR__NOTHING_TO_SWAP = 0x17b3; // 6067
 /** WrongTreasury: The treasury account in the config does not match the one passed */
-export const ACCRUE_ERROR__WRONG_TREASURY = 0x17b3; // 6067
+export const ACCRUE_ERROR__WRONG_TREASURY = 0x17b4; // 6068
 /** NotTheAdmin: Only the admin key may do that */
-export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17b4; // 6068
+export const ACCRUE_ERROR__NOT_THE_ADMIN = 0x17b5; // 6069
 /** NotTheGuardianOrAdmin: Only the guardian or the admin may do that */
-export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17b5; // 6069
+export const ACCRUE_ERROR__NOT_THE_GUARDIAN_OR_ADMIN = 0x17b6; // 6070
 
 export type AccrueError =
   | typeof ACCRUE_ERROR__ALLOW_LIST_FULL
@@ -195,6 +197,7 @@ export type AccrueError =
   | typeof ACCRUE_ERROR__OPENS_ARE_PAUSED
   | typeof ACCRUE_ERROR__ORACLE_PRICE_IS_STALE
   | typeof ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO
+  | typeof ACCRUE_ERROR__OWNER_CANNOT_COVER_THE_SHORTFALL
   | typeof ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING
   | typeof ACCRUE_ERROR__POSITION_ACCOUNT_MISSING
   | typeof ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN
@@ -269,6 +272,7 @@ if (process.env['NODE_ENV'] !== "production") {
     [ACCRUE_ERROR__OPENS_ARE_PAUSED]: `New positions are paused`,
     [ACCRUE_ERROR__ORACLE_PRICE_IS_STALE]: `The oracle price is older than the config allows for a call by anyone`,
     [ACCRUE_ERROR__ORACLE_PRICE_IS_ZERO]: `The oracle price is zero`,
+    [ACCRUE_ERROR__OWNER_CANNOT_COVER_THE_SHORTFALL]: `Closing this position needs more USDC than the owner's account holds`,
     [ACCRUE_ERROR__PERFORMANCE_FEE_ABOVE_CEILING]: `The performance fee is above the ceiling written in the program`,
     [ACCRUE_ERROR__POSITION_ACCOUNT_MISSING]: `A position account no longer exists`,
     [ACCRUE_ERROR__POSITION_LAMPORTS_TAKEN]: `Lamports were taken out of a position account`,

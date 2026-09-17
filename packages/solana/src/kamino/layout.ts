@@ -25,7 +25,16 @@ const RESERVE_LIQUIDITY_TOKEN_PROGRAM = 408;
 const RESERVE_COLLATERAL_MINT = 2_560;
 const RESERVE_COLLATERAL_MINT_TOTAL_SUPPLY = 2_592;
 const RESERVE_COLLATERAL_SUPPLY_VAULT = 2_600;
+const RESERVE_LIQUIDITY_BORROWED_SCALED = 232;
 const RESERVE_CONFIG_STATUS = 4_856;
+const RESERVE_CONFIG_PROTOCOL_TAKE_RATE_PCT = 4_870;
+const RESERVE_CONFIG_BORROW_RATE_CURVE = 4_920;
+const RESERVE_CONFIG_DEPOSIT_LIMIT = 5_016;
+const RESERVE_CONFIG_BORROW_LIMIT = 5_024;
+const RESERVE_CONFIG_DEPOSIT_WITHDRAWAL_CAP = 5_416;
+const RESERVE_CONFIG_DEBT_WITHDRAWAL_CAP = 5_448;
+
+const BORROW_RATE_CURVE_POINTS = 11;
 const RESERVE_CONFIG_LOAN_TO_VALUE_PCT = 4_872;
 const RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT = 4_873;
 const RESERVE_CONFIG_AUTODELEVERAGE_ENABLED = 5_502;
@@ -55,9 +64,23 @@ const SCOPE_PRICE_EXPONENT = 8;
 const SCOPE_PRICE_LAST_UPDATED_SLOT = 16;
 
 const RESERVE_STATUS_ACTIVE = 0;
-const RESERVE_STATUS_OBSOLETE = 2;
+const RESERVE_STATUS_OBSOLETE = 1;
 const BASIS_POINTS_PER_PERCENT = 100;
 const NO_SCOPE_FEED = 0xffff;
+
+/** One rolling cap the lending market puts on an outflow, as the reserve stores it. */
+export interface WithdrawalCapSnapshot {
+  readonly capacity: bigint;
+  readonly usedInThisWindow: bigint;
+  readonly windowStartedAt: bigint;
+  readonly windowLengthSeconds: bigint;
+}
+
+/** A point on the reserve's own borrow rate curve: the rate charged at that utilisation. */
+export interface BorrowCurvePoint {
+  readonly utilisationBps: number;
+  readonly borrowRateBps: number;
+}
 
 export interface ReserveSnapshot {
   readonly lendingMarket: Address;
@@ -76,6 +99,7 @@ export interface ReserveSnapshot {
   readonly collateralSupplyVault: Address;
   readonly maxLoanToValueBps: number;
   readonly liquidationThresholdBps: number;
+  readonly status: number;
   readonly isActive: boolean;
   readonly isObsolete: boolean;
   readonly autodeleverageEnabled: boolean;
@@ -84,6 +108,13 @@ export interface ReserveSnapshot {
   readonly debtFarm: Address | null;
   readonly scopePriceAccount: Address;
   readonly scopeFeedIndex: number;
+  readonly liquidityBorrowedScaled: bigint;
+  readonly protocolTakeRatePct: number;
+  readonly borrowRateCurve: readonly BorrowCurvePoint[];
+  readonly depositLimit: bigint;
+  readonly borrowLimit: bigint;
+  readonly depositWithdrawalCap: WithdrawalCapSnapshot;
+  readonly debtWithdrawalCap: WithdrawalCapSnapshot;
 }
 
 export interface ObligationSnapshot {
@@ -115,6 +146,32 @@ function unsignedAt(data: Uint8Array, offset: number, byteLength: number): bigin
     value = (value << 8n) | BigInt(data[offset + index] ?? 0);
   }
   return value;
+}
+
+function signedAt(data: Uint8Array, offset: number): bigint {
+  const raw = unsignedAt(data, offset, 8);
+  return raw >= 1n << 63n ? raw - (1n << 64n) : raw;
+}
+
+function withdrawalCapAt(data: Uint8Array, offset: number): WithdrawalCapSnapshot {
+  return {
+    capacity: signedAt(data, offset),
+    usedInThisWindow: signedAt(data, offset + 8),
+    windowStartedAt: unsignedAt(data, offset + 16, 8),
+    windowLengthSeconds: unsignedAt(data, offset + 24, 8),
+  };
+}
+
+function borrowRateCurveAt(data: Uint8Array, offset: number): BorrowCurvePoint[] {
+  const points: BorrowCurvePoint[] = [];
+  for (let index = 0; index < BORROW_RATE_CURVE_POINTS; index += 1) {
+    const at = offset + index * 8;
+    points.push({
+      utilisationBps: Number(unsignedAt(data, at, 4)),
+      borrowRateBps: Number(unsignedAt(data, at + 4, 4)),
+    });
+  }
+  return points;
 }
 
 export function decodeReserve(data: Uint8Array): ReserveSnapshot {
@@ -158,7 +215,10 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
       (data[RESERVE_CONFIG_LOAN_TO_VALUE_PCT] ?? 0) * BASIS_POINTS_PER_PERCENT,
     liquidationThresholdBps:
       (data[RESERVE_CONFIG_LIQUIDATION_THRESHOLD_PCT] ?? 0) * BASIS_POINTS_PER_PERCENT,
+    status,
     isActive: status === RESERVE_STATUS_ACTIVE,
+    // Hidden is the market's own display flag: every reserve starts hidden and lends while it is,
+    // so only obsolete, which is what stops deposits and borrows, is a reason to take a position out.
     isObsolete: status === RESERVE_STATUS_OBSOLETE,
     autodeleverageEnabled: autodeleverage,
     deleveragingMarginCallPeriodSeconds: unsignedAt(
@@ -168,6 +228,13 @@ export function decodeReserve(data: Uint8Array): ReserveSnapshot {
     ),
     collateralFarm: isTheDefaultAddress(collateralFarm) ? null : collateralFarm,
     debtFarm: isTheDefaultAddress(debtFarm) ? null : debtFarm,
+    liquidityBorrowedScaled: unsignedAt(data, RESERVE_LIQUIDITY_BORROWED_SCALED, 16),
+    protocolTakeRatePct: data[RESERVE_CONFIG_PROTOCOL_TAKE_RATE_PCT] ?? 0,
+    borrowRateCurve: borrowRateCurveAt(data, RESERVE_CONFIG_BORROW_RATE_CURVE),
+    depositLimit: unsignedAt(data, RESERVE_CONFIG_DEPOSIT_LIMIT, 8),
+    borrowLimit: unsignedAt(data, RESERVE_CONFIG_BORROW_LIMIT, 8),
+    depositWithdrawalCap: withdrawalCapAt(data, RESERVE_CONFIG_DEPOSIT_WITHDRAWAL_CAP),
+    debtWithdrawalCap: withdrawalCapAt(data, RESERVE_CONFIG_DEBT_WITHDRAWAL_CAP),
     scopePriceAccount: addressAt(data, RESERVE_CONFIG_SCOPE_PRICE_ACCOUNT),
     scopeFeedIndex,
   };

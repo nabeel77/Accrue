@@ -17,24 +17,100 @@ import {
   type ReadonlyUint8Array,
 } from "@solana/kit";
 import {
+  parseDepositReserveLiquidityInstruction,
+  parseInitGlobalConfigInstruction,
+  parseInitLendingMarketInstruction,
+  parseInitReserveInstruction,
+  parseMarkObligationForDeleveragingInstruction,
   parseRefreshObligationInstruction,
   parseRefreshReserveInstruction,
+  parseUpdateLendingMarketInstruction,
+  parseUpdateReserveConfigInstruction,
+  type ParsedDepositReserveLiquidityInstruction,
+  type ParsedInitGlobalConfigInstruction,
+  type ParsedInitLendingMarketInstruction,
+  type ParsedInitReserveInstruction,
+  type ParsedMarkObligationForDeleveragingInstruction,
   type ParsedRefreshObligationInstruction,
   type ParsedRefreshReserveInstruction,
+  type ParsedUpdateLendingMarketInstruction,
+  type ParsedUpdateReserveConfigInstruction,
 } from "../instructions/index.js";
 
 export const KAMINO_LENDING_PROGRAM_ADDRESS =
   "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD" as Address<"KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD">;
 
 export enum KaminoLendingInstruction {
+  InitLendingMarket,
+  UpdateLendingMarket,
+  InitReserve,
+  UpdateReserveConfig,
+  MarkObligationForDeleveraging,
   RefreshReserve,
+  DepositReserveLiquidity,
   RefreshObligation,
+  InitGlobalConfig,
 }
 
 export function identifyKaminoLendingInstruction(
   instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
 ): KaminoLendingInstruction {
   const data = "data" in instruction ? instruction.data : instruction;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([34, 162, 116, 14, 101, 137, 94, 239]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.InitLendingMarket;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([209, 157, 53, 210, 97, 180, 31, 45]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.UpdateLendingMarket;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([138, 245, 71, 225, 153, 4, 3, 43]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.InitReserve;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([61, 148, 100, 70, 143, 107, 17, 13]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.UpdateReserveConfig;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([164, 35, 182, 19, 0, 116, 243, 127]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.MarkObligationForDeleveraging;
+  }
   if (
     containsBytes(
       data,
@@ -50,12 +126,34 @@ export function identifyKaminoLendingInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([169, 201, 30, 126, 6, 205, 102, 68]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.DepositReserveLiquidity;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([33, 132, 147, 228, 151, 192, 72, 89]),
       ),
       0,
     )
   ) {
     return KaminoLendingInstruction.RefreshObligation;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([140, 136, 214, 48, 87, 0, 120, 255]),
+      ),
+      0,
+    )
+  ) {
+    return KaminoLendingInstruction.InitGlobalConfig;
   }
   throw new Error(
     "The provided instruction could not be identified as a kaminoLending instruction.",
@@ -66,17 +164,73 @@ export type ParsedKaminoLendingInstruction<
   TProgram extends string = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
 > =
   | ({
+      instructionType: KaminoLendingInstruction.InitLendingMarket;
+    } & ParsedInitLendingMarketInstruction<TProgram>)
+  | ({
+      instructionType: KaminoLendingInstruction.UpdateLendingMarket;
+    } & ParsedUpdateLendingMarketInstruction<TProgram>)
+  | ({
+      instructionType: KaminoLendingInstruction.InitReserve;
+    } & ParsedInitReserveInstruction<TProgram>)
+  | ({
+      instructionType: KaminoLendingInstruction.UpdateReserveConfig;
+    } & ParsedUpdateReserveConfigInstruction<TProgram>)
+  | ({
+      instructionType: KaminoLendingInstruction.MarkObligationForDeleveraging;
+    } & ParsedMarkObligationForDeleveragingInstruction<TProgram>)
+  | ({
       instructionType: KaminoLendingInstruction.RefreshReserve;
     } & ParsedRefreshReserveInstruction<TProgram>)
   | ({
+      instructionType: KaminoLendingInstruction.DepositReserveLiquidity;
+    } & ParsedDepositReserveLiquidityInstruction<TProgram>)
+  | ({
       instructionType: KaminoLendingInstruction.RefreshObligation;
-    } & ParsedRefreshObligationInstruction<TProgram>);
+    } & ParsedRefreshObligationInstruction<TProgram>)
+  | ({
+      instructionType: KaminoLendingInstruction.InitGlobalConfig;
+    } & ParsedInitGlobalConfigInstruction<TProgram>);
 
 export function parseKaminoLendingInstruction<TProgram extends string>(
   instruction: Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array>,
 ): ParsedKaminoLendingInstruction<TProgram> {
   const instructionType = identifyKaminoLendingInstruction(instruction);
   switch (instructionType) {
+    case KaminoLendingInstruction.InitLendingMarket: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.InitLendingMarket,
+        ...parseInitLendingMarketInstruction(instruction),
+      };
+    }
+    case KaminoLendingInstruction.UpdateLendingMarket: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.UpdateLendingMarket,
+        ...parseUpdateLendingMarketInstruction(instruction),
+      };
+    }
+    case KaminoLendingInstruction.InitReserve: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.InitReserve,
+        ...parseInitReserveInstruction(instruction),
+      };
+    }
+    case KaminoLendingInstruction.UpdateReserveConfig: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.UpdateReserveConfig,
+        ...parseUpdateReserveConfigInstruction(instruction),
+      };
+    }
+    case KaminoLendingInstruction.MarkObligationForDeleveraging: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.MarkObligationForDeleveraging,
+        ...parseMarkObligationForDeleveragingInstruction(instruction),
+      };
+    }
     case KaminoLendingInstruction.RefreshReserve: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -84,11 +238,25 @@ export function parseKaminoLendingInstruction<TProgram extends string>(
         ...parseRefreshReserveInstruction(instruction),
       };
     }
+    case KaminoLendingInstruction.DepositReserveLiquidity: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.DepositReserveLiquidity,
+        ...parseDepositReserveLiquidityInstruction(instruction),
+      };
+    }
     case KaminoLendingInstruction.RefreshObligation: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: KaminoLendingInstruction.RefreshObligation,
         ...parseRefreshObligationInstruction(instruction),
+      };
+    }
+    case KaminoLendingInstruction.InitGlobalConfig: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KaminoLendingInstruction.InitGlobalConfig,
+        ...parseInitGlobalConfigInstruction(instruction),
       };
     }
     default:

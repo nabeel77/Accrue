@@ -1,21 +1,23 @@
 import { address, type Address } from '@solana/kit';
 
-export { KAMINO_LENDING_PROGRAM_ADDRESS } from './kamino/generated/programs/index.js';
+import { currentCluster } from './clusters/index.js';
+
+const cluster = currentCluster();
+
+/** The lending market program the position deposits into and borrows from. */
+export const KAMINO_LENDING_PROGRAM_ADDRESS: Address = cluster.kaminoLendingProgram;
 
 /** The staking program the lending market's reserves carry their farms in. */
-export const KAMINO_FARMS_PROGRAM_ADDRESS: Address = address(
-  'FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr',
-);
+export const KAMINO_FARMS_PROGRAM_ADDRESS: Address = cluster.kaminoFarmsProgram;
 
 /** The swap router every position swap is routed through. */
-export const JUPITER_V6_PROGRAM_ADDRESS: Address = address(
-  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
-);
+export const JUPITER_V6_PROGRAM_ADDRESS: Address = cluster.swapProgram;
 
 /** The oracle the lending market reads and the guard prices every swap floor against. */
-export const SCOPE_PROGRAM_ADDRESS: Address = address(
-  'HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ',
-);
+export const SCOPE_PROGRAM_ADDRESS: Address = cluster.scopeProgram;
+
+/** The one account every sandbox and mainnet price is read out of. */
+export const SCOPE_PRICE_ACCOUNT_ADDRESS: Address = cluster.scopePriceAccount;
 
 /** The classic token program, which USDC and the lending market's own collateral tokens use. */
 export const TOKEN_PROGRAM_ADDRESS: Address = address(

@@ -244,7 +244,15 @@ pub fn handle_unwind<'info>(
     )?);
     let debt = u64::try_from(debt).map_err(|_| AccrueError::MathOverflow)?;
 
+    // The sale is short of the loan on any position young enough that the swap cost more than the
+    // yield token has earned, which is every fresh one, so the rest comes from the owner's own
+    // account and goes straight back to the lending market in the same repayment.
     let usdc_held = token_account_amount(&accounts.position_usdc_account.to_account_info())?;
+    let from_the_owner =
+        take_the_shortfall_from_the_owner(accounts, debt.saturating_sub(usdc_held))?;
+    let usdc_held = usdc_held
+        .checked_add(from_the_owner)
+        .ok_or(AccrueError::MathOverflow)?;
     let repaid = debt.min(usdc_held);
     if repaid > 0 {
         let farms = farm_accounts_for_reserve(
@@ -367,6 +375,39 @@ pub fn handle_unwind<'info>(
     position.record_repay(repaid)?;
     position.state = PositionState::Closed;
     Ok(())
+}
+
+/// What the sale did not cover, taken from the owner's own USDC account. The owner signs for it,
+/// so this moves tokens only between the owner's wallet and the lending market.
+fn take_the_shortfall_from_the_owner(accounts: &Unwind<'_>, shortfall: u64) -> Result<u64> {
+    if shortfall == 0 {
+        return Ok(0);
+    }
+
+    let held = token_account_amount(&accounts.owner_usdc_account.to_account_info())?;
+    if held < shortfall {
+        msg!(
+            "closing needs {} more USDC than the sale returned, the owner's account holds {}",
+            shortfall,
+            held
+        );
+        return Err(AccrueError::OwnerCannotCoverTheShortfall.into());
+    }
+
+    anchor_spl::token_interface::transfer_checked(
+        CpiContext::new(
+            accounts.borrow_token_program.key(),
+            anchor_spl::token_interface::TransferChecked {
+                from: accounts.owner_usdc_account.to_account_info(),
+                mint: accounts.borrow_mint.to_account_info(),
+                to: accounts.position_usdc_account.to_account_info(),
+                authority: accounts.owner.to_account_info(),
+            },
+        ),
+        shortfall,
+        accounts.borrow_mint.decimals,
+    )?;
+    Ok(shortfall)
 }
 
 fn sell_the_destination<'info>(

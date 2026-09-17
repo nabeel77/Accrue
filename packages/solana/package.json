@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./program": "./src/program/index.ts",
-    "./kamino": "./src/kamino/index.ts"
+    "./kamino": "./src/kamino/index.ts",
+    "./clusters": "./src/clusters/index.ts"
   },
   "scripts": {
     "build": "tsc --build",

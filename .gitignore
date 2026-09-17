@@ -23,3 +23,6 @@ next-env.d.ts
 id.json
 
 tests/fixtures/programs/
+
+test-results/
+playwright-report/

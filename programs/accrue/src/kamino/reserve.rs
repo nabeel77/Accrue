@@ -46,7 +46,7 @@ const WITHDRAWAL_CAP_INTERVAL_START: usize = 16;
 const WITHDRAWAL_CAP_INTERVAL_LENGTH: usize = 24;
 
 const RESERVE_STATUS_ACTIVE: u8 = 0;
-const RESERVE_STATUS_OBSOLETE: u8 = 2;
+const RESERVE_STATUS_OBSOLETE: u8 = 1;
 
 const BASIS_POINTS_PER_PERCENT: u16 = 100;
 
@@ -123,6 +123,9 @@ impl ReserveSnapshot {
         self.status == RESERVE_STATUS_ACTIVE
     }
 
+    // Hidden is the market's own display flag: every reserve starts hidden and lends while it is,
+    // so only obsolete, which is what stops deposits and borrows, is a reason to take a position
+    // out.
     pub fn is_obsolete(&self) -> bool {
         self.status == RESERVE_STATUS_OBSOLETE
     }

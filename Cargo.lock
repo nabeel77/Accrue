@@ -1509,6 +1509,14 @@ name = "honest_swap"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "litesvm",
+ "solana-account",
+ "solana-address 2.6.1",
+ "solana-instruction",
+ "solana-keypair",
+ "solana-message",
+ "solana-signer",
+ "solana-transaction",
 ]
 
 [[package]]
@@ -2068,6 +2076,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "price_feed"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "litesvm",
+ "solana-account",
+ "solana-address 2.6.1",
+ "solana-clock",
+ "solana-instruction",
+ "solana-keypair",
+ "solana-message",
+ "solana-signer",
+ "solana-transaction",
 ]
 
 [[package]]

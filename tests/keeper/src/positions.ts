@@ -19,7 +19,7 @@ import {
   type Position,
   type Strategy,
 } from '@accrue/solana/program';
-import { TOKEN_PROGRAM_ADDRESS, routeFromSwapInstruction } from '@accrue/solana';
+import { TOKEN_PROGRAM_ADDRESS } from '@accrue/solana';
 
 import { createTestRouter } from './router.js';
 import { DESTINATION_DECIMALS, ONYC_SCOPE_FEED_INDEX, type World } from './world.js';
@@ -170,17 +170,15 @@ async function buyTheDestination(
   // A little above the oracle price, so the position holds what a yield token that has grown
   // would, and selling it back covers the loan.
   const buying = destinationWorthOf(world, usdcAmount);
-  const askTheRouter = createTestRouter(world, { pays: () => buying });
-  const route = routeFromSwapInstruction(
-    await askTheRouter({
-      inputMint: world.borrow.snapshot.liquidityMint,
-      outputMint: world.destinationMint,
-      amountIn: usdcAmount,
-      slippageBps: world.config().maxSlippageBps,
-      maxAccounts: 28,
-      signingAuthority: opened.address,
-    }),
-  );
+  const router = createTestRouter(world, { pays: () => buying });
+  const route = await router.findRoute({
+    inputMint: world.borrow.snapshot.liquidityMint,
+    outputMint: world.destinationMint,
+    amountIn: usdcAmount,
+    slippageBps: world.config().maxSlippageBps,
+    maxAccounts: 28,
+    signingAuthority: opened.address,
+  });
 
   const instruction = getBuyDestinationInstruction({
     owner: world.owner,

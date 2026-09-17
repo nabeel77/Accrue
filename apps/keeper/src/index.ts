@@ -1,14 +1,14 @@
 import { address, createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit';
 
 import { fetchConfig, findConfigPda } from '@accrue/solana/program';
+import { createSwapRouter } from '@accrue/solana';
 
 import { readKeeperConfiguration } from './config.js';
 import { createGuardInstructionBuilder } from './guard.js';
-import { fetchSwapInstruction } from './jupiter.js';
 import { loadFeePayer } from './keypair.js';
 import { shortenAddress } from './logging.js';
 import { runOneRound, sleep } from './loop.js';
-import { createRunLog } from './runs.js';
+import { runLogFromTheEnvironment } from './runs.js';
 import { surveyTheProgram } from './survey.js';
 import { createSender } from './transaction.js';
 
@@ -27,7 +27,12 @@ async function main(): Promise<void> {
   );
   const programAddress = address(configuration.programAddress);
   const [configAddress] = await findConfigPda({ programAddress });
-  const runLog = createRunLog();
+  const runLog = runLogFromTheEnvironment();
+  const router = createSwapRouter({
+    rpc,
+    jupiterApiUrl: configuration.jupiterApiUrl,
+    jupiterApiKey: configuration.jupiterApiKey,
+  });
 
   console.log(
     `keeper ${shortenAddress(feePayer.address)} watching ${shortenAddress(
@@ -48,12 +53,7 @@ async function main(): Promise<void> {
         config: config.data,
         configAddress,
         caller: feePayer,
-        askTheRouter: (request) =>
-          fetchSwapInstruction(
-            configuration.jupiterApiUrl,
-            request,
-            configuration.jupiterApiKey,
-          ),
+        router,
       });
       const report = await runOneRound(
         round,

@@ -96,7 +96,9 @@ avm install 1.2.0 && avm use 1.2.0
 
 ```
 pnpm install
-cp .env.example .env          # then fill it in
+cp .env.example .env                        # the scripts you run from here
+cp apps/web/.env.example apps/web/.env      # the web app
+cp apps/keeper/.env.example apps/keeper/.env  # the guard
 pnpm run program:build        # anchor build, writes the program and its IDL
 pnpm run program:client       # regenerates the typed client from that IDL
 pnpm run program:test         # anchor test against a local validator
@@ -105,7 +107,7 @@ pnpm run db:migrate           # applies migrations over DATABASE_DIRECT_URL
 pnpm --filter @accrue/web dev # http://localhost:3000/app/kit
 ```
 
-Every variable the code reads is listed in `.env.example`. No key is ever a value in that file: the admin key and the keeper key are paths to files that live outside this repository, and only the admin scripts read the first and only the keeper reads the second.
+There are three example files, one for each thing that reads them. `apps/web/.env.example` is what the web app deploys with and names no key and no folder at all. `apps/keeper/.env.example` names one key path, the fee payer, and nothing else it could sign with. The one at the root is for the scripts you run from a laptop, and is the only one that names the admin key or a folder on your machine. `SOLANA_CLUSTER` decides what chain everything means and `HELIUS_RPC_URL` is the single endpoint pointed at it. No key is ever a value in any of the three: keys are paths to files that live outside this repository.
 
 ## Checks
 
@@ -119,13 +121,15 @@ pnpm run rust:fmt
 pnpm run rust:clippy
 pnpm run check:no-web3js
 pnpm run check:bundle-secrets
+pnpm run check:no-test-code
+pnpm run check:web-reads-no-paths
 ```
 
 `program:test` starts the validator that ships with the Solana CLI rather than the one Anchor 1.x reaches for by default, so it runs on any machine that can build the program.
 
 The commit hook runs the lint, the Rust format and lint, and the fast tests. The push hook runs the whole build including `anchor build`. Continuous integration runs all of it plus both dependency audits and the program suite.
 
-Two of those checks exist to catch a specific mistake. `check:no-web3js` fails if any file of ours imports the old Solana client library instead of `@solana/kit`. `check:bundle-secrets` fails if the name of any server only variable from `.env.example` reaches a browser bundle.
+Four of those checks exist to catch a specific mistake. `check:no-web3js` fails if any file of ours imports the old Solana client library instead of `@solana/kit`. `check:bundle-secrets` fails if the name of any server only variable reaches a browser bundle. `check:no-test-code` fails if the app imports anything from the end to end harness or if the harness reaches the built output. `check:web-reads-no-paths` fails if anything the web app deploys with names a key path or a folder.
 
 ## Test fixtures
 
@@ -140,6 +144,127 @@ Without an RPC URL the script falls back to the public endpoint, which is rate l
 ## Transactions
 
 Accrue builds version 1 transactions first: 4,096 bytes, every address inline, at most 64 unique addresses, the compute limit and the priority fee in the message header. A wallet that does not advertise version 1 gets the version 0 path with address lookup tables instead. Every read of a transaction passes the maximum supported version, kept as one constant in `packages/solana`.
+
+## The devnet sandbox
+
+Kamino, Jupiter, xStocks and ONyc do not exist on devnet, so the sandbox runs our own copies of all
+of them. Everything a user would touch is the real code; everything around it is a stand in.
+
+| Part               | On devnet                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| The Accrue program | the real thing, built with the `devnet` cluster feature                                                       |
+| The keeper         | the real thing                                                                                                |
+| The lending market | Kamino's own lending and farms programs, built from their public source under ids we hold the keys to         |
+| The oracle         | `tests/programs/price-feed`, a program of ours that writes prices into an account shaped exactly like Scope's |
+| The swap router    | `tests/programs/honest-swap`, which fills at a rate an admin sets                                             |
+| The tokens         | mock mints with the decimals, token programs and oracle feed indices of the real ones                         |
+
+Nothing here is worth anything. The stock tokens are minted by a faucet on request.
+
+### Addresses
+
+| What                   | Address                                        |
+| ---------------------- | ---------------------------------------------- |
+| Accrue program         | `6KUwCyECUrvjppwAe92FxTqHLvw2LKGmfkV7j37r6gBb` |
+| Lending market program | `7z1AjuAV2Pn5SE2mGsRskYmZw4RTCYXVKwwsf2ydBvmM` |
+| Farms program          | `DqHZVmT1jvqYUDvz2LWyHcxpz9TT2BX88Jnmm1bTp2v8` |
+| Swap router            | `8mFrzd3bJ4Czmi8ee5tJUDmCDLByBaUbP6vUUzpCsYWW` |
+| Price program          | `5Dgwh9uaimvaibD6xNxsE2yMRGRvbnq6ssVtTouAhLbA` |
+| Prices account         | `C88HB7ajhR6ZrAawBwt9FV2yFnvQWTYy6Atg6pFSPX9j` |
+| Lending market         | `DXfxsBp3TZmGLr3GPqGjRwuWZRGLXcBp8bZ6ecX2x8FS` |
+| Accrue config          | `Cq9xYk1PXtU9coPs1xejgVmhyHrWpSUXeWTg3tWnZgeU` |
+
+| Token | Mint                                           | Reserve                                        |
+| ----- | ---------------------------------------------- | ---------------------------------------------- |
+| USDC  | `BUxHx9ydngE2JjZaCi6NYBPdpLtewo3NVsbq9DBpHjpy` | `NSYE1BeJDFfyk3rwyPKMUrX4vCvH4DhUXBL39ANHupS`  |
+| NVDAx | `7JMviovZ1qEJBhXhVwG9zXqViBpc2cQZs9VN3ABXrpxH` | `23BiiMnHnuu1QQyWE2kKckus5sqDiAiTy9k7PUFK5vUc` |
+| SPYx  | `5xtbHf6eq7GQH2JNc8BP3u1iWA3nY45rh7n6NCcYRYSV` | `xpnNAZSeFsBManao5zYuTBzan2B6HKgaBzV2BsLtHi4`  |
+| ONyc  | `7aEvt3TXHMEDHfYTguxRbCfxW6XVbBE6rQVqu33h4YnN` | `DhVcaWL7BxtYq2dTpujo1ChX9HSN3qpx3aved1Ns6mcv` |
+
+USDC and ONyc use the classic token program with mainnet's decimals. NVDAx and SPYx are Token 2022
+mints with the scaled UI amount extension and a permanent delegate, as the real stock tokens are.
+The same generated files hold these addresses for the program and for the client:
+`programs/accrue/src/clusters/devnet.rs` and `packages/solana/src/clusters/devnet.ts`, both written
+by `pnpm run devnet:clusters`.
+
+### Test tokens
+
+```
+pnpm run devnet:faucet <wallet address>   # one grant of every token
+pnpm run devnet:faucet:serve              # the same over HTTP, one grant per wallet a day
+```
+
+The faucet server holds the mint authority as a file path and answers only callers that send the
+shared secret, so the web app calls it from its own server and never from a browser.
+
+### Running the scripts
+
+Every script reads `DEVNET_KEYPAIR_DIR` for the keypairs of the programs, mints and market it
+created, and writes the addresses it makes into `addresses.json` beside them. Only public addresses
+are ever committed. All of them are safe to run again: each one skips what already exists.
+
+```
+pnpm run devnet:build-kamino   # builds the lending and farms programs under our own ids
+pnpm run devnet:prices         # creates the prices account and writes one full set
+pnpm run devnet:prices:loop    # rewrites every two minutes so the guard never sees a stale price
+pnpm run devnet:mints          # the four mock mints
+pnpm run devnet:router         # the swap pools and their vaults
+pnpm run devnet:market         # the lending market, its four reserves and a million USDC of liquidity
+pnpm run devnet:clusters       # writes the two generated cluster files from what is deployed
+pnpm run devnet:smoke          # the whole life of a position, on chain
+pnpm run devnet:market-controls # we own the market, so the guard's triggers can be set by hand
+```
+
+`pnpm run devnet:smoke -- --one-transaction` opens in a single call with the route carried inline,
+and prints what the transaction weighs. The two call shape the rest of the script uses is what the
+program's own suite does, so a hostile route can be aimed at the swap on its own; it is not a limit
+of the transaction format. One such open measured 1,321 bytes of the 4,096 allowed and 34 unique
+addresses of the 64.
+
+Because the sandbox market is ours, the two guard triggers a keeper cannot cause can be set by
+hand:
+
+```
+pnpm run devnet:market-controls reserve-status NVDAx obsolete      # then active again
+pnpm run devnet:market-controls individual-deleverage-period 3600  # once, before any marking
+pnpm run devnet:market-controls mark-for-deleveraging <obligation> 20
+pnpm run devnet:market-controls mark-for-deleveraging <obligation> 255   # 255 clears it
+```
+
+`pnpm run devnet:prices -- --move NVDAx=-32` moves one price by a percentage, which is how a
+protect is triggered in a demo. The swap router follows the oracle on every write, so a guard's
+fill and its floor never drift apart. `pnpm run devnet:smoke -- --leave-it-open` stops after the
+position is open and holding the yield token, which is what a keeper run needs in front of it.
+
+Run the price loop faster than the config's `ACCRUE_CONFIG_MAX_PRICE_AGE_SLOTS` allows, or the
+guard spends most of each cycle refusing to act on a stale price. At 150 slots that is about a
+minute on devnet, so the loop wants `--interval 30`, not the two minutes the default suggests.
+
+```
+pnpm run devnet:prices:loop -- --interval 30 &
+SOLANA_CLUSTER=devnet tsx apps/keeper/src/index.ts
+```
+
+With that running, a price write and the protect it triggers landed two seconds and fourteen slots
+apart.
+
+Set `SOLANA_CLUSTER=devnet` for anything that reads an address, including the keeper. Nothing in
+`apps/` or `packages/` names a cluster: the program ids and the swap router both come from the
+cluster module.
+
+### Building for devnet
+
+Both Kamino programs and Accrue itself are built for the older on chain architecture, which sizes
+call frames at run time:
+
+```
+cargo-build-sbf --arch v1 --features devnet --manifest-path programs/accrue/Cargo.toml -- --no-default-features
+solana program deploy target/deploy/accrue.so --program-id <keypair> --max-len <size plus a fifth> --url devnet
+```
+
+The default architecture gives every call a fixed four kilobyte frame, and the lending market's own
+`init_lending_market` and `init_reserve` need more than that to build a reserve. On the default
+target they fault the moment they are called; `--arch v1` is what makes them run.
 
 ## Legal
 

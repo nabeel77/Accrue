@@ -5,7 +5,7 @@
 //! <https://github.com/codama-idl/codama>
 //!
 
-use solana_address::{address, Address};
+use solana_address::Address;
 
 /// `kamino_lending` program ID.
-pub const KAMINO_LENDING_ID: Address = address!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+pub const KAMINO_LENDING_ID: Address = crate::constants::KAMINO_LEND_PROGRAM_ID;

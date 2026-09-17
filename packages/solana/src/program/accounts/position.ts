@@ -86,6 +86,12 @@ export type Position = {
   usdcBorrowedTotal: bigint;
   usdcRepaidTotal: bigint;
   usdcFromSalesTotal: bigint;
+  /**
+   * What is still owed after leave handed the position back part way, zero in every other
+   * state. Leave writes it and every repayment brings it down, so the app can show a number
+   * without reading the lending market.
+   */
+  usdcOwedAtLeave: bigint;
   bump: number;
 };
 
@@ -111,6 +117,12 @@ export type PositionArgs = {
   usdcBorrowedTotal: number | bigint;
   usdcRepaidTotal: number | bigint;
   usdcFromSalesTotal: number | bigint;
+  /**
+   * What is still owed after leave handed the position back part way, zero in every other
+   * state. Leave writes it and every repayment brings it down, so the app can show a number
+   * without reading the lending market.
+   */
+  usdcOwedAtLeave: number | bigint;
   bump: number;
 };
 
@@ -140,6 +152,7 @@ export function getPositionEncoder(): FixedSizeEncoder<PositionArgs> {
       ["usdcBorrowedTotal", getU64Encoder()],
       ["usdcRepaidTotal", getU64Encoder()],
       ["usdcFromSalesTotal", getU64Encoder()],
+      ["usdcOwedAtLeave", getU64Encoder()],
       ["bump", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: POSITION_DISCRIMINATOR }),
@@ -171,6 +184,7 @@ export function getPositionDecoder(): FixedSizeDecoder<Position> {
     ["usdcBorrowedTotal", getU64Decoder()],
     ["usdcRepaidTotal", getU64Decoder()],
     ["usdcFromSalesTotal", getU64Decoder()],
+    ["usdcOwedAtLeave", getU64Decoder()],
     ["bump", getU8Decoder()],
   ]);
 }
@@ -234,5 +248,5 @@ export async function fetchAllMaybePosition(
 }
 
 export function getPositionSize(): number {
-  return 396;
+  return 404;
 }

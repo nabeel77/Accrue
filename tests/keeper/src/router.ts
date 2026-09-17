@@ -3,12 +3,12 @@ import { getBase64Decoder, type Address } from '@solana/kit';
 import { rawAmountWorthRoundingDown, usdValueOfScaled } from '@accrue/core';
 import {
   JUPITER_V6_PROGRAM_ADDRESS,
+  routeFromSwapInstruction,
   TOKEN_PROGRAM_ADDRESS,
   type RouteRequest,
-  type SwapInstructionFromTheRouter,
+  type SwapRoute,
+  type SwapRouter,
 } from '@accrue/solana';
-
-import type { AskTheRouter } from '../../../apps/keeper/src/guard.js';
 import { DESTINATION_DECIMALS, ONYC_SCOPE_FEED_INDEX, type World } from './world.js';
 
 /** The honest router fills at the oracle price. The hostile one is told which attack to try. */
@@ -91,12 +91,12 @@ const READONLY = { isSigner: false, isWritable: false };
 export function createTestRouter(
   world: World,
   behaviour: RouterBehaviour = {},
-): AskTheRouter {
+): SwapRouter {
   const honest = world.routerIsHostile
     ? { ...behaviour, attack: behaviour.attack ?? ATTACK_HONEST_FILL }
     : behaviour;
 
-  return async (request: RouteRequest): Promise<SwapInstructionFromTheRouter> => {
+  const answer = async (request: RouteRequest): Promise<SwapRoute> => {
     const selling = sideOfTheTrade(world, request.inputMint);
     const buying = sideOfTheTrade(world, request.outputMint);
     const fair = fairFill(world, request);
@@ -122,10 +122,15 @@ export function createTestRouter(
       accounts.push({ pubkey: honest.wants, ...WRITABLE });
     }
 
-    return {
-      programId: JUPITER_V6_PROGRAM_ADDRESS,
-      accounts,
-      data: routeData(honest, request.amountIn, paying),
-    };
+    return routeFromSwapInstruction(
+      {
+        programId: JUPITER_V6_PROGRAM_ADDRESS,
+        accounts,
+        data: routeData(honest, request.amountIn, paying),
+      },
+      { amountOut: paying, priceImpactBps: 0 },
+    );
   };
+
+  return { name: 'test', findRoute: answer };
 }

@@ -86,6 +86,8 @@ pub enum AccrueError {
     DebtStillOutstanding,
     #[msg("The position still holds tokens")]
     TokensStillHeld,
+    #[msg("Closing this position needs more USDC than the owner's account holds")]
+    OwnerCannotCoverTheShortfall,
 
     #[msg("The stock token account changed during an instruction that must not move it")]
     CollateralBalanceMoved,
