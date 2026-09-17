@@ -12,6 +12,10 @@ await build({
   format: 'esm',
   target: 'es2023',
   minify: true,
+  platform: 'browser',
+  // The page picks its network from the dropdown, so the cluster the shared package reads from the
+  // environment is never used here and an empty environment is the honest value for it.
+  define: { 'process.env': '{}' },
   outfile: `${outputDirectory}/rescue.js`,
 });
 

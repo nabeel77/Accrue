@@ -89,6 +89,10 @@ pub struct Position {
     pub usdc_borrowed_total: u64,
     pub usdc_repaid_total: u64,
     pub usdc_from_sales_total: u64,
+    /// What is still owed after leave handed the position back part way, zero in every other
+    /// state. Leave writes it and every repayment brings it down, so the app can show a number
+    /// without reading the lending market.
+    pub usdc_owed_at_leave: u64,
     pub bump: u8,
 }
 
@@ -152,6 +156,9 @@ impl Position {
             .usdc_repaid_total
             .checked_add(amount)
             .ok_or(AccrueError::MathOverflow)?;
+        // Every repayment brings down what leave left outstanding, so the number on the account
+        // never says more is owed than is.
+        self.usdc_owed_at_leave = self.usdc_owed_at_leave.saturating_sub(amount);
         Ok(())
     }
 

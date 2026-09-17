@@ -36,6 +36,17 @@ export function createRunLog(database: AccrueDatabase = createDatabaseClient()):
   };
 }
 
+/**
+ * The run log is bookkeeping, not money, so a keeper watching a sandbox runs without a database
+ * rather than refusing to start. Anywhere a database is configured, that is what it writes to.
+ */
+export function runLogFromTheEnvironment(): RunLog {
+  const connectionString = process.env['DATABASE_URL'];
+  return connectionString === undefined || connectionString === ''
+    ? createRunLogThatOnlyCounts()
+    : createRunLog();
+}
+
 export function createRunLogThatOnlyCounts(): RunLog & {
   readonly recorded: AttemptedRun[];
 } {

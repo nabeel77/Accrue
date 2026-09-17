@@ -25,12 +25,7 @@ import {
   type DestinationEntry,
   type Position,
 } from '@accrue/solana/program';
-import {
-  routeFromSwapInstruction,
-  TOKEN_PROGRAM_ADDRESS,
-  type RouteRequest,
-  type SwapInstructionFromTheRouter,
-} from '@accrue/solana';
+import { TOKEN_PROGRAM_ADDRESS, type SwapRouter } from '@accrue/solana';
 
 import type { Decision } from './decide.js';
 import type { Candidate, GuardInstructionBuilder } from './loop.js';
@@ -61,15 +56,11 @@ export interface GuardSubject {
   readonly destinationPriceScaled: bigint;
 }
 
-export type AskTheRouter = (
-  request: RouteRequest,
-) => Promise<SwapInstructionFromTheRouter>;
-
 export interface GuardAssembly {
   readonly config: Config;
   readonly configAddress: Address;
   readonly caller: TransactionSigner;
-  readonly askTheRouter: AskTheRouter;
+  readonly router: SwapRouter;
 }
 
 /**
@@ -325,16 +316,14 @@ async function sellingRoute(
   subject: GuardSubject,
   amountIn: bigint,
 ) {
-  return routeFromSwapInstruction(
-    await assembly.askTheRouter({
-      inputMint: subject.position.destinationMint,
-      outputMint: subject.borrowReserve.liquidityMint,
-      amountIn,
-      slippageBps: assembly.config.maxSlippageBps,
-      maxAccounts: ROUTE_MAX_ACCOUNTS,
-      signingAuthority: subject.positionAddress,
-    }),
-  );
+  return assembly.router.findRoute({
+    inputMint: subject.position.destinationMint,
+    outputMint: subject.borrowReserve.liquidityMint,
+    amountIn,
+    slippageBps: assembly.config.maxSlippageBps,
+    maxAccounts: ROUTE_MAX_ACCOUNTS,
+    signingAuthority: subject.positionAddress,
+  });
 }
 
 async function buyingRoute(
@@ -342,16 +331,14 @@ async function buyingRoute(
   subject: GuardSubject,
   amountIn: bigint,
 ) {
-  return routeFromSwapInstruction(
-    await assembly.askTheRouter({
-      inputMint: subject.borrowReserve.liquidityMint,
-      outputMint: subject.position.destinationMint,
-      amountIn,
-      slippageBps: assembly.config.maxSlippageBps,
-      maxAccounts: ROUTE_MAX_ACCOUNTS,
-      signingAuthority: subject.positionAddress,
-    }),
-  );
+  return assembly.router.findRoute({
+    inputMint: subject.borrowReserve.liquidityMint,
+    outputMint: subject.position.destinationMint,
+    amountIn,
+    slippageBps: assembly.config.maxSlippageBps,
+    maxAccounts: ROUTE_MAX_ACCOUNTS,
+    signingAuthority: subject.positionAddress,
+  });
 }
 
 async function borrowFarmAccounts(subject: GuardSubject): Promise<{

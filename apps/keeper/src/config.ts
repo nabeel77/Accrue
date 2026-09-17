@@ -27,7 +27,7 @@ function requirePositiveInteger(variableName: string): number {
 
 export function readKeeperConfiguration(): KeeperConfiguration {
   return {
-    rpcUrl: requireVariable('KEEPER_RPC_URL'),
+    rpcUrl: requireVariable('HELIUS_RPC_URL'),
     keypairPath: requireVariable('KEEPER_KEYPAIR_PATH'),
     programAddress: requireVariable('ACCRUE_PROGRAM_ID'),
     jupiterApiUrl: requireVariable('JUPITER_API_URL'),

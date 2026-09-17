@@ -433,6 +433,7 @@ pub fn handle_open_position<'info>(
     position.usdc_borrowed_total = 0;
     position.usdc_repaid_total = 0;
     position.usdc_from_sales_total = 0;
+    position.usdc_owed_at_leave = 0;
     position.bump = context.bumps.position;
     position.record_borrow(borrow_amount)?;
 

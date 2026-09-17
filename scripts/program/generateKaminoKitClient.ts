@@ -5,9 +5,21 @@ import { createFromRoot } from 'codama';
 import { rootNodeFromAnchor, type AnchorIdl } from '@codama/nodes-from-anchor';
 import { renderVisitor } from '@codama/renderers-js';
 
-// The keeper only ever asks the lending market to recompute what it already knows, so these are
-// the only two instructions anything off chain needs to build.
-const KAMINO_INSTRUCTIONS_THE_KEEPER_SIMULATES = ['refreshReserve', 'refreshObligation'];
+// The keeper only ever asks the lending market to recompute what it already knows. The devnet
+// sandbox scripts also stand a market up from nothing, which is the rest of this list.
+const KAMINO_INSTRUCTIONS_WE_BUILD_OFF_CHAIN = [
+  'refreshReserve',
+  'refreshObligation',
+  'initLendingMarket',
+  'updateLendingMarket',
+  'initReserve',
+  'updateReserveConfig',
+  'depositReserveLiquidity',
+  'initGlobalConfig',
+  'markObligationForDeleveraging',
+];
+
+const TYPES_THOSE_INSTRUCTIONS_NEED = ['UpdateConfigMode', 'UpdateLendingMarketMode'];
 
 const KAMINO_LEND_PROGRAM_ADDRESS = 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD';
 
@@ -20,16 +32,16 @@ interface LegacyAnchorIdl {
   version?: string;
   instructions: { name: string }[];
   accounts?: unknown[];
-  types?: unknown[];
+  types?: { name: string }[];
   errors?: unknown[];
   metadata?: Record<string, unknown>;
 }
 
-function keepOnlyWhatTheKeeperBuilds(idl: LegacyAnchorIdl): LegacyAnchorIdl {
+function keepOnlyWhatWeBuildOffChain(idl: LegacyAnchorIdl): LegacyAnchorIdl {
   const kept = idl.instructions.filter((instruction) =>
-    KAMINO_INSTRUCTIONS_THE_KEEPER_SIMULATES.includes(instruction.name),
+    KAMINO_INSTRUCTIONS_WE_BUILD_OFF_CHAIN.includes(instruction.name),
   );
-  const missing = KAMINO_INSTRUCTIONS_THE_KEEPER_SIMULATES.filter(
+  const missing = KAMINO_INSTRUCTIONS_WE_BUILD_OFF_CHAIN.filter(
     (name) => !kept.some((instruction) => instruction.name === name),
   );
   if (missing.length > 0) {
@@ -42,7 +54,9 @@ function keepOnlyWhatTheKeeperBuilds(idl: LegacyAnchorIdl): LegacyAnchorIdl {
     version: idl.version ?? '0.0.0',
     instructions: kept,
     accounts: [],
-    types: [],
+    types: (idl.types ?? []).filter((type) =>
+      TYPES_THOSE_INSTRUCTIONS_NEED.includes(type.name),
+    ),
     errors: [],
     metadata: { ...(idl.metadata ?? {}), address: KAMINO_LEND_PROGRAM_ADDRESS },
   };
@@ -80,7 +94,7 @@ function addFileExtensionsToRelativeImports(directory: string): void {
   }
 }
 
-const idl = keepOnlyWhatTheKeeperBuilds(
+const idl = keepOnlyWhatWeBuildOffChain(
   JSON.parse(readFileSync(idlPath, 'utf8')) as LegacyAnchorIdl,
 );
 const codama = createFromRoot(rootNodeFromAnchor(idl as unknown as AnchorIdl));
@@ -92,5 +106,5 @@ await codama.accept(
 addFileExtensionsToRelativeImports(clientDirectory);
 
 console.log(
-  `Generated ${KAMINO_INSTRUCTIONS_THE_KEEPER_SIMULATES.length} lending market instruction builders into ${clientDirectory}`,
+  `Generated ${KAMINO_INSTRUCTIONS_WE_BUILD_OFF_CHAIN.length} lending market instruction builders into ${clientDirectory}`,
 );

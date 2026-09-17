@@ -37,6 +37,7 @@ function encodeAPositionIn(state: PositionState): Uint8Array {
       usdcBorrowedTotal: 0n,
       usdcRepaidTotal: 0n,
       usdcFromSalesTotal: 0n,
+      usdcOwedAtLeave: 0n,
       bump: 255,
     }),
   );

@@ -6,6 +6,7 @@ import {
   protectAmounts,
   repayToReachTarget,
   thereIsAReasonToLeave,
+  usdcNeededToClose,
   type DeleverageSignals,
 } from './guard.js';
 import { SCALED_FRACTION_ONE, wholeUnitsToScaledFraction } from './money.js';
@@ -250,5 +251,37 @@ describe('what counts as a reason to leave', () => {
     expect(
       thereIsAReasonToLeave({ ...NOTHING_IS_WRONG, programIsRetiring: true }, 0n),
     ).toBe(true);
+  });
+});
+
+describe('what closing a position needs from the wallet', () => {
+  // A twenty dollar position borrowing seven, the yield token quoted at six dollars ninety, the
+  // ten percent fee, and a borrow rate of five percent for the year.
+  const freshPosition = {
+    debt: 7_000_000n,
+    quotedUsdcOut: 6_900_000n,
+    feeBpsAtOpen: 1_000,
+    borrowRateBps: 500,
+  };
+
+  it('asks for the gap, a day of interest and nothing else', () => {
+    // 7,000,000 * 500 / 10,000 / 365 = 958.9, rounded up to 959.
+    // The sale is under the debt so there is no profit and no fee.
+    // 7,000,000 + 959 - 6,900,000 = 100,959.
+    expect(usdcNeededToClose(freshPosition)).toBe(100_959n);
+  });
+
+  it('counts the fee when the sale did turn a profit', () => {
+    // 7,500,000 - 7,000,000 = 500,000 of profit, ten percent of it is 50,000.
+    // 7,000,000 + 959 + 50,000 = 7,050,959, which is under the 7,500,000 quoted.
+    expect(usdcNeededToClose({ ...freshPosition, quotedUsdcOut: 7_500_000n })).toBe(0n);
+  });
+
+  it('asks for nothing when the sale covers everything', () => {
+    expect(usdcNeededToClose({ ...freshPosition, quotedUsdcOut: 9_000_000n })).toBe(0n);
+  });
+
+  it('still counts a day of interest on a sale that exactly matches the debt', () => {
+    expect(usdcNeededToClose({ ...freshPosition, quotedUsdcOut: 7_000_000n })).toBe(959n);
   });
 });

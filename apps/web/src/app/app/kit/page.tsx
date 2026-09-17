@@ -1,8 +1,10 @@
+'use client';
+
 import type { JSX } from 'react';
 import { notFound } from 'next/navigation';
 
 import { AccrueMark, AccrueWordmark } from '@/components/AccrueMark';
-
+import { ComponentGallery } from './ComponentGallery';
 import { DESIGN_TOKEN_GROUPS } from './designTokens';
 
 const COLOUR_TOKEN_PREFIX = '--color-';
@@ -107,13 +109,22 @@ export default function DesignKitPage(): JSX.Element {
         </div>
       </section>
 
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <SectionHeading
+          index="02"
+          title="The components"
+          note="Every component in every state it can be in."
+        />
+        <ComponentGallery />
+      </section>
+
       {DESIGN_TOKEN_GROUPS.map((group, groupIndex) => (
         <section
           key={group.title}
           style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
         >
           <SectionHeading
-            index={String(groupIndex + 2).padStart(2, '0')}
+            index={String(groupIndex + 3).padStart(2, '0')}
             title={group.title}
             note={group.note}
           />

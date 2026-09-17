@@ -123,6 +123,26 @@ const RUST_KEYWORDS = new Set([
   'try',
 ]);
 
+/**
+ * Codama writes the lending program id from the IDL and uses it as the stand in for an optional
+ * account nobody passed. That address has to be the one this build actually calls, or the stand in
+ * names an account the transaction does not carry, so it is pointed at the cluster module.
+ */
+function pointTheProgramIdAtTheClusterModule(directory: string): void {
+  const programsFile = resolve(directory, 'programs.rs');
+  const original = readFileSync(programsFile, 'utf8');
+  const rewritten = original
+    .replace('use solana_address::{address, Address};', 'use solana_address::Address;')
+    .replace(
+      /pub const KAMINO_LENDING_ID: Address = address!\("[^"]+"\);/u,
+      'pub const KAMINO_LENDING_ID: Address = crate::constants::KAMINO_LEND_PROGRAM_ID;',
+    );
+  if (rewritten === original) {
+    throw new Error('the generated program id is not where this script expects it');
+  }
+  writeFileSync(programsFile, rewritten);
+}
+
 function removeRawIdentifiersFromModuleDeclarations(directory: string): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const entryPath = resolve(directory, entry.name);
@@ -158,6 +178,7 @@ try {
     recursive: true,
   });
   removeRawIdentifiersFromModuleDeclarations(generatedDirectory);
+  pointTheProgramIdAtTheClusterModule(generatedDirectory);
 } finally {
   rmSync(scratchDirectory, { recursive: true, force: true });
 }

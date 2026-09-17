@@ -24,7 +24,7 @@ interface CapturedAccount {
 }
 
 function resolveRpcUrl(): string {
-  const fromEnvironment = process.env['HELIUS_RPC_URL'] ?? process.env['KEEPER_RPC_URL'];
+  const fromEnvironment = process.env['HELIUS_RPC_URL'];
   if (fromEnvironment) {
     return fromEnvironment;
   }

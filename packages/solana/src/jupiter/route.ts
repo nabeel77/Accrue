@@ -29,9 +29,16 @@ export interface SwapInstructionFromTheRouter {
   readonly data: string;
 }
 
+/** What the router says it will pay and what it will cost to get there. */
+export interface RouteQuote {
+  readonly amountOut: bigint;
+  readonly priceImpactBps: number;
+}
+
 export interface SwapRoute {
   readonly accounts: AccountMeta[];
   readonly data: Uint8Array;
+  readonly quote: RouteQuote;
 }
 
 /**
@@ -41,6 +48,7 @@ export interface SwapRoute {
  */
 export function routeFromSwapInstruction(
   instruction: SwapInstructionFromTheRouter,
+  quote: RouteQuote = { amountOut: 0n, priceImpactBps: 0 },
 ): SwapRoute {
   if (address(instruction.programId) !== JUPITER_V6_PROGRAM_ADDRESS) {
     throw new Error('that swap instruction is not for the router the program calls');
@@ -52,5 +60,6 @@ export function routeFromSwapInstruction(
       role: account.isWritable ? AccountRole.WRITABLE : AccountRole.READONLY,
     })),
     data: new Uint8Array(getBase64Encoder().encode(instruction.data)),
+    quote,
   };
 }

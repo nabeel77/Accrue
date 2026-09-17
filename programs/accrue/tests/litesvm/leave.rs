@@ -12,7 +12,9 @@ const RESERVE_STATUS_OFFSET: usize = 4_856;
 const RESERVE_AUTODELEVERAGE_OFFSET: usize = 5_502;
 const RESERVE_DEPOSIT_LIMIT_CROSSED_OFFSET: usize = 280;
 const RESERVE_BORROW_LIMIT_CROSSED_OFFSET: usize = 288;
-const RESERVE_STATUS_OBSOLETE: u8 = 2;
+const RESERVE_STATUS_ACTIVE: u8 = 0;
+const RESERVE_STATUS_OBSOLETE: u8 = 1;
+const RESERVE_STATUS_HIDDEN: u8 = 2;
 const MARKET_AUTODELEVERAGE_OFFSET: usize = 123;
 const OBLIGATION_MARGIN_CALL_STARTED_OFFSET: usize = 2_336;
 const MARGIN_CALL_PERIOD_SECONDS: u64 = 604_800;
@@ -158,6 +160,37 @@ fn a_reserve_the_market_retired_lets_anyone_hand_the_position_back() {
         "leaving is never charged a fee"
     );
     assert_eq!(world.position(&opened.address).state, PositionState::Closed);
+}
+
+// Hidden is the market's own display flag, not a retirement: a hidden reserve still lends, so it
+// is no more a reason to leave than an active one.
+#[test]
+fn only_an_obsolete_reserve_is_a_reason_to_leave() {
+    for (status, is_a_reason) in [
+        (RESERVE_STATUS_ACTIVE, false),
+        (RESERVE_STATUS_OBSOLETE, true),
+        (RESERVE_STATUS_HIDDEN, false),
+    ] {
+        let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
+        let (held, usdc_out) = the_whole_destination_balance(&world, &opened);
+
+        let reserve = world.collateral.address;
+        set_reserve_byte(&mut world, reserve, RESERVE_STATUS_OFFSET, status);
+
+        let instruction = world.leave_instruction(
+            &opened,
+            keeper.pubkey(),
+            world.an_honest_fill(held, usdc_out),
+            selling_route(&world, &opened, None),
+        );
+        let outcome = world.send(&[instruction], &[&keeper]);
+        assert_eq!(
+            outcome.is_ok(),
+            is_a_reason,
+            "status {status} should {} a leave",
+            if is_a_reason { "allow" } else { "refuse" }
+        );
+    }
 }
 
 #[test]
@@ -460,4 +493,149 @@ fn a_hostile_route_on_leave_takes_nothing() {
             held
         );
     }
+}
+
+// Leaving is permissionless, so it never reaches into the owner's wallet. When the sale does not
+// cover the loan it hands the position back part way instead, with the collateral still deposited
+// and what is left owed written on the account.
+#[test]
+fn a_sale_that_falls_short_hands_the_position_back_still_owing() {
+    let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
+
+    let reserve = world.collateral.address;
+    set_reserve_byte(
+        &mut world,
+        reserve,
+        RESERVE_STATUS_OFFSET,
+        RESERVE_STATUS_OBSOLETE,
+    );
+
+    // The yield token is worth less than the loan, which is where every position starts, so even a
+    // sale at the oracle's own price leaves something owed.
+    let whole_balance = world.token_balance(&opened.tokens.position_destination);
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        whole_balance / 2,
+        world.destination_token_program,
+    );
+
+    let debt_before = u64::try_from(accrue::kamino::scaled_fraction_to_whole_units_rounding_up(
+        world.obligation_debt(&opened.obligation),
+    ))
+    .unwrap();
+    let (held, short_sale) = the_whole_destination_balance(&world, &opened);
+    assert!(
+        short_sale < debt_before,
+        "this test needs a sale that cannot cover the loan"
+    );
+    let collateral_before = world.obligation_collateral(&opened.obligation);
+    let owner_usdc_before = world.token_balance(&opened.tokens.owner_usdc);
+
+    let instruction = world.leave_instruction(
+        &opened,
+        keeper.pubkey(),
+        world.an_honest_fill(held, short_sale),
+        selling_route(&world, &opened, None),
+    );
+    world
+        .send(&[instruction], &[&keeper])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "leave reverted: {:?}\n{:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    let position = world.position(&opened.address);
+    assert_eq!(position.state, PositionState::Closing);
+    assert_eq!(
+        position.usdc_owed_at_leave,
+        debt_before - short_sale,
+        "what is still owed is readable on the position"
+    );
+    assert_eq!(
+        world.obligation_collateral(&opened.obligation),
+        collateral_before,
+        "the collateral stays deposited until the owner settles the rest"
+    );
+    assert_eq!(
+        world.token_balance(&opened.tokens.owner_usdc),
+        owner_usdc_before,
+        "leaving never takes a unit from the owner's wallet"
+    );
+    assert_eq!(
+        world.token_balance(&world.treasury_usdc_account),
+        0,
+        "leaving is never charged a fee"
+    );
+}
+
+// The number leave leaves behind has to stay honest, so every repayment brings it down.
+#[test]
+fn repaying_after_a_leave_brings_what_is_owed_down_to_nothing() {
+    let (mut world, opened, keeper) = a_position_a_keeper_could_leave("honest_swap.so");
+
+    let reserve = world.collateral.address;
+    set_reserve_byte(
+        &mut world,
+        reserve,
+        RESERVE_STATUS_OFFSET,
+        RESERVE_STATUS_OBSOLETE,
+    );
+
+    let whole_balance = world.token_balance(&opened.tokens.position_destination);
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        whole_balance / 2,
+        world.destination_token_program,
+    );
+    let (held, short_sale) = the_whole_destination_balance(&world, &opened);
+
+    let instruction = world.leave_instruction(
+        &opened,
+        keeper.pubkey(),
+        world.an_honest_fill(held, short_sale),
+        selling_route(&world, &opened, None),
+    );
+    world
+        .send(&[instruction], &[&keeper])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "leave reverted: {:?}\n{:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    let owed = world.position(&opened.address).usdc_owed_at_leave;
+    assert!(owed > 0, "the leave has to have left something owed");
+    assert_eq!(
+        world.position(&opened.address).state,
+        PositionState::Closing
+    );
+
+    let owner = world.owner.insecure_clone();
+    world.set_token_account(
+        opened.tokens.owner_usdc,
+        world.borrow.liquidity_mint(),
+        owner.pubkey(),
+        owed * 2,
+        TOKEN_PROGRAM_ID,
+    );
+    let repay = world.repay_instruction(&opened, owner.pubkey(), owed);
+    world.send(&[repay], &[&owner]).unwrap_or_else(|failure| {
+        panic!(
+            "repay reverted: {:?}\n{:#?}",
+            failure.err, failure.meta.logs
+        )
+    });
+
+    assert_eq!(
+        world.position(&opened.address).usdc_owed_at_leave,
+        0,
+        "paying the owed amount leaves nothing owed on the account"
+    );
 }

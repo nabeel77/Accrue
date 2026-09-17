@@ -49,6 +49,12 @@ jobs:
       - name: no server only variable name in a browser bundle
         run: pnpm run check:bundle-secrets
 
+      - name: no test code in the app or its bundle
+        run: pnpm run check:no-test-code
+
+      - name: the web app reads no key path and no folder
+        run: pnpm run check:web-reads-no-paths
+
       - name: audit dependencies
         run: pnpm audit --audit-level moderate
 

@@ -6,5 +6,12 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from "./depositReserveLiquidity.js";
+export * from "./initGlobalConfig.js";
+export * from "./initLendingMarket.js";
+export * from "./initReserve.js";
+export * from "./markObligationForDeleveraging.js";
 export * from "./refreshObligation.js";
 export * from "./refreshReserve.js";
+export * from "./updateLendingMarket.js";
+export * from "./updateReserveConfig.js";

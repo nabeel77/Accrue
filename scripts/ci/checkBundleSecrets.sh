@@ -13,9 +13,13 @@ if [ ${#bundle_directories[@]} -eq 0 ]; then
   exit 1
 fi
 
-server_only_names=$(grep -oE '^[A-Z][A-Z0-9_]*=' .env.example \
+# SOLANA_CLUSTER is not one of these: the app tells the browser which chain it is on, and the
+# rescue page picks its own, so the name belongs in a bundle.
+server_only_names=$(cat .env.example apps/web/.env.example apps/keeper/.env.example \
+  | grep -oE '^[A-Z][A-Z0-9_]*=' \
   | tr -d '=' \
   | grep -v '^NEXT_PUBLIC_' \
+  | grep -v '^SOLANA_CLUSTER$' \
   | sort -u)
 
 found_any=0

@@ -14,6 +14,7 @@ import {
   sendAndConfirmTransactionFactory,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
+  setTransactionMessageLoadedAccountsDataSizeLimit,
   setTransactionMessageComputeUnitLimit,
   setTransactionMessagePriorityFeeLamports,
   signTransactionMessageWithSigners,
@@ -24,6 +25,9 @@ import {
 
 export const CONFIG_SEED = 'config';
 const CONFIG_COMPUTE_UNIT_LIMIT = 100_000;
+// Version one budgets no account data at all unless it is asked to, and the program plus its
+// config are more than nothing.
+const LOADED_ACCOUNTS_DATA_SIZE_LIMIT = 64 * 1024 * 1024;
 
 export function requiredVariable(name: string): string {
   const value = process.env[name];
@@ -80,6 +84,11 @@ export async function sendOneInstruction(
     (draft) =>
       setTransactionMessagePriorityFeeLamports(
         BigInt(requiredNumber('PRIORITY_FEE_LAMPORTS')),
+        draft,
+      ),
+    (draft) =>
+      setTransactionMessageLoadedAccountsDataSizeLimit(
+        LOADED_ACCOUNTS_DATA_SIZE_LIMIT,
         draft,
       ),
     (draft) => appendTransactionMessageInstruction(instruction, draft),

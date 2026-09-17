@@ -8,3 +8,4 @@
 
 export * from "./instructions/index.js";
 export * from "./programs/index.js";
+export * from "./types/index.js";
