@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-/** Bumped when the terms change. Nobody enters the app without accepting the current one. */
+// Bumped when the terms change.
 export const CURRENT_TERMS_VERSION = 1;
 
 export const TERMS_TITLE = 'Terms of use';

@@ -3,9 +3,11 @@
 import { useEffect, useState, type JSX } from 'react';
 
 import {
+  CENTRED_SCREEN,
   Heading,
   Mono,
   Muted,
+  NumbersInMono,
   Panel,
   Row,
   Secondary,
@@ -33,7 +35,7 @@ export default function AboutPage(): JSX.Element {
   }, []);
 
   return (
-    <Stack gap={24} style={{ maxWidth: 760 }} testId="about-screen">
+    <Stack gap={24} style={{ ...CENTRED_SCREEN, maxWidth: 760 }} testId="about-screen">
       <Heading level={1}>{ABOUT_COPY.title}</Heading>
 
       <Panel>
@@ -45,6 +47,9 @@ export default function AboutPage(): JSX.Element {
                 {step.heading}
               </strong>
               <Secondary>{step.body}</Secondary>
+              <Muted>
+                <NumbersInMono sentence={step.example} />
+              </Muted>
             </Stack>
           ))}
         </Stack>
@@ -53,8 +58,15 @@ export default function AboutPage(): JSX.Element {
       <Panel>
         <Stack gap={14}>
           <Heading level={2}>{ABOUT_COPY.whatCanGoWrongTitle}</Heading>
-          {ABOUT_COPY.whatCanGoWrong.map((sentence) => (
-            <Secondary key={sentence.slice(0, 40)}>{sentence}</Secondary>
+          {ABOUT_COPY.whatCanGoWrong.map((risk) => (
+            <Stack key={risk.body.slice(0, 40)} gap={6}>
+              <Secondary>{risk.body}</Secondary>
+              {risk.example === null ? null : (
+                <Muted>
+                  <NumbersInMono sentence={risk.example} />
+                </Muted>
+              )}
+            </Stack>
           ))}
         </Stack>
       </Panel>

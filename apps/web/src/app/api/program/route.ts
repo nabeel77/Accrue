@@ -1,6 +1,8 @@
 import { and, gte } from 'drizzle-orm';
 
-import { createDatabaseClient, schema } from '@accrue/db';
+import { schema } from '@accrue/db';
+
+import { db } from '../../../server/database.js';
 
 import { isDevnet, optional } from '../../../server/env.js';
 import { withinTheLimit } from '../../../server/rateLimit.js';
@@ -18,7 +20,7 @@ export async function GET(): Promise<Response> {
 
   let keepersLastHour = 0;
   try {
-    const rows = await createDatabaseClient()
+    const rows = await db()
       .select({ id: schema.keeperRuns.id })
       .from(schema.keeperRuns)
       .where(

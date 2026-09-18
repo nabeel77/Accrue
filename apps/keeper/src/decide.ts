@@ -50,10 +50,6 @@ function theIntervalHasElapsed(
   return lastAt === 0 || now >= lastAt + intervalSeconds;
 }
 
-/**
- * The same conditions the program checks, read the same way, so the keeper only ever proposes
- * what the program would allow. The program decides; a wrong answer here costs a fee, never money.
- */
 export function decideWhatToDo(
   position: PositionUnderWatch,
   limits: GuardLimits,
@@ -132,9 +128,7 @@ function decideWhetherToGrow(
   return { kind: 'grow' };
 }
 
-/**
- * The most stretched position is the one worth a fee first.
- */
+// The most stretched position is the one worth a fee first.
 export function mostStretchedFirst<Watched extends { readonly loanToValueBps: number }>(
   positions: readonly Watched[],
 ): Watched[] {

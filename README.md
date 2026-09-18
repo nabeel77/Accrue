@@ -206,7 +206,7 @@ are ever committed. All of them are safe to run again: each one skips what alrea
 ```
 pnpm run devnet:build-kamino   # builds the lending and farms programs under our own ids
 pnpm run devnet:prices         # creates the prices account and writes one full set
-pnpm run devnet:prices:loop    # rewrites every two minutes so the guard never sees a stale price
+pnpm run devnet:prices:serve   # the price service: rewrites every price, and walks the market
 pnpm run devnet:mints          # the four mock mints
 pnpm run devnet:router         # the swap pools and their vaults
 pnpm run devnet:market         # the lending market, its four reserves and a million USDC of liquidity
@@ -229,19 +229,35 @@ pnpm run devnet:market-controls reserve-status NVDAx obsolete      # then active
 pnpm run devnet:market-controls individual-deleverage-period 3600  # once, before any marking
 pnpm run devnet:market-controls mark-for-deleveraging <obligation> 20
 pnpm run devnet:market-controls mark-for-deleveraging <obligation> 255   # 255 clears it
+pnpm run devnet:market-controls borrow-rate USDC 500                # a loan that costs 5% a year
 ```
+
+A sandbox reserve nobody borrows from lends at nothing, and a loan that costs nothing makes every
+net yield on screen look like the whole yield. `borrow-rate` writes the reserve's curve so the
+first point, which is what today's utilisation pays, is the rate given in basis points.
 
 `pnpm run devnet:prices -- --move NVDAx=-32` moves one price by a percentage, which is how a
 protect is triggered in a demo. The swap router follows the oracle on every write, so a guard's
 fill and its floor never drift apart. `pnpm run devnet:smoke -- --leave-it-open` stops after the
 position is open and holding the yield token, which is what a keeper run needs in front of it.
 
-Run the price loop faster than the config's `ACCRUE_CONFIG_MAX_PRICE_AGE_SLOTS` allows, or the
-guard spends most of each cycle refusing to act on a stale price. At 150 slots that is about a
-minute on devnet, so the loop wants `--interval 30`, not the two minutes the default suggests.
+The price service writes every price on one interval and moves the market on another. It writes
+faster than the config's `ACCRUE_CONFIG_MAX_PRICE_AGE_SLOTS` allows a price to be old, whatever
+`DEVNET_PRICE_WRITE_SECONDS` says, because a guard spends every cycle refusing to act on a stale
+price otherwise. At 150 slots that window is about a minute, so it writes every twenty seconds.
+
+Every five minutes it takes one step per stock: a small random move pulled back toward the book
+price, and about once an hour a fall of twenty to twenty five percent that climbs back over the
+steps that follow, so a protect and later a grow happen on their own. No step leaves a price
+outside the bounds the reserve carries, because the market refuses one that does. The yield token
+is not walked: it rises at its published rate. Every step is logged with the token, the old price,
+the new price and why. The knobs are in `.env.example`.
+
+Behind the faucet's shared secret it also answers `POST /move` with a symbol and a percent, and
+`POST /reset`, which is what the app's own devnet block on position detail calls.
 
 ```
-pnpm run devnet:prices:loop -- --interval 30 &
+pnpm run devnet:prices:serve &
 SOLANA_CLUSTER=devnet tsx apps/keeper/src/index.ts
 ```
 

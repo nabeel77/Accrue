@@ -5,6 +5,9 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 import { createMigrationClient } from './connection.js';
+import { loadTheRootEnvironment } from './rootEnvironment.js';
+
+loadTheRootEnvironment();
 
 const migrationsFolder = resolve(
   dirname(fileURLToPath(import.meta.url)),

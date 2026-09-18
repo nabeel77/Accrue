@@ -3,10 +3,11 @@ import { address, createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/
 import { fetchConfig, findConfigPda } from '@accrue/solana/program';
 import { createSwapRouter } from '@accrue/solana';
 
+import { makeSureTheBountyHasSomewhereToLand } from './bounty.js';
 import { readKeeperConfiguration } from './config.js';
 import { createGuardInstructionBuilder } from './guard.js';
 import { loadFeePayer } from './keypair.js';
-import { shortenAddress } from './logging.js';
+import { shortenAddress, shortenEveryAddress } from './logging.js';
 import { runOneRound, sleep } from './loop.js';
 import { runLogFromTheEnvironment } from './runs.js';
 import { surveyTheProgram } from './survey.js';
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
   );
   const programAddress = address(configuration.programAddress);
   const [configAddress] = await findConfigPda({ programAddress });
-  const runLog = runLogFromTheEnvironment();
+  const runLog = runLogFromTheEnvironment(feePayer.address);
   const router = createSwapRouter({
     rpc,
     jupiterApiUrl: configuration.jupiterApiUrl,
@@ -40,6 +41,19 @@ async function main(): Promise<void> {
     )}, every ${configuration.intervalSeconds}s`,
   );
 
+  try {
+    const made = await makeSureTheBountyHasSomewhereToLand(rpc, feePayer, sender);
+    if (made !== null) {
+      console.log(`made the account the bounty is paid into: ${shortenAddress(made)}`);
+    }
+  } catch (failure) {
+    console.log(
+      shortenEveryAddress(
+        `the account the bounty is paid into could not be made: ${failure instanceof Error ? failure.message : 'unknown'}`,
+      ),
+    );
+  }
+
   for (;;) {
     try {
       const config = await fetchConfig(rpc, configAddress);
@@ -48,6 +62,10 @@ async function main(): Promise<void> {
         programAddress,
         feePayer.address,
         config.data,
+        runLog,
+        (line) => {
+          console.log(shortenEveryAddress(line));
+        },
       );
       const builder = createGuardInstructionBuilder({
         config: config.data,
@@ -69,7 +87,9 @@ async function main(): Promise<void> {
       );
     } catch (failure) {
       console.log(
-        `round failed: ${failure instanceof Error ? failure.message : 'unknown'}`,
+        shortenEveryAddress(
+          `round failed: ${failure instanceof Error ? failure.message : 'unknown'}`,
+        ),
       );
     }
     await sleep(configuration.intervalSeconds);

@@ -10,6 +10,7 @@ export const DEVNET: ClusterAddresses = {
   scopeProgram: address('5Dgwh9uaimvaibD6xNxsE2yMRGRvbnq6ssVtTouAhLbA'),
   scopePriceAccount: address('C88HB7ajhR6ZrAawBwt9FV2yFnvQWTYy6Atg6pFSPX9j'),
   lendingMarket: address('DXfxsBp3TZmGLr3GPqGjRwuWZRGLXcBp8bZ6ecX2x8FS'),
+  lookupTable: address('9GVJixHWcRbmkabrv1PegZDd16qypep4tEx6f2HMQbS3'),
   mints: {
     USDC: address('BUxHx9ydngE2JjZaCi6NYBPdpLtewo3NVsbq9DBpHjpy'),
     NVDAx: address('7JMviovZ1qEJBhXhVwG9zXqViBpc2cQZs9VN3ABXrpxH'),

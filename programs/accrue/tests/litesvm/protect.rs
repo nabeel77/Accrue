@@ -284,6 +284,100 @@ fn a_second_protect_inside_the_interval_is_refused() {
 }
 
 #[test]
+fn a_second_protect_inside_the_interval_is_allowed_once_the_market_could_seize_it() {
+    let (mut world, opened, keeper) = a_position_that_needs_the_guard("honest_swap.so");
+    let bounty_account = keeper_usdc_account(&mut world, &keeper);
+
+    let plan = plan_the_sale(&world, &opened);
+    let instruction = world.protect_instruction(
+        &opened,
+        keeper.pubkey(),
+        bounty_account,
+        0,
+        honest_route_data(plan.destination_to_sell, plan.usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world.send(&[instruction], &[&keeper]).unwrap();
+
+    // Far enough for the market to liquidate, which is where waiting costs the owner everything.
+    world.move_the_price(world.collateral.snapshot.scope_feed_index, 55, 100);
+    world.refresh_the_market_from_outside();
+    world.refresh_the_obligation_from_outside(opened.obligation);
+    world.move_time_forward(MIN_PROTECT_INTERVAL_SECONDS - 60);
+
+    let liquidation_threshold_bps =
+        world.collateral.snapshot.liquidation_threshold_pct as u16 * 100;
+    assert!(
+        world.obligation_loan_to_value_bps(&opened.obligation) >= liquidation_threshold_bps,
+        "this test only means something with the position past the liquidation line"
+    );
+
+    let debt_before = world.obligation_debt(&opened.obligation);
+    let plan = plan_the_sale(&world, &opened);
+    let instruction = world.protect_instruction(
+        &opened,
+        keeper.pubkey(),
+        bounty_account,
+        0,
+        honest_route_data(plan.destination_to_sell, plan.usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world
+        .send(&[instruction], &[&keeper])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "a position the market could seize must not wait out the interval: {:?}\n{:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+    assert!(world.obligation_debt(&opened.obligation) < debt_before);
+}
+
+#[test]
+fn the_owner_never_waits_out_the_interval() {
+    let (mut world, opened, keeper) = a_position_that_needs_the_guard("honest_swap.so");
+    let bounty_account = keeper_usdc_account(&mut world, &keeper);
+
+    let plan = plan_the_sale(&world, &opened);
+    let instruction = world.protect_instruction(
+        &opened,
+        keeper.pubkey(),
+        bounty_account,
+        0,
+        honest_route_data(plan.destination_to_sell, plan.usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world.send(&[instruction], &[&keeper]).unwrap();
+
+    world.move_the_price(world.collateral.snapshot.scope_feed_index, 80, 100);
+    world.refresh_the_market_from_outside();
+    world.refresh_the_obligation_from_outside(opened.obligation);
+    world.move_time_forward(MIN_PROTECT_INTERVAL_SECONDS - 60);
+
+    let owner = world.owner.insecure_clone();
+    let owner_usdc = opened.tokens.owner_usdc;
+    let debt_before = world.obligation_debt(&opened.obligation);
+    let plan = plan_the_sale(&world, &opened);
+    let instruction = world.protect_instruction(
+        &opened,
+        owner.pubkey(),
+        owner_usdc,
+        plan.minimum_usdc_out,
+        honest_route_data(plan.destination_to_sell, plan.usdc_out),
+        selling_route(&world, &opened, None),
+    );
+    world
+        .send(&[instruction], &[&owner])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "the owner must be able to protect inside the interval: {:?}\n{:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+    assert!(world.obligation_debt(&opened.obligation) < debt_before);
+}
+
+#[test]
 fn a_stale_oracle_stops_a_stranger_and_never_stops_the_owner() {
     let (mut world, opened, keeper) = a_position_that_needs_the_guard("honest_swap.so");
     let bounty_account = keeper_usdc_account(&mut world, &keeper);

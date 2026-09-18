@@ -6,7 +6,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./freshness": "./src/positions/freshness.ts",
+    "./deposit": "./src/positions/defaults.ts",
+    "./borrow-more": "./src/positions/borrowMore.ts"
   },
   "scripts": {
     "build": "tsc --build",

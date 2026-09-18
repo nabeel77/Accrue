@@ -11,7 +11,6 @@ import {
   JUPITER_V6_PROGRAM_ADDRESS,
   KAMINO_FARMS_PROGRAM_ADDRESS,
   KAMINO_LENDING_PROGRAM_ADDRESS,
-  sandboxRouteOutput,
   TOKEN_PROGRAM_ADDRESS,
   type SwapRouter,
 } from '@accrue/solana';
@@ -71,10 +70,6 @@ const MAX_SLIPPAGE_BPS = 100;
 // USDC for unwind to take the difference from.
 const USDC_FOR_THE_SHORTFALL = 50;
 
-/**
- * The generated client stands a missing optional account in as the Accrue program itself, and the
- * program checks each of these against the cluster module, so they are named every time.
- */
 const THE_PROGRAMS_EVERY_CALL_NAMES = {
   farmsProgram: KAMINO_FARMS_PROGRAM_ADDRESS,
   kaminoProgram: KAMINO_LENDING_PROGRAM_ADDRESS,
@@ -170,7 +165,7 @@ async function fundTheOwner(world: World): Promise<void> {
   report('the owner is funded with stock and with USDC for the shortfall', signature);
 }
 
-/** The program expects every one of these to exist already, so the owner opens them first. */
+// The program expects every one of these to exist already, so the owner opens them first.
 async function openTheTokenAccounts(world: World, at: PositionAddresses): Promise<void> {
   const pairs: readonly { account: Address; owner: Address; token: SandboxToken }[] = [
     { account: at.ownerUsdc, owner: world.owner.address, token: world.borrow },
@@ -255,11 +250,6 @@ async function positionAddresses(world: World): Promise<PositionAddresses> {
   };
 }
 
-/**
- * open_position can do the whole thing in one call: deposit, borrow and swap, with the route
- * carried inline. The two call shape the rest of this script uses is what the program's own suite
- * does, so a hostile route can be aimed at the swap on its own; it is not a devnet limit.
- */
 async function openInOneTransaction(world: World, at: PositionAddresses): Promise<void> {
   const route = await world.router.findRoute({
     inputMint: mintOf(world, world.borrow),
@@ -271,7 +261,7 @@ async function openInOneTransaction(world: World, at: PositionAddresses): Promis
   });
   const instruction = await openPositionInstruction(world, at, {
     leaveUsdcForLaterSwap: false,
-    minimumDestinationAmount: sandboxRouteOutput(route),
+    minimumDestinationAmount: route.minimumAmountOut,
     jupiterRouteData: route.data,
   });
   const whole = {
@@ -394,7 +384,7 @@ async function buyTheDestination(world: World, at: PositionAddresses): Promise<v
     obligation: at.obligation,
     collateralReserve: reserveOf(world, world.collateral),
     swapProgram: JUPITER_V6_PROGRAM_ADDRESS,
-    minimumDestinationAmount: sandboxRouteOutput(route),
+    minimumDestinationAmount: route.minimumAmountOut,
     jupiterRouteData: route.data,
   });
 
@@ -407,7 +397,7 @@ async function buyTheDestination(world: World, at: PositionAddresses): Promise<v
   report('buy_destination: the borrowed USDC becomes the yield token', signature);
 }
 
-/** Every run starts from the same prices, so one run never leaves the next one somewhere odd. */
+// Every run starts from the same prices, so one run never leaves the next one somewhere odd.
 async function resetThePrices(world: World): Promise<void> {
   const starting = startingPrices();
   savePrices(starting);
@@ -474,7 +464,7 @@ async function unwindThePosition(world: World, at: PositionAddresses): Promise<v
     borrowTokenProgram: TOKEN_PROGRAM_ADDRESS,
     destinationTokenProgram: tokenProgramAddress(world.destination),
     ...THE_PROGRAMS_EVERY_CALL_NAMES,
-    minimumUsdcOut: sandboxRouteOutput(route),
+    minimumUsdcOut: route.minimumAmountOut,
     jupiterRouteData: route.data,
   });
 
@@ -530,7 +520,7 @@ async function rescueThePosition(world: World, at: PositionAddresses): Promise<v
 // The program repays the smaller of what is asked for and what is owed, so this asks for all of it.
 const REPAY_EVERYTHING = 2n ** 64n - 1n;
 
-/** Rescue hands the tokens back but never repays, so settling the loan is its own step. */
+// Rescue hands the tokens back but never repays, so settling the loan is its own step.
 async function repayEverything(world: World, at: PositionAddresses): Promise<void> {
   const borrowReserve = reserveOf(world, world.borrow);
   const borrowVaults = reserveAccounts(await readReserve(world, borrowReserve));
@@ -633,11 +623,6 @@ async function buildTheWorld(): Promise<World> {
   };
 }
 
-/**
- * Rescue hands back every token the position holds and withdraws what the market allows, which
- * while a loan is outstanding is not all of the collateral. So it runs, the loan is settled from
- * the owner's own wallet, and it runs again to take back what the debt had been holding.
- */
 const OBLIGATION_HAS_DEBT_OFFSET = 2_287;
 
 async function theObligationStillOwes(

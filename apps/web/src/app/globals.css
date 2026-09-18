@@ -42,6 +42,30 @@ a:hover {
   outline-offset: 2px;
 }
 
+/* The three columns need about 900 pixels. Under that they stack in the order they are written:
+   stock, amount, earn in. */
+@media (max-width: 900px) {
+  .deposit-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@keyframes landing-scroll-hint {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(5px);
+  }
+}
+
+.landing-scroll-hint {
+  animation: landing-scroll-hint 2.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

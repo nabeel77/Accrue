@@ -11,7 +11,9 @@ import {
 import type { RouteRequest, SwapRoute } from '../jupiter/route.js';
 import { JUPITER_V6_PROGRAM_ADDRESS } from '../programIds.js';
 import { decodeMintDecimals } from '../token.js';
-import type { SwapRouter } from './router.js';
+import { NoRouteFound, type SwapRouter } from './router.js';
+
+const BASIS_POINTS = 10_000n;
 
 export const SANDBOX_POOL_SEED = 'pool';
 export const SANDBOX_SWAP_AUTHORITY_SEED = 'swap';
@@ -132,11 +134,7 @@ function littleEndian(value: bigint): number[] {
   return bytes;
 }
 
-/**
- * The sandbox pool holds one rate: how many whole output tokens one whole input token buys. The
- * fill is that rate applied to the size asked for, rounded down, which is the direction a real
- * router would round too.
- */
+// The sandbox pool holds one rate: how many whole output tokens one whole input token buys.
 export function fillAtTheSandboxRate(
   amountIn: bigint,
   pool: SandboxPool,
@@ -147,11 +145,6 @@ export function fillAtTheSandboxRate(
   return scaledIn / (pool.denominator * 10n ** BigInt(inputDecimals));
 }
 
-/**
- * The sandbox router's whole instruction is the size in and the size out, so what it will pay can
- * be read straight back off the route. An owner instruction has to name its own floor, and this is
- * the honest one.
- */
 export function sandboxRouteOutput(route: SwapRoute): bigint {
   if (route.data.length !== 16) {
     throw new Error('that route did not come from the sandbox router');
@@ -178,7 +171,7 @@ export function createSandboxRouter(options: SandboxRouterOptions): SwapRouter {
         .getAccountInfo(poolAddress, { encoding: 'base64' })
         .send();
       if (poolAccount === null) {
-        throw new Error('the sandbox router holds no pool for this pair');
+        throw new NoRouteFound('the sandbox router holds no pool for this pair');
       }
       const pool = decodeSandboxPool(
         Uint8Array.from(Buffer.from(poolAccount.data[0], 'base64')),
@@ -193,7 +186,7 @@ export function createSandboxRouter(options: SandboxRouterOptions): SwapRouter {
         buying.decimals,
       );
       if (amountOut === 0n) {
-        throw new Error('the sandbox router would fill this size at nothing');
+        throw new NoRouteFound('the sandbox router would fill this size at nothing');
       }
 
       const authority = await findSandboxSwapAuthority(swapProgram);
@@ -227,6 +220,8 @@ export function createSandboxRouter(options: SandboxRouterOptions): SwapRouter {
         ]),
         // The sandbox pool fills at its rate whatever the size, so there is no impact to report.
         quote: { amountOut, priceImpactBps: 0 },
+        minimumAmountOut:
+          amountOut - (amountOut * BigInt(request.slippageBps)) / BASIS_POINTS,
       };
     },
   };

@@ -1,4 +1,4 @@
-/** The seven lines, in this order, filled from the server response and nowhere else. */
+// The seven lines, in this order, filled from the server response and nowhere else.
 export interface ReviewValues {
   readonly collateralAmount: string;
   readonly stockSymbol: string;

@@ -2,11 +2,7 @@ import { address, type Address } from '@solana/kit';
 
 import { clusterName, currentCluster } from './clusters/index.js';
 
-/**
- * A stock we accept as collateral. The list is static and compared by mint address, never by
- * symbol, so a token that borrows a name cannot get in. The reserve is here for reference; every
- * number the app shows about it is read from the reserve itself.
- */
+// A stock we accept as collateral.
 export interface CollateralToken {
   readonly symbol: string;
   readonly name: string;
@@ -15,7 +11,7 @@ export interface CollateralToken {
   readonly issuer: string;
 }
 
-/** The xStocks market's stock reserves, read live on 14 September 2026. */
+// The xStocks market's stock reserves, read live on 14 September 2026.
 const MAINNET_COLLATERAL: readonly CollateralToken[] = [
   {
     symbol: 'SPYx',
@@ -89,7 +85,7 @@ const MAINNET_COLLATERAL: readonly CollateralToken[] = [
   },
 ];
 
-/** The sandbox has two mock stocks, shaped like the real ones and worth nothing. */
+// The sandbox has two mock stocks, shaped like the real ones and worth nothing.
 function sandboxCollateral(): CollateralToken[] {
   const cluster = currentCluster();
   const wanted: readonly { symbol: string; name: string }[] = [
@@ -109,7 +105,7 @@ export function collateralAllowlist(): readonly CollateralToken[] {
   return clusterName() === 'mainnet' ? MAINNET_COLLATERAL : sandboxCollateral();
 }
 
-/** Matched on the mint and nothing else. A symbol is a label, not an identity. */
+// Matched on the mint and nothing else.
 export function collateralForMint(mint: Address): CollateralToken | null {
   return collateralAllowlist().find((token) => token.mint === mint) ?? null;
 }

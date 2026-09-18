@@ -88,6 +88,24 @@ pub mod accrue {
         handle_add_collateral(context, collateral_amount)
     }
 
+    pub fn top_up<'info>(
+        context: Context<'info, TopUp<'info>>,
+        collateral_amount: u64,
+        borrow_amount: u64,
+        minimum_destination_amount: u64,
+        leave_usdc_for_later_swap: bool,
+        jupiter_route_data: Vec<u8>,
+    ) -> Result<()> {
+        handle_top_up(
+            context,
+            collateral_amount,
+            borrow_amount,
+            minimum_destination_amount,
+            leave_usdc_for_later_swap,
+            jupiter_route_data,
+        )
+    }
+
     pub fn repay(context: Context<Repay>, requested_amount: u64) -> Result<()> {
         handle_repay(context, requested_amount)
     }

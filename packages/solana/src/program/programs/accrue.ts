@@ -30,6 +30,7 @@ import {
   parseSetPausedInstruction,
   parseSetStrategyInstruction,
   parseSetSunsetInstruction,
+  parseTopUpInstruction,
   parseUnwindInstruction,
   parseUpdateConfigInstruction,
   parseWithdrawCollateralInstruction,
@@ -46,6 +47,7 @@ import {
   type ParsedSetPausedInstruction,
   type ParsedSetStrategyInstruction,
   type ParsedSetSunsetInstruction,
+  type ParsedTopUpInstruction,
   type ParsedUnwindInstruction,
   type ParsedUpdateConfigInstruction,
   type ParsedWithdrawCollateralInstruction,
@@ -104,6 +106,7 @@ export enum AccrueInstruction {
   SetPaused,
   SetStrategy,
   SetSunset,
+  TopUp,
   Unwind,
   UpdateConfig,
   WithdrawCollateral,
@@ -260,6 +263,17 @@ export function identifyAccrueInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([236, 225, 96, 9, 60, 106, 77, 208]),
+      ),
+      0,
+    )
+  ) {
+    return AccrueInstruction.TopUp;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([66, 99, 1, 75, 47, 72, 63, 85]),
       ),
       0,
@@ -336,6 +350,9 @@ export type ParsedAccrueInstruction<
   | ({
       instructionType: AccrueInstruction.SetSunset;
     } & ParsedSetSunsetInstruction<TProgram>)
+  | ({
+      instructionType: AccrueInstruction.TopUp;
+    } & ParsedTopUpInstruction<TProgram>)
   | ({
       instructionType: AccrueInstruction.Unwind;
     } & ParsedUnwindInstruction<TProgram>)
@@ -440,6 +457,13 @@ export function parseAccrueInstruction<TProgram extends string>(
       return {
         instructionType: AccrueInstruction.SetSunset,
         ...parseSetSunsetInstruction(instruction),
+      };
+    }
+    case AccrueInstruction.TopUp: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: AccrueInstruction.TopUp,
+        ...parseTopUpInstruction(instruction),
       };
     }
     case AccrueInstruction.Unwind: {

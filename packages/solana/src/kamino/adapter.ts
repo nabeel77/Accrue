@@ -17,19 +17,19 @@ import { borrowRateBps, supplyRateBps, utilisationBps } from './rates.js';
 const PERCENT_TO_BASIS_POINTS = 100;
 const SCALED_FRACTION_ONE = 1n << 60n;
 
-/** Everything a screen needs about one reserve, read from the reserve itself. */
+// Everything a screen needs about one reserve, read from the reserve itself.
 export interface ReserveReading {
   readonly address: Address;
   readonly snapshot: ReserveSnapshot;
   readonly mint: Address;
   readonly decimals: number;
-  /** Read from the reserve, never assumed: the market is the only place these two live. */
+  // Read from the reserve, never assumed: the market is the only place these two live.
   readonly maxLoanToValueBps: number;
   readonly liquidationThresholdBps: number;
   readonly borrowRateBps: number;
   readonly supplyRateBps: number;
   readonly utilisationBps: number;
-  /** The price the lending market itself values the collateral at, which a liquidator sees. */
+  // The price the lending market itself values the collateral at, which a liquidator sees.
   readonly oraclePriceScaled: bigint;
   readonly availableLiquidity: bigint;
   readonly borrowedAmount: bigint;
@@ -37,7 +37,7 @@ export interface ReserveReading {
   readonly deleverage: ReserveDeleverageFlags;
 }
 
-/** What the market has switched on that could take a position apart without its owner. */
+// What the market has switched on that could take a position apart without its owner.
 export interface ReserveDeleverageFlags {
   readonly isObsolete: boolean;
   readonly autodeleverageEnabled: boolean;
@@ -50,7 +50,9 @@ export async function fetchAccount(
   rpc: Rpc<SolanaRpcApi>,
   address: Address,
 ): Promise<Uint8Array> {
-  const { value } = await rpc.getAccountInfo(address, { encoding: 'base64' }).send();
+  const { value } = await rpc
+    .getAccountInfo(address, { encoding: 'base64', commitment: 'confirmed' })
+    .send();
   if (value === null) {
     throw new Error('that account is not on this cluster');
   }
@@ -117,18 +119,16 @@ export async function readLendingMarket(
   return decodeLendingMarket(await fetchAccount(rpc, market));
 }
 
-/**
- * Obligations are found from the position address, never from a wallet. A position PDA is the
- * obligation's owner, so this is the only lookup the app needs and it cannot be pointed at
- * somebody else's wallet.
- */
+// Obligations are found from the position address, never from a wallet.
 export async function readObligationForPosition(
   rpc: Rpc<SolanaRpcApi>,
   position: Address,
   lendingMarket: Address,
 ): Promise<{ address: Address; snapshot: ObligationSnapshot } | null> {
   const address = await findKaminoObligation({ owner: position, lendingMarket });
-  const { value } = await rpc.getAccountInfo(address, { encoding: 'base64' }).send();
+  const { value } = await rpc
+    .getAccountInfo(address, { encoding: 'base64', commitment: 'confirmed' })
+    .send();
   if (value === null) {
     return null;
   }
@@ -140,18 +140,18 @@ export async function readObligationForPosition(
 
 export interface PriceReading {
   readonly price: ScopePrice;
-  /** How many slots old the price is, which is what the program measures staleness in. */
+  // How many slots old the price is, which is what the program measures staleness in.
   readonly ageInSlots: bigint;
 }
 
-/** The oracle price and its age, read from the account the reserve itself names. */
+// The oracle price and its age, read from the account the reserve itself names.
 export async function readScopePrice(
   rpc: Rpc<SolanaRpcApi>,
   scopePriceAccount: Address,
   feedIndex: number,
 ): Promise<PriceReading> {
   const { value, context } = await rpc
-    .getAccountInfo(scopePriceAccount, { encoding: 'base64' })
+    .getAccountInfo(scopePriceAccount, { encoding: 'base64', commitment: 'confirmed' })
     .send();
   if (value === null) {
     throw new Error('that oracle account is not on this cluster');

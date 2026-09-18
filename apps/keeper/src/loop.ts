@@ -7,13 +7,9 @@ import {
   type GuardLimits,
   type PositionUnderWatch,
 } from './decide.js';
-import { shortenAddress } from './logging.js';
+import { shortenAddress, shortenEveryAddress } from './logging.js';
 import type { RunLog } from './runs.js';
 
-/**
- * What the round carries about one position: what the decision needs, and the `subject` the
- * builder needs to assemble the call. The loop itself never looks inside the subject.
- */
 export interface Candidate<Subject> {
   readonly address: string;
   readonly loanToValueBps: number;
@@ -37,10 +33,7 @@ export interface RoundReport {
   readonly landed: number;
 }
 
-/**
- * The keeper only proposes. Every condition is checked again on chain, so a wrong decision here
- * costs the keeper a fee and never costs an owner anything.
- */
+// The keeper only proposes.
 export async function runOneRound<Subject>(
   round: Round<Subject>,
   builder: GuardInstructionBuilder<Subject>,
@@ -55,7 +48,17 @@ export async function runOneRound<Subject>(
     const decision = decideWhatToDo(candidate.watched, round.limits, {
       unixTimestamp: round.unixTimestamp,
     });
+    // A round that looked and found nothing to do is still a round, and it is the only way a
+    // screen can say the guard is being run at all.
     if (decision.kind === 'wait') {
+      await runLog.record({
+        positionAddress: candidate.address,
+        kind: 'check',
+        outcome: 'skipped',
+        signature: null,
+        reason: decision.reason,
+        durationMs: 0,
+      });
       continue;
     }
 
@@ -85,7 +88,9 @@ export async function runOneRound<Subject>(
         durationMs: Date.now() - startedAt,
       });
       report(
-        `${decision.kind} reverted on ${shortenAddress(candidate.address)}: ${reason}`,
+        shortenEveryAddress(
+          `${decision.kind} reverted on ${shortenAddress(candidate.address)}: ${reason}`,
+        ),
       );
     }
   }
@@ -93,10 +98,6 @@ export async function runOneRound<Subject>(
   return { considered: round.candidates.length, attempted, landed };
 }
 
-/**
- * A simulation failure says only that it failed; what the program refused is one or more causes
- * down, and that is the part worth writing down.
- */
 function whyItFailed(failure: unknown): string {
   const reasons: string[] = [];
   let current: unknown = failure;

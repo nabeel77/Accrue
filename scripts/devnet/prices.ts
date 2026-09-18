@@ -17,6 +17,7 @@ import {
   mergeIntoRegistry,
   namedSigner,
   readRegistry,
+  reportServiceSignature,
   reportSignature,
   reportStep,
   sendInstructions,
@@ -28,7 +29,6 @@ import { SANDBOX_TOKENS, scopeValueFor, tokenBySymbol } from './tokens.js';
 
 const ORACLE_PRICES_ACCOUNT_LENGTH = 28_712n;
 const PRICE_ADMIN_SEED = 'admin';
-const DEFAULT_LOOP_SECONDS = 120;
 const SYSTEM_PROGRAM_ADDRESS = '11111111111111111111111111111111' as Address;
 
 function anchorDiscriminator(name: string): Uint8Array {
@@ -147,7 +147,7 @@ function setPricesInstruction(
   };
 }
 
-async function ensureThePricesAccountExists(
+export async function ensureThePricesAccountExists(
   cluster: Cluster,
   admin: KeyPairSigner,
   programAddress: Address,
@@ -217,11 +217,12 @@ export async function writeEveryPrice(
 
 function argument(name: string): string | undefined {
   const flag = `--${name}`;
-  const index = process.argv.indexOf(flag);
-  if (index < 0) {
-    return undefined;
+  const joined = process.argv.find((given) => given.startsWith(`${flag}=`));
+  if (joined !== undefined) {
+    return joined.slice(flag.length + 1);
   }
-  return process.argv[index + 1];
+  const index = process.argv.indexOf(flag);
+  return index < 0 ? undefined : process.argv[index + 1];
 }
 
 function applyTheMove(values: Record<string, number>): Record<string, number> {
@@ -262,37 +263,28 @@ async function main(): Promise<void> {
   }
   savePrices(values);
 
-  const shouldLoop = process.argv.includes('--loop');
-  const intervalSeconds = Number(argument('interval') ?? DEFAULT_LOOP_SECONDS);
+  const written = currentPrices();
+  const signature = await writeEveryPrice(
+    cluster,
+    admin,
+    priceFeed.address,
+    prices,
+    written,
+  );
+  const shown = SANDBOX_TOKENS.map(
+    (token) => `${token.symbol} ${written[token.symbol]?.toFixed(4) ?? '—'}`,
+  ).join('  ');
+  reportStep(`${new Date().toISOString()}  ${shown}`);
+  reportServiceSignature('prices written', signature);
 
-  for (;;) {
-    const written = currentPrices();
-    const signature = await writeEveryPrice(
-      cluster,
-      admin,
-      priceFeed.address,
-      prices,
-      written,
-    );
-    const shown = SANDBOX_TOKENS.map(
-      (token) => `${token.symbol} ${written[token.symbol]?.toFixed(4) ?? '—'}`,
-    ).join('  ');
-    reportStep(`${new Date().toISOString()}  ${shown}`);
-    reportSignature('prices written', signature);
-
-    const rates = await setThePoolRates(
-      cluster,
-      admin,
-      (await namedSigner('honest-swap')).address,
-      written,
-    );
-    if (rates !== undefined) {
-      reportSignature('router rates written', rates);
-    }
-    if (!shouldLoop) {
-      return;
-    }
-    await new Promise((wake) => setTimeout(wake, intervalSeconds * 1_000));
+  const rates = await setThePoolRates(
+    cluster,
+    admin,
+    (await namedSigner('honest-swap')).address,
+    written,
+  );
+  if (rates !== undefined) {
+    reportServiceSignature('router rates written', rates);
   }
 }
 

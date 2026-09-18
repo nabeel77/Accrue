@@ -1,8 +1,8 @@
 import type { ReserveSnapshot, WithdrawalCapSnapshot } from './layout.js';
 
-/** What is left of a rolling cap right now, and when the window it belongs to starts again. */
+// What is left of a rolling cap right now, and when the window it belongs to starts again.
 export interface CapacityLeft {
-  /** Zero when the market has turned this cap off, which it says with a capacity below zero. */
+  // Zero when the market has turned this cap off, which it says with a capacity below zero.
   readonly isCapped: boolean;
   readonly capacity: bigint;
   readonly remaining: bigint;
@@ -11,10 +11,6 @@ export interface CapacityLeft {
 
 const NO_CAP = -1n;
 
-/**
- * The market counts an outflow against a window that restarts on its own clock, so a cap that
- * looks full can already be empty again. Anything shown to a user has to say when.
- */
 export function capacityLeft(
   cap: WithdrawalCapSnapshot,
   nowUnixTimestamp: bigint,
@@ -43,7 +39,7 @@ export function capacityLeft(
   };
 }
 
-/** Both of the caps the market puts on a reserve, in the shape a screen shows them. */
+// Both of the caps the market puts on a reserve, in the shape a screen shows them.
 export interface ReserveCaps {
   readonly withdrawals: CapacityLeft;
   readonly borrows: CapacityLeft;

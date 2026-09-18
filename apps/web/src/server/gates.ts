@@ -8,14 +8,9 @@ import {
   acknowledgementIsCurrent,
   termsAreCurrent,
 } from '@accrue/core';
-import { createDatabaseClient, schema, type AccrueDatabase } from '@accrue/db';
+import { schema } from '@accrue/db';
 
-let database: AccrueDatabase | null = null;
-
-function db(): AccrueDatabase {
-  database ??= createDatabaseClient();
-  return database;
-}
+import { db } from './database.js';
 
 export interface WalletStanding {
   readonly address: string;

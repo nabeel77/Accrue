@@ -30,11 +30,6 @@ function ageInSlots(price: ScopePrice, currentSlot: bigint): number {
     : Number(currentSlot - price.lastUpdatedSlot);
 }
 
-/**
- * Everything one round knows about one position, in the two shapes it is used in: what the
- * decision reads, and what the assembly needs. The two prices are the two the program checks the
- * age of on a permissionless call, so the keeper waits on exactly what would revert.
- */
 export function watchThePosition(reading: ChainReading): Candidate<GuardSubject> {
   const loanToValueBps = reading.market.obligation.loanToValueBps;
   const oldestPriceAgeSlots = Math.max(

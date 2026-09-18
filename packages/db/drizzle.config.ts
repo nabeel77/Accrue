@@ -1,5 +1,9 @@
 import { defineConfig } from 'drizzle-kit';
 
+import { loadTheRootEnvironment } from './src/rootEnvironment.js';
+
+loadTheRootEnvironment();
+
 export default defineConfig({
   dialect: 'postgresql',
   schema: './src/schema/index.ts',

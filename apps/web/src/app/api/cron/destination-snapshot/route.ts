@@ -1,5 +1,7 @@
 import { DESTINATIONS } from '@accrue/core';
-import { createDatabaseClient, schema } from '@accrue/db';
+import { schema } from '@accrue/db';
+
+import { db } from '../../../../server/database.js';
 
 import { cronIsAuthorised } from '../../../../server/cron.js';
 import { optional } from '../../../../server/env.js';
@@ -37,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
       ];
     });
     if (rows.length > 0) {
-      await createDatabaseClient().insert(schema.destinationSnapshots).values(rows);
+      await db().insert(schema.destinationSnapshots).values(rows);
     }
     return ok({ written: rows.length });
   } catch (failure) {

@@ -13,10 +13,7 @@ import {
   type Position,
 } from '@accrue/solana/program';
 
-/**
- * Where the state byte sits inside a Position account. Proved against the generated encoder in
- * `positions.test.ts`, so a change to the account layout fails a test rather than the filter.
- */
+// Where the state byte sits inside a Position account.
 export const POSITION_STATE_OFFSET = 338n;
 
 export interface WatchedPosition {

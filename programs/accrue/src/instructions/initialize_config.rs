@@ -17,7 +17,7 @@ pub struct InitializeConfig<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    /// CHECK: stored as the address fees are sent to; never read or written here
+    /// CHECK: stored as the address fees are sent to. never read or written here
     pub treasury: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,

@@ -1,19 +1,10 @@
 import {
   AccountRole,
   address,
-  appendTransactionMessageInstructions,
-  compileTransaction,
   createNoopSigner,
   createSolanaRpc,
-  createTransactionMessage,
   getAddressEncoder,
-  getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
-  pipe,
-  setTransactionMessageComputeUnitLimit,
-  setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash,
-  setTransactionMessageLoadedAccountsDataSizeLimit,
   type Address,
   type Base58EncodedBytes,
   type Base64EncodedWireTransaction,
@@ -23,6 +14,7 @@ import {
   type SolanaRpcApi,
 } from '@solana/kit';
 
+import { compileTheFirstThatFits } from '@accrue/solana/transactions';
 import { DEVNET, MAINNET } from '@accrue/solana/clusters';
 import { decodeObligation, decodeReserve } from '@accrue/solana/kamino';
 import {
@@ -43,7 +35,7 @@ const LENDING_MARKET_AUTHORITY_SEED = 'lma';
 const FARM_USER_STATE_SEED = 'user';
 const POSITION_OWNER_OFFSET = 8n;
 const COMPUTE_UNIT_LIMIT = 600_000;
-const LOADED_ACCOUNTS_DATA_SIZE_LIMIT = 64 * 1024 * 1024;
+const PRIORITY_FEE_LAMPORTS = 50_000n;
 const CREATE_ASSOCIATED_TOKEN_IDEMPOTENT = new Uint8Array([1]);
 const USDC_DECIMALS = 6;
 const CONFIRMATION_ATTEMPTS = 60;
@@ -58,17 +50,19 @@ export type ClusterChoice = 'devnet' | 'mainnet';
 export interface ClusterSetting {
   readonly label: string;
   readonly endpoint: string;
+  readonly lookupTable: Address | null;
   readonly kaminoLendingProgram: Address;
   readonly kaminoFarmsProgram: Address;
-  /** Every reserve of the market, so the collateral one can be found by its mint. */
+  // Every reserve of the market, so the collateral one can be found by its mint.
   readonly reserves: readonly Address[];
 }
 
-/** Devnet first, because it is the one anybody can try without risking a real position. */
+// Devnet first, because it is the one anybody can try without risking a real position.
 export const CLUSTERS: Readonly<Record<ClusterChoice, ClusterSetting>> = {
   devnet: {
     label: 'devnet',
     endpoint: 'https://api.devnet.solana.com',
+    lookupTable: DEVNET.lookupTable,
     kaminoLendingProgram: DEVNET.kaminoLendingProgram,
     kaminoFarmsProgram: DEVNET.kaminoFarmsProgram,
     reserves: Object.values(DEVNET.reserves),
@@ -76,6 +70,7 @@ export const CLUSTERS: Readonly<Record<ClusterChoice, ClusterSetting>> = {
   mainnet: {
     label: 'mainnet',
     endpoint: 'https://api.mainnet-beta.solana.com',
+    lookupTable: MAINNET.lookupTable,
     kaminoLendingProgram: MAINNET.kaminoLendingProgram,
     kaminoFarmsProgram: MAINNET.kaminoFarmsProgram,
     reserves: Object.values(MAINNET.reserves),
@@ -132,7 +127,7 @@ function bytesOf(data: readonly [string, string]): Uint8Array {
   return Uint8Array.from(atob(data[0]), (character) => character.charCodeAt(0));
 }
 
-/** Every position this wallet owns, found from the chain alone with no index and no server. */
+// Every position this wallet owns, found from the chain alone with no index and no server.
 export async function positionsOwnedBy(
   rpc: Rpc<SolanaRpcApi>,
   owner: Address,
@@ -172,7 +167,7 @@ export async function positionsOwnedBy(
   return found;
 }
 
-/** A mint's token program is the program that owns its account, never an assumption. */
+// A mint's token program is the program that owns its account, never an assumption.
 async function tokenProgramsOf(
   rpc: Rpc<SolanaRpcApi>,
   position: Position,
@@ -212,12 +207,9 @@ function createAssociatedTokenAccount(input: {
 }
 
 export interface RescuePlan {
-  /** Unconditional: this is the one that has to land whatever else is wrong. */
+  // Unconditional: this is the one that has to land whatever else is wrong.
   readonly rescue: Instruction[];
-  /**
-   * Settling the loan and closing the account, one transaction each. Repaying frees the
-   * collateral, a second rescue withdraws it, and only an empty position can be closed.
-   */
+  // Settling the loan and closing the account, one transaction each.
   readonly settle: Instruction[][];
   readonly stillOwedUsdc: string | null;
 }
@@ -248,10 +240,7 @@ async function reserveHoldingTheMint(
   return null;
 }
 
-/**
- * Rescue has no conditions: no oracle, no route, no keeper, no config. Everything it needs comes
- * from the position, the obligation and the two reserves, which is why this page can build it.
- */
+// Rescue has no conditions: no oracle, no route, no keeper, no config.
 export async function buildRescue(
   rpc: Rpc<SolanaRpcApi>,
   cluster: ClusterSetting,
@@ -481,27 +470,23 @@ function wholeUsdcFromScaled(scaled: bigint): string {
 
 export async function signAndSend(
   rpc: Rpc<SolanaRpcApi>,
+  cluster: ClusterSetting,
   owner: Address,
   instructions: readonly Instruction[],
   sign: (unsigned: Uint8Array) => Promise<Uint8Array>,
 ): Promise<string> {
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-  const message = pipe(
-    createTransactionMessage({ version: 1 }),
-    (draft) => setTransactionMessageFeePayer(owner, draft),
-    (draft) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, draft),
-    (draft) => setTransactionMessageComputeUnitLimit(COMPUTE_UNIT_LIMIT, draft),
-    (draft) =>
-      setTransactionMessageLoadedAccountsDataSizeLimit(
-        LOADED_ACCOUNTS_DATA_SIZE_LIMIT,
-        draft,
-      ),
-    (draft) => appendTransactionMessageInstructions(instructions, draft),
+  const compiled = await compileTheFirstThatFits(
+    {
+      rpc,
+      feePayer: owner,
+      computeUnitLimit: COMPUTE_UNIT_LIMIT,
+      priorityFeeLamports: PRIORITY_FEE_LAMPORTS,
+      lookupTables: cluster.lookupTable === null ? [] : [cluster.lookupTable],
+    },
+    instructions,
   );
-
-  const unsigned = Uint8Array.from(
-    atob(getBase64EncodedWireTransaction(compileTransaction(message))),
-    (character) => character.charCodeAt(0),
+  const unsigned = Uint8Array.from(atob(compiled.wire), (character) =>
+    character.charCodeAt(0),
   );
 
   const signed = await sign(unsigned);

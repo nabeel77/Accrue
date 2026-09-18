@@ -21,6 +21,7 @@ mod owner_instructions;
 mod permissions;
 mod protect;
 mod snapshot;
+mod top_up;
 mod world;
 
 use std::path::PathBuf;

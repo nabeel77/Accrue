@@ -9,6 +9,7 @@ import type { GuardSubject } from './guard.js';
 import type { Candidate, Round } from './loop.js';
 import { readTheMarketAfterARefresh } from './market.js';
 import { loadOpenPositions } from './positions.js';
+import type { RunLog } from './runs.js';
 import { watchThePosition } from './watch.js';
 
 export async function surveyTheProgram(
@@ -16,6 +17,8 @@ export async function surveyTheProgram(
   programAddress: Address,
   feePayer: Address,
   config: Config,
+  runLog?: RunLog,
+  report: (line: string) => void = () => undefined,
 ): Promise<Round<GuardSubject>> {
   const positions = await loadOpenPositions(rpc, programAddress);
   const limits: GuardLimits = {
@@ -27,6 +30,18 @@ export async function surveyTheProgram(
   };
 
   const candidates: Candidate<GuardSubject>[] = [];
+  const couldNotLook = async (address: Address, why: string): Promise<void> => {
+    report(`could not look at ${address}: ${why}`);
+    await runLog?.record({
+      positionAddress: address,
+      kind: 'check',
+      outcome: 'skipped',
+      signature: null,
+      reason: why,
+      durationMs: 0,
+    });
+  };
+
   for (const position of positions) {
     const collateralEntry = config.allowedCollateral.find(
       (entry) => entry.mint === position.account.collateralMint,
@@ -35,15 +50,21 @@ export async function surveyTheProgram(
       (entry) => entry.mint === position.account.destinationMint,
     );
     if (collateralEntry === undefined || destination === undefined) {
+      await couldNotLook(position.address, 'its pair is not in the config');
       continue;
     }
 
+    let why = 'the lending market would not refresh it';
     const market = await readTheMarketAfterARefresh(rpc, feePayer, {
       lendingMarket: position.account.market,
       obligation: position.account.obligation,
       collateralReserve: collateralEntry.reserve,
-    }).catch(() => null);
+    }).catch((failure: unknown) => {
+      why = failure instanceof Error ? failure.message : why;
+      return null;
+    });
     if (market === null) {
+      await couldNotLook(position.address, why);
       continue;
     }
 
@@ -53,6 +74,7 @@ export async function surveyTheProgram(
       readAccount(rpc, position.account.destinationTokenAccount),
     ]);
     if (destinationPrices === null || destinationMint === null) {
+      await couldNotLook(position.address, 'its yield token could not be read');
       continue;
     }
 

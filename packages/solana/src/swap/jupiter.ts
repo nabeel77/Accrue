@@ -5,7 +5,7 @@ import {
   type SwapInstructionFromTheRouter,
   type SwapRoute,
 } from '../jupiter/route.js';
-import type { SwapRouter } from './router.js';
+import { NoRouteFound, type SwapRouter } from './router.js';
 
 const RESTRICT_INTERMEDIATE_TOKENS = true;
 const BASIS_POINTS = 10_000;
@@ -13,9 +13,9 @@ const BASIS_POINTS = 10_000;
 export interface JupiterRouterOptions {
   readonly apiUrl: string;
   readonly apiKey?: string | undefined;
-  /** Nothing is ever asked for at more slippage than this, whatever the caller asked. */
+  // Nothing is ever asked for at more slippage than this, whatever the caller asked.
   readonly maxSlippageBps?: number;
-  /** A quote that moves the price more than this is refused rather than shown. */
+  // A quote that moves the price more than this is refused rather than shown.
   readonly maxPriceImpactBps?: number;
 }
 
@@ -23,14 +23,17 @@ export function createJupiterRouter(options: JupiterRouterOptions): SwapRouter {
   return {
     name: 'jupiter',
     async findRoute(request: RouteRequest): Promise<SwapRoute> {
-      const { instruction, quote } = await fetchSwapInstruction(options, request);
+      const { instruction, quote, minimumAmountOut } = await fetchSwapInstruction(
+        options,
+        request,
+      );
       const ceiling = options.maxPriceImpactBps;
       if (ceiling !== undefined && quote.priceImpactBps > ceiling) {
-        throw new Error(
+        throw new NoRouteFound(
           `that route moves the price by ${quote.priceImpactBps} basis points, past the ${ceiling} allowed`,
         );
       }
-      return routeFromSwapInstruction(instruction, quote);
+      return routeFromSwapInstruction(instruction, quote, minimumAmountOut);
     },
   };
 }
@@ -38,7 +41,11 @@ export function createJupiterRouter(options: JupiterRouterOptions): SwapRouter {
 async function fetchSwapInstruction(
   options: JupiterRouterOptions,
   request: RouteRequest,
-): Promise<{ instruction: SwapInstructionFromTheRouter; quote: RouteQuote }> {
+): Promise<{
+  instruction: SwapInstructionFromTheRouter;
+  quote: RouteQuote;
+  minimumAmountOut: bigint;
+}> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (options.apiKey !== undefined && options.apiKey !== '') {
     headers['x-api-key'] = options.apiKey;
@@ -56,15 +63,21 @@ async function fetchSwapInstruction(
 
   const quoteResponse = (await fetchJson(quoteUrl, { headers })) as {
     outAmount?: string;
+    otherAmountThreshold?: string;
     priceImpactPct?: string;
   };
   if (quoteResponse.outAmount === undefined) {
-    throw new Error('the router returned no quote for this pair and size');
+    throw new NoRouteFound('the router returned no quote for this pair and size');
   }
   const quote: RouteQuote = {
     amountOut: BigInt(quoteResponse.outAmount),
     priceImpactBps: Math.round(Number(quoteResponse.priceImpactPct ?? 0) * BASIS_POINTS),
   };
+  // The router's own floor for the slippage it was asked for. Absent, the quote less the cap.
+  const minimumAmountOut =
+    quoteResponse.otherAmountThreshold === undefined
+      ? quote.amountOut - (quote.amountOut * BigInt(slippageBps)) / BigInt(BASIS_POINTS)
+      : BigInt(quoteResponse.otherAmountThreshold);
 
   const swapResponse = (await fetchJson(`${options.apiUrl}/swap/v1/swap-instructions`, {
     method: 'POST',
@@ -80,9 +93,9 @@ async function fetchSwapInstruction(
 
   const swapInstruction = swapResponse.swapInstruction;
   if (swapInstruction === undefined) {
-    throw new Error('the router returned no swap instruction for this quote');
+    throw new NoRouteFound('the router returned no swap instruction for this quote');
   }
-  return { instruction: swapInstruction, quote };
+  return { instruction: swapInstruction, quote, minimumAmountOut };
 }
 
 async function fetchJson(url: string, options: RequestInit): Promise<unknown> {

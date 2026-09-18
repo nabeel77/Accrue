@@ -1,24 +1,23 @@
 import 'server-only';
 
-import { randomBytes, createHash } from 'node:crypto';
-
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
-import { createDatabaseClient, schema, type AccrueDatabase } from '@accrue/db';
+import { schema } from '@accrue/db';
+
+import { db } from './database.js';
 
 import { number, required } from './env.js';
-
-const COOKIE = 'accrue_session';
-const A_DAY_IN_MILLISECONDS = 86_400_000;
-const A_MINUTE_IN_MILLISECONDS = 60_000;
-
-let database: AccrueDatabase | null = null;
-
-function db(): AccrueDatabase {
-  database ??= createDatabaseClient();
-  return database;
-}
+import {
+  cookieRules,
+  fingerprintOf,
+  newNonce,
+  newSessionSecret,
+  nonceExpiresAt,
+  sessionExpiresAt,
+  signInMessage as messageFor,
+  SESSION_COOKIE,
+} from './sessionRules.js';
 
 function sessionDays(): number {
   return number('SESSION_TTL_DAYS', 7);
@@ -32,21 +31,12 @@ export function authDomain(): string {
   return required('AUTH_DOMAIN');
 }
 
-/** The exact message the wallet signs. Nothing signs anything we did not build and show. */
 export function signInMessage(
   walletAddress: string,
   nonce: string,
   issuedAt: string,
 ): string {
-  return [
-    `${authDomain()} wants you to sign in with your Solana account:`,
-    walletAddress,
-    '',
-    'Sign this message to prove the wallet is yours. It authorises nothing and moves nothing.',
-    '',
-    `Nonce: ${nonce}`,
-    `Issued at: ${issuedAt}`,
-  ].join('\n');
+  return messageFor(authDomain(), walletAddress, nonce, issuedAt);
 }
 
 export async function issueNonce(walletAddress: string): Promise<{
@@ -54,25 +44,19 @@ export async function issueNonce(walletAddress: string): Promise<{
   issuedAt: string;
   message: string;
 }> {
-  const nonce = randomBytes(24).toString('base64url');
+  const nonce = newNonce();
   const issuedAt = new Date().toISOString();
-  await db()
-    .insert(schema.wallets)
-    .values({ address: walletAddress })
-    .onConflictDoUpdate({
-      target: schema.wallets.address,
-      set: { lastSeenAt: new Date() },
-    });
   await db()
     .insert(schema.authNonces)
     .values({
       nonce,
       walletAddress,
-      expiresAt: new Date(Date.now() + nonceMinutes() * A_MINUTE_IN_MILLISECONDS),
+      expiresAt: nonceExpiresAt(Date.now(), nonceMinutes()),
     });
   return { nonce, issuedAt, message: signInMessage(walletAddress, nonce, issuedAt) };
 }
 
+// One use, one wallet, before it expires. The row is the gate, not anything the caller sent.
 export async function spendNonce(walletAddress: string, nonce: string): Promise<boolean> {
   const [row] = await db()
     .update(schema.authNonces)
@@ -93,44 +77,48 @@ export async function startSession(
   walletAddress: string,
   userAgent: string | null,
 ): Promise<void> {
-  const id = randomBytes(32).toString('base64url');
+  const secret = newSessionSecret();
+  await db()
+    .insert(schema.wallets)
+    .values({ address: walletAddress })
+    .onConflictDoUpdate({
+      target: schema.wallets.address,
+      set: { lastSeenAt: new Date() },
+    });
   await db()
     .insert(schema.sessions)
     .values({
-      id,
+      id: fingerprintOf(secret),
       walletAddress,
-      expiresAt: new Date(Date.now() + sessionDays() * A_DAY_IN_MILLISECONDS),
-      userAgentHash:
-        userAgent === null ? null : createHash('sha256').update(userAgent).digest('hex'),
+      expiresAt: sessionExpiresAt(Date.now(), sessionDays()),
+      userAgentHash: userAgent === null ? null : fingerprintOf(userAgent),
     });
 
   const store = await cookies();
-  store.set(COOKIE, id, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/',
-    maxAge: sessionDays() * 24 * 60 * 60,
-  });
+  store.set(
+    SESSION_COOKIE,
+    secret,
+    cookieRules(sessionDays(), process.env.NODE_ENV === 'production'),
+  );
 }
 
 export async function endSession(): Promise<void> {
   const store = await cookies();
-  const id = store.get(COOKIE)?.value;
-  if (id !== undefined) {
+  const secret = store.get(SESSION_COOKIE)?.value;
+  if (secret !== undefined) {
     await db()
       .update(schema.sessions)
       .set({ revokedAt: new Date() })
-      .where(eq(schema.sessions.id, id));
+      .where(eq(schema.sessions.id, fingerprintOf(secret)));
   }
-  store.delete(COOKIE);
+  store.delete(SESSION_COOKIE);
 }
 
-/** The wallet this request belongs to, or null. Nothing takes a wallet from the caller. */
+// The wallet this request belongs to, or null.
 export async function walletOfTheSession(): Promise<string | null> {
   const store = await cookies();
-  const id = store.get(COOKIE)?.value;
-  if (id === undefined) {
+  const secret = store.get(SESSION_COOKIE)?.value;
+  if (secret === undefined) {
     return null;
   }
   const [row] = await db()
@@ -138,7 +126,7 @@ export async function walletOfTheSession(): Promise<string | null> {
     .from(schema.sessions)
     .where(
       and(
-        eq(schema.sessions.id, id),
+        eq(schema.sessions.id, fingerprintOf(secret)),
         isNull(schema.sessions.revokedAt),
         gt(schema.sessions.expiresAt, new Date()),
       ),

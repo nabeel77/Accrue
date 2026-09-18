@@ -4,7 +4,9 @@ import type { JSX } from 'react';
 
 import { Mono, Row } from './primitives.js';
 
-/** The slider for the whole app: 4 pixel track, 22 pixel thumb, jade focus ring. */
+const PERCENT = 100;
+
+// The slider for the whole app, with a number beside it for anyone who wants an exact percent.
 export function Slider({
   label,
   value,
@@ -17,6 +19,7 @@ export function Slider({
   onReset,
   note,
   testId,
+  numberTestId,
 }: {
   label: string;
   value: number;
@@ -29,6 +32,7 @@ export function Slider({
   onReset: () => void;
   note: string;
   testId?: string;
+  numberTestId?: string;
 }): JSX.Element {
   return (
     <div>
@@ -66,18 +70,45 @@ export function Slider({
           <Mono tone="secondary">{readout}</Mono>
         </span>
       </Row>
-      <input
-        type="range"
-        data-testid={testId}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => {
-          onChange(Number(event.target.value));
-        }}
-        style={{ width: '100%', accentColor: 'var(--color-accent)', marginTop: 10 }}
-      />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+        <input
+          type="range"
+          data-testid={testId}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => {
+            onChange(Number(event.target.value));
+          }}
+          style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+        />
+        <input
+          type="number"
+          inputMode="numeric"
+          data-testid={numberTestId}
+          min={min / PERCENT}
+          max={max / PERCENT}
+          value={value / PERCENT}
+          onChange={(event) => {
+            const typed = Number(event.target.value);
+            if (Number.isFinite(typed)) {
+              onChange(Math.round(typed * PERCENT));
+            }
+          }}
+          style={{
+            width: 78,
+            minHeight: 44,
+            background: 'var(--color-ground)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-hairline)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontFamily: 'var(--font-mono)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        />
+      </span>
       <p style={{ color: 'var(--color-text-muted)', fontSize: 12, margin: '4px 0 0' }}>
         {note}
       </p>

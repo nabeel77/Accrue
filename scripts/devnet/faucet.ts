@@ -47,10 +47,6 @@ export async function associatedTokenAccount(
   return derived;
 }
 
-/**
- * One grant covers every sandbox token at once, because a wallet that holds a stock token and no
- * USDC cannot repay, and a wallet with no yield token cannot be guarded.
- */
 export async function grantTestTokens(
   cluster: Cluster,
   mintAuthority: KeyPairSigner,
@@ -106,7 +102,7 @@ export async function grantTestTokens(
   return { wallet, signature, grants, lamportsSent };
 }
 
-/** The admin key is the mint authority of every sandbox mint, so the faucet mints as the admin. */
+// The admin key is the mint authority of every sandbox mint, so the faucet mints as the admin.
 export function mintAuthoritySigner(): Promise<KeyPairSigner> {
   return adminSigner();
 }

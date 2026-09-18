@@ -1,8 +1,3 @@
-/**
- * The four tokens the sandbox mints, each shaped like the mainnet token it stands in for: the same
- * decimals, the same token program, and the same Scope feed index, so an Accrue config entry reads
- * the same on both clusters.
- */
 export interface SandboxToken {
   readonly symbol: string;
   readonly name: string;

@@ -4,7 +4,7 @@ const BASIS_POINTS = 10_000n;
 const SCALED_FRACTION_ONE = 1n << 60n;
 const PERCENT = 100n;
 
-/** How much of the reserve's liquidity is lent out, in basis points. */
+// How much of the reserve's liquidity is lent out, in basis points.
 export function utilisationBps(reserve: ReserveSnapshot): number {
   const borrowed = reserve.liquidityBorrowedScaled / SCALED_FRACTION_ONE;
   const total = borrowed + reserve.liquidityAvailableAmount;
@@ -14,11 +14,6 @@ export function utilisationBps(reserve: ReserveSnapshot): number {
   return Number((borrowed * BASIS_POINTS) / total);
 }
 
-/**
- * The lending market charges along a curve of eleven points, flat between them, so a rate is the
- * straight line between the two points the current utilisation falls between. Reading it from the
- * reserve is the only way to get the rate the position will actually pay.
- */
 export function borrowRateBps(reserve: ReserveSnapshot): number {
   const at = utilisationBps(reserve);
   const points = usablePoints(reserve.borrowRateCurve);
@@ -50,7 +45,7 @@ export function borrowRateBps(reserve: ReserveSnapshot): number {
   return points[points.length - 1]?.borrowRateBps ?? 0;
 }
 
-/** What a depositor earns: the borrow rate on the lent share, less the market's own cut. */
+// What a depositor earns: the borrow rate on the lent share, less the market's own cut.
 export function supplyRateBps(reserve: ReserveSnapshot): number {
   const paid =
     (BigInt(borrowRateBps(reserve)) * BigInt(utilisationBps(reserve))) / BASIS_POINTS;
@@ -58,10 +53,6 @@ export function supplyRateBps(reserve: ReserveSnapshot): number {
   return Number(paid - keptByTheMarket);
 }
 
-/**
- * The curve is stored as a fixed eleven points and the unused tail repeats the last utilisation,
- * so anything past the first point that reaches full utilisation is padding.
- */
 function usablePoints(curve: readonly BorrowCurvePoint[]): BorrowCurvePoint[] {
   const points: BorrowCurvePoint[] = [];
   for (const point of curve) {

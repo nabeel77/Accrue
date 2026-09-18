@@ -5,6 +5,7 @@ import { createJupiterRouter } from './jupiter.js';
 import { createSandboxRouter } from './sandbox.js';
 import type { SwapRouter } from './router.js';
 
+export { NoRouteFound } from './router.js';
 export type { SwapRouter } from './router.js';
 export { createJupiterRouter } from './jupiter.js';
 export {
@@ -28,10 +29,7 @@ export interface SwapRouterOptions {
   readonly maxPriceImpactBps?: number;
 }
 
-/**
- * Which router answers is a property of the cluster, not of the caller. Nothing above this
- * function names a cluster.
- */
+// Which router answers is a property of the cluster, not of the caller.
 export function createSwapRouter(options: SwapRouterOptions): SwapRouter {
   if (clusterName() === 'mainnet') {
     return createJupiterRouter({

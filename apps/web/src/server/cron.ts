@@ -1,10 +1,12 @@
 import 'server-only';
 
+import { timingSafeEqual } from 'node:crypto';
+
 import { required } from './env.js';
 
-/** Every cron route is behind the same header and answers nothing without it. */
+// Every cron route is behind the same header, compared in constant time.
 export function cronIsAuthorised(request: Request): boolean {
-  const given = request.headers.get('x-cron-secret') ?? '';
-  const expected = required('CRON_SECRET');
-  return given.length === expected.length && given === expected;
+  const given = Buffer.from(request.headers.get('x-cron-secret') ?? '');
+  const expected = Buffer.from(required('CRON_SECRET'));
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }

@@ -746,6 +746,19 @@ impl World {
         u64::from_le_bytes(buffer)
     }
 
+    // The mint a token account holds, and the token program that owns it, read from the account
+    // itself, so a test can open another account of the same kind to substitute.
+    pub fn token_account_mint(&self, address: &Address) -> Address {
+        let account = self.svm.get_account(address).unwrap();
+        let mut buffer = [0u8; 32];
+        buffer.copy_from_slice(&account.data[0..32]);
+        Address::from(buffer)
+    }
+
+    pub fn token_account_program(&self, address: &Address) -> Address {
+        self.svm.get_account(address).unwrap().owner
+    }
+
     pub fn lamports_of(&self, address: &Address) -> u64 {
         self.svm
             .get_account(address)

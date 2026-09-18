@@ -3,6 +3,7 @@
 import { useState, type JSX, type ReactNode } from 'react';
 
 import {
+  AmountField,
   Banner,
   Button,
   GuardCard,
@@ -18,6 +19,8 @@ import {
   Toggle,
   WalletPill,
 } from '@/components/ui';
+import { AMOUNT_FIELD_COPY } from '@/copy/common';
+import { GUARD_PARAMETER_LABELS } from '@/copy/position';
 
 const AN_EXAMPLE_ADDRESS = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
 
@@ -36,6 +39,7 @@ export function ComponentGallery(): JSX.Element {
   const [borrowBps, setBorrowBps] = useState(4_000);
   const [autoGrow, setAutoGrow] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [amount, setAmount] = useState('');
 
   return (
     <Stack gap={28} testId="component-gallery">
@@ -83,6 +87,20 @@ export function ComponentGallery(): JSX.Element {
             </Row>
           </Case>
 
+          <Case label="Amount field, with what is available, HALF and MAX">
+            <AmountField
+              testId="kit-amount"
+              label="Amount"
+              symbol="USDC"
+              availableLabel={AMOUNT_FIELD_COPY.owedNow}
+              availableWhole={20}
+              decimals={6}
+              value={amount}
+              note="Type more than the figure on the right to see the field refuse it."
+              onChange={setAmount}
+            />
+          </Case>
+
           <Case label="Slider, changed and at the default">
             <Stack gap={16}>
               <Slider
@@ -128,7 +146,14 @@ export function ComponentGallery(): JSX.Element {
                 Open the sheet
               </Button>
             </Row>
-            <Sheet title="A sheet" open={sheetOpen} testId="kit-sheet">
+            <Sheet
+              title="A sheet"
+              open={sheetOpen}
+              testId="kit-sheet"
+              onClose={() => {
+                setSheetOpen(false);
+              }}
+            >
               <Stack gap={12}>
                 <Secondary>
                   Our own sheet. The app never calls the browser&apos;s alert, confirm or
@@ -167,36 +192,43 @@ export function ComponentGallery(): JSX.Element {
           <Stack gap={16}>
             <GuardCard
               status="healthy"
-              repaysAt="50%"
-              lastAction="never"
-              keepersLastHour="3"
+              repaysAt="50% LTV · now 40%"
+              lastChecked="12 seconds ago · 4f3a…9b2c"
+              noKeeperSeen={null}
+              repaid="not yet"
+              whatItDoes="Repays only"
               parameters={[
-                { label: 'Target', value: '40%' },
-                { label: 'Guard', value: '50%' },
-                { label: 'Liquidation threshold', value: '60%' },
+                { label: GUARD_PARAMETER_LABELS.target, value: '40%' },
+                { label: GUARD_PARAMETER_LABELS.guard, value: '50%' },
+                { label: GUARD_PARAMETER_LABELS.liquidationThreshold, value: '60%' },
               ]}
             />
             <GuardCard
               status="caution"
-              repaysAt="50%"
-              lastAction="14 minutes ago"
-              keepersLastHour="2"
+              repaysAt="50% LTV · now 48%"
+              lastChecked="14 minutes ago · 4f3a…9b2c"
+              noKeeperSeen="No keeper seen for 14 min"
+              repaid="2 times · last 25 seconds ago"
+              whatItDoes="Repays and borrows more"
+              waitingFor="The guard repays this position at most once a minute, so its next turn is in 40 seconds. You can repay it yourself now, and so can anyone once the market could seize it."
               parameters={[
-                { label: 'Target', value: '40%' },
-                { label: 'Guard', value: '50%' },
-                { label: 'Liquidation threshold', value: '60%' },
+                { label: GUARD_PARAMETER_LABELS.target, value: '40%' },
+                { label: GUARD_PARAMETER_LABELS.guard, value: '50%' },
+                { label: GUARD_PARAMETER_LABELS.liquidationThreshold, value: '60%' },
               ]}
               onChange={() => undefined}
             />
             <GuardCard
               status="danger"
-              repaysAt="50%"
-              lastAction="2 minutes ago"
-              keepersLastHour="1"
+              repaysAt="50% LTV · now 57%"
+              lastChecked="2 minutes ago · 4f3a…9b2c"
+              noKeeperSeen={null}
+              repaid="not yet"
+              whatItDoes="Repays only"
               parameters={[
-                { label: 'Target', value: '40%' },
-                { label: 'Guard', value: '50%' },
-                { label: 'Liquidation threshold', value: '60%' },
+                { label: GUARD_PARAMETER_LABELS.target, value: '40%' },
+                { label: GUARD_PARAMETER_LABELS.guard, value: '50%' },
+                { label: GUARD_PARAMETER_LABELS.liquidationThreshold, value: '60%' },
               ]}
               onProtectNow={() => undefined}
               onChange={() => undefined}

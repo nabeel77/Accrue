@@ -7,3 +7,4 @@ export * from './rpc/limiter.js';
 export * from './swap/index.js';
 export * from './token.js';
 export * from './transactionVersion.js';
+export * from './transactions/compile.js';

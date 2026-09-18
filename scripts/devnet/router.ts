@@ -37,7 +37,7 @@ const FUND_TAG = 1;
 const SET_RATE_TAG = 2;
 const PRICE_SCALE = 1_000_000;
 
-/** Both directions of the one pair the sandbox swaps: USDC in and out of the yield token. */
+// Both directions of the one pair the sandbox swaps: USDC in and out of the yield token.
 export const SANDBOX_PAIRS: readonly (readonly [string, string])[] = [
   ['USDC', 'ONyc'],
   ['ONyc', 'USDC'],
@@ -64,7 +64,7 @@ function tagged(tag: number, words: readonly bigint[]): Uint8Array {
   return bytes;
 }
 
-/** How many whole output tokens one whole input token buys, at the prices the oracle is holding. */
+// How many whole output tokens one whole input token buys, at the prices the oracle is holding.
 export function rateBetween(
   input: SandboxToken,
   output: SandboxToken,
@@ -171,10 +171,7 @@ async function fundInstruction(
   };
 }
 
-/**
- * Keeps the router quoting what the oracle is saying. The price loop calls this every time it
- * writes, so a price move and the fill a guard would get never drift apart.
- */
+// Keeps the router quoting what the oracle is saying.
 export async function setThePoolRates(
   cluster: Cluster,
   admin: KeyPairSigner,

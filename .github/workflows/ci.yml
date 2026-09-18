@@ -55,6 +55,9 @@ jobs:
       - name: the web app reads no key path and no folder
         run: pnpm run check:web-reads-no-paths
 
+      - name: no doc comments
+        run: pnpm run check:no-doc-comments
+
       - name: audit dependencies
         run: pnpm audit --audit-level moderate
 

@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 import {
   address,
@@ -59,7 +61,8 @@ export async function configAddress(): Promise<Address> {
 
 export async function loadAdminSigner(): Promise<KeyPairSigner> {
   const path = requiredVariable('ADMIN_KEYPAIR_PATH');
-  const secret = JSON.parse(readFileSync(path, 'utf8')) as number[];
+  const expanded = path.startsWith('~') ? resolve(homedir(), path.slice(2)) : path;
+  const secret = JSON.parse(readFileSync(expanded, 'utf8')) as number[];
   return createKeyPairSignerFromBytes(Uint8Array.from(secret));
 }
 

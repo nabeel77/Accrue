@@ -7,11 +7,6 @@ import { UpdateConfigMode } from '@accrue/solana/kamino';
 
 import type { SandboxToken } from './tokens.js';
 
-/**
- * Every ReserveConfig field lives at a fixed offset inside the reserve account, so the mainnet
- * fixture the sandbox copies from is read straight out of its bytes. Anything this list does not
- * name keeps whatever init_reserve wrote.
- */
 const RESERVE_CONFIG_OFFSETS = {
   minDeleveragingBonusBps: 4_860,
   earlyRepayRemainingInterestPct: 4_863,
@@ -91,11 +86,31 @@ function slice(template: Uint8Array, offset: number, byteLength: number): Uint8A
   return template.slice(offset, offset + byteLength);
 }
 
-/**
- * The risk numbers come from the mainnet reserve this one stands in for, so a sandbox position
- * liquidates at the same loan to value a real one would. Everything else is a sandbox choice:
- * our own oracle, limits nothing here can reach, no farms and no elevation groups.
- */
+function readUnsigned(from: Uint8Array, at: number, byteLength: number): bigint {
+  let value = 0n;
+  for (let index = byteLength - 1; index >= 0; index -= 1) {
+    value = (value << 8n) + BigInt(from[at + index] ?? 0);
+  }
+  return value;
+}
+
+export interface PriceBounds {
+  readonly lowest: number;
+  readonly highest: number;
+}
+
+// The market refuses a price outside the bounds its token info carries, and those bounds were
+// copied from the template reserve, so anything writing a price reads them from the same place.
+export function priceBoundsFor(token: SandboxToken): PriceBounds {
+  const template = readTemplateReserve(token.templateReserve);
+  const offsets = RESERVE_CONFIG_OFFSETS;
+  const scale = 10 ** Number(readUnsigned(template, offsets.heuristicExponent, 8));
+  return {
+    lowest: Number(readUnsigned(template, offsets.heuristicLower, 8)) / scale,
+    highest: Number(readUnsigned(template, offsets.heuristicUpper, 8)) / scale,
+  };
+}
+
 export function reserveConfigWrites(
   token: SandboxToken,
   template: Uint8Array,
@@ -339,11 +354,6 @@ export function reserveConfigWrites(
   ];
 }
 
-/**
- * A reserve counts as blocked while both of its limits are zero, and only a blocked reserve may
- * take a config write that skips validation. So the limits and the status go last, together, with
- * the market's own integrity check running on every one of them.
- */
 export function reserveOpeningWrites(): readonly ConfigWrite[] {
   return [
     {

@@ -61,7 +61,10 @@ describe('one round of the guard', () => {
     );
 
     expect(report).toEqual({ considered: 2, attempted: 0, landed: 0 });
-    expect(runLog.recorded).toHaveLength(0);
+    // Nothing was sent, but both positions were looked at, and that is what a screen reads to
+    // say the guard is still being run.
+    expect(runLog.recorded.map((run) => run.kind)).toEqual(['check', 'check']);
+    expect(runLog.recorded.map((run) => run.outcome)).toEqual(['skipped', 'skipped']);
   });
 
   it('takes the most stretched position first and records what landed', async () => {
@@ -87,7 +90,11 @@ describe('one round of the guard', () => {
 
     expect(sent).toEqual(['CCCC3333', 'AAAA1111']);
     expect(report).toEqual({ considered: 3, attempted: 2, landed: 2 });
-    expect(runLog.recorded.map((run) => run.outcome)).toEqual(['landed', 'landed']);
+    expect(runLog.recorded.map((run) => run.outcome)).toEqual([
+      'landed',
+      'landed',
+      'skipped',
+    ]);
     expect(runLog.recorded[0]?.kind).toBe('protect');
     expect(runLog.recorded[0]?.signature).toBe('a signature');
   });

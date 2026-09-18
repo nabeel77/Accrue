@@ -19,13 +19,14 @@ interface SandboxAddresses {
   readonly priceFeed: string;
   readonly prices: string;
   readonly market: string;
+  readonly lookupTable: string | null;
   readonly mints: Record<string, string>;
   readonly reserves: Record<string, string>;
 }
 
 const RUST_LINE_LIMIT = 100;
 
-/** Written the way rustfmt would write it, so the generated file passes the format check. */
+// Written the way rustfmt would write it, so the generated file passes the format check.
 function rustConstant(name: string, value: string): string {
   const oneLine = `pub const ${name}: Pubkey = address!("${value}");`;
   return oneLine.length <= RUST_LINE_LIMIT
@@ -67,6 +68,7 @@ export const DEVNET: ClusterAddresses = {
   scopeProgram: address('${addresses.priceFeed}'),
   scopePriceAccount: address('${addresses.prices}'),
   lendingMarket: address('${addresses.market}'),
+  lookupTable: ${addresses.lookupTable === null ? 'null' : `address('${addresses.lookupTable}')`},
   mints: {
 ${typescriptEntries(addresses.mints)}
   },
@@ -95,6 +97,7 @@ async function main(): Promise<void> {
     priceFeed: (await namedSigner('price-feed')).address,
     prices: required(registry.prices, 'the prices account'),
     market: required(registry.market, 'the lending market'),
+    lookupTable: registry.lookupTable ?? null,
     mints: registry.mints ?? {},
     reserves: registry.reserves ?? {},
   };
@@ -115,6 +118,7 @@ async function main(): Promise<void> {
   reportStep(`  price program           ${addresses.priceFeed}`);
   reportStep(`  prices account          ${addresses.prices}`);
   reportStep(`  lending market          ${addresses.market}`);
+  reportStep(`  lookup table            ${addresses.lookupTable ?? '—'}`);
   for (const token of SANDBOX_TOKENS) {
     reportStep(
       `  ${token.symbol.padEnd(6)} mint ${addresses.mints[token.symbol] ?? '—'}  reserve ${

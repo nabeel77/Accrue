@@ -8,13 +8,15 @@ import { COMMON } from '../../copy/common.js';
 import { TERMS_COPY } from '../../copy/terms.js';
 import { useSession } from '../../client/session.js';
 
-/**
- * Nobody enters the app without the terms. The acknowledgement is a sheet with the sentences
- * visible and one button, never a checkbox, and it is asked for before the first position rather
- * than here.
- */
-export function TermsGate({ children }: { children: ReactNode }): JSX.Element {
-  const { me, signIn, acceptTerms, busy } = useSession();
+// Nobody enters the app without the terms.
+export function TermsGate({
+  children,
+  onConnect,
+}: {
+  children: ReactNode;
+  onConnect: () => void;
+}): JSX.Element {
+  const { me, acceptTerms, busy } = useSession();
 
   if (me === null) {
     return <Muted>{COMMON.loading}</Muted>;
@@ -27,7 +29,7 @@ export function TermsGate({ children }: { children: ReactNode }): JSX.Element {
           <Heading level={1}>accrue</Heading>
           <Muted>{COMMON.signMessagePrompt}</Muted>
           <div>
-            <Button testId="gate-sign-in" onClick={() => void signIn()} disabled={busy}>
+            <Button testId="gate-sign-in" onClick={onConnect} disabled={busy}>
               {busy ? COMMON.signingIn : COMMON.connectWallet}
             </Button>
           </div>

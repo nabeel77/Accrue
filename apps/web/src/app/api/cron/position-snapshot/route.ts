@@ -2,7 +2,9 @@ import { address } from '@solana/kit';
 import { eq } from 'drizzle-orm';
 
 import { DESTINATIONS, type Destination } from '@accrue/core';
-import { createDatabaseClient, schema } from '@accrue/db';
+import { schema } from '@accrue/db';
+
+import { db } from '../../../../server/database.js';
 import { currentCluster } from '@accrue/solana';
 import { readScopePrice } from '@accrue/solana/kamino';
 
@@ -16,7 +18,7 @@ const SCALED_FRACTION_ONE = 2n ** 60n;
 const USDC_DECIMALS = 6;
 const BASIS_POINTS = 10_000;
 
-/** On a sandbox the mint is a mock of the same symbol, so the match is by cluster, not by mint. */
+// On a sandbox the mint is a mock of the same symbol, so the match is by cluster, not by mint.
 function destinationOnThisCluster(mint: string): Destination | null {
   const cluster = currentCluster();
   return (
@@ -39,8 +41,7 @@ export async function POST(request: Request): Promise<Response> {
     return refuse('No.', 401);
   }
   try {
-    const db = createDatabaseClient();
-    const open = await db
+    const open = await db()
       .select({
         id: schema.positions.id,
         positionAddress: schema.positions.positionAddress,
@@ -87,23 +88,25 @@ export async function POST(request: Request): Promise<Response> {
       const target =
         destination === null ? null : await latestDestinationTarget(destination);
 
-      await db.insert(schema.positionSnapshots).values({
-        positionId: row.id,
-        collateralValueUsd: collateralValueUsd.toFixed(6),
-        debtUsd: debtUsd.toFixed(6),
-        ltv: (collateralValueUsd === 0 ? 0 : debtUsd / collateralValueUsd).toFixed(6),
-        health: reading.healthZone as 'healthy' | 'caution' | 'danger',
-        aboveProtect: reading.loanToValueBps >= reading.protectLtvBps,
-        destinationValueUsd: destinationValueUsd.toFixed(6),
-        netEarnedUsd: (destinationValueUsd - debtUsd).toFixed(6),
-        borrowApy: (reading.borrowRateBps / BASIS_POINTS).toFixed(6),
-        destinationApy: ((target?.rateBps ?? 0) / BASIS_POINTS).toFixed(6),
-        scopePriceAgeSlots: priceAgeSlots,
-      });
+      await db()
+        .insert(schema.positionSnapshots)
+        .values({
+          positionId: row.id,
+          collateralValueUsd: collateralValueUsd.toFixed(6),
+          debtUsd: debtUsd.toFixed(6),
+          ltv: (collateralValueUsd === 0 ? 0 : debtUsd / collateralValueUsd).toFixed(6),
+          health: reading.healthZone as 'healthy' | 'caution' | 'danger',
+          aboveProtect: reading.loanToValueBps >= reading.protectLtvBps,
+          destinationValueUsd: destinationValueUsd.toFixed(6),
+          netEarnedUsd: (destinationValueUsd - debtUsd).toFixed(6),
+          borrowApy: (reading.borrowRateBps / BASIS_POINTS).toFixed(6),
+          destinationApy: ((target?.rateBps ?? 0) / BASIS_POINTS).toFixed(6),
+          scopePriceAgeSlots: priceAgeSlots,
+        });
       written += 1;
 
       if (reading.state === 'Closed') {
-        await db
+        await db()
           .update(schema.positions)
           .set({ status: 'closed', closedAt: new Date() })
           .where(eq(schema.positions.id, row.id));

@@ -43,10 +43,7 @@ export interface MarketAddresses {
   readonly collateralReserve: Address;
 }
 
-/**
- * The keeper never reads a stale loan to value. It asks the chain to run the same refresh the
- * program will run, then reads the result out of the simulation, exactly as `docs/keeper.md` says.
- */
+// The keeper never reads a stale loan to value.
 export async function readTheMarketAfterARefresh(
   rpc: Rpc<SolanaRpcApi>,
   feePayer: Address,
@@ -153,10 +150,6 @@ function withTheReservesTheObligationHolds(
 
 const SIGNATURE_LENGTH = 64;
 
-/**
- * A simulation needs no signature, so the transaction carries one empty slot and the chain is
- * asked to skip the check.
- */
 async function compileForSimulation(
   rpc: Rpc<SolanaRpcApi>,
   feePayer: Address,

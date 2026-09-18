@@ -1,12 +1,9 @@
 import type { Address, Instruction, TransactionSigner } from '@solana/kit';
 
 import {
-  addTheSlippageBuffer,
   borrowToReachTarget,
-  protectAmounts,
+  destinationToSellForProtect as destinationToSell,
   rawAmountWorthRoundingDown,
-  rawAmountWorthRoundingUp,
-  usdValueOfScaled,
 } from '@accrue/core';
 import {
   findAssociatedTokenAccount,
@@ -30,13 +27,9 @@ import { TOKEN_PROGRAM_ADDRESS, type SwapRouter } from '@accrue/solana';
 import type { Decision } from './decide.js';
 import type { Candidate, GuardInstructionBuilder } from './loop.js';
 
-/**
- * Low enough that the route's accounts plus the instruction's own keep the whole transaction
- * inside the sixty four unique addresses version one allows.
- */
 export const ROUTE_MAX_ACCOUNTS = 28;
 
-/** A permissionless call never supplies its own minimum: the program takes it from the oracle. */
+// A permissionless call never supplies its own minimum: the program takes it from the oracle.
 const THE_PROGRAM_COMPUTES_THE_MINIMUM = 0n;
 
 const NOTHING_TO_SWAP = new Uint8Array(0);
@@ -63,11 +56,6 @@ export interface GuardAssembly {
   readonly router: SwapRouter;
 }
 
-/**
- * The account list every guard call needs, all of it derived from the position, the two reserves
- * and the config the keeper already holds. Nothing here is an address a keeper is trusted with:
- * the program checks every one of them against the position and the reserves before it acts.
- */
 export function createGuardInstructionBuilder(
   assembly: GuardAssembly,
 ): GuardInstructionBuilder<GuardSubject> {
@@ -87,51 +75,28 @@ export function createGuardInstructionBuilder(
   };
 }
 
-/** What the guard has to sell to repay its way back to target, the program's own arithmetic. */
+// The program's own arithmetic, kept in one place and read from there.
 export function destinationToSellForProtect(
   subject: GuardSubject,
   config: Config,
 ): bigint {
-  const usdcDecimals = subject.borrowReserve.liquidityMintDecimals;
-  const amounts = protectAmounts(
-    subject.obligation.adjustedDebtValueScaled,
-    subject.obligation.depositedValueScaled,
-    subject.position.strategy.targetLtvBps,
-    config.keeperBountyBps,
-    subject.borrowReserve.borrowFactorPct,
-  );
-
-  const repayNeeded = rawAmountWorthRoundingUp(
-    amounts.repayUsdScaled,
-    usdcDecimals,
-    subject.usdcPriceScaled,
-  );
-  const bountyWanted = min(
-    rawAmountWorthRoundingDown(
-      amounts.bountyUsdScaled,
-      usdcDecimals,
-      subject.usdcPriceScaled,
-    ),
-    config.keeperBountyCapUsdc,
-  );
-
-  const atTheOraclePrice = rawAmountWorthRoundingUp(
-    usdValueOfScaled(repayNeeded + bountyWanted, usdcDecimals, subject.usdcPriceScaled),
-    subject.destinationDecimals,
-    subject.destinationPriceScaled,
-  );
-
-  return min(
-    addTheSlippageBuffer(atTheOraclePrice, config.maxSlippageBps),
-    subject.destinationBalance,
-  );
+  return destinationToSell({
+    adjustedDebtValueScaled: subject.obligation.adjustedDebtValueScaled,
+    depositedValueScaled: subject.obligation.depositedValueScaled,
+    targetLtvBps: subject.position.strategy.targetLtvBps,
+    borrowFactorPct: subject.borrowReserve.borrowFactorPct,
+    keeperBountyBps: config.keeperBountyBps,
+    keeperBountyCapUsdc: config.keeperBountyCapUsdc,
+    maxSlippageBps: config.maxSlippageBps,
+    usdcDecimals: subject.borrowReserve.liquidityMintDecimals,
+    usdcPriceScaled: subject.usdcPriceScaled,
+    destinationDecimals: subject.destinationDecimals,
+    destinationPriceScaled: subject.destinationPriceScaled,
+    destinationBalance: subject.destinationBalance,
+  });
 }
 
-/**
- * What the guard will borrow back to reach target. The program works this out itself and never
- * reads a number from the caller, so the keeper repeats the same arithmetic only to ask the router
- * for a quote of exactly the size the program is about to spend.
- */
+// What the guard will borrow back to reach target.
 export function usdcToBorrowForGrow(subject: GuardSubject): bigint {
   return rawAmountWorthRoundingDown(
     borrowToReachTarget(
@@ -386,8 +351,4 @@ function withRouteAccounts(
     ...instruction,
     accounts: [...(instruction.accounts ?? []), ...routeAccounts],
   };
-}
-
-function min(left: bigint, right: bigint): bigint {
-  return left < right ? left : right;
 }

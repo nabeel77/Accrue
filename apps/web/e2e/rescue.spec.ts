@@ -40,13 +40,26 @@ test('the web app stops and the static page still hands everything back', async 
   await first.getByTestId('rescue').click();
 
   const signature = page.getByTestId('rescue-signature');
-  await expect(signature).toBeVisible({ timeout: 120_000 });
+  try {
+    await expect(signature).toBeVisible({ timeout: 120_000 });
+  } catch (failure) {
+    const said = await first.getByTestId('rescue-state').innerText();
+    await appendFile(notes, `rescue did not land: ${said.trim()}\n`);
+    throw failure;
+  }
   const shown = await signature.getAttribute('title');
   await appendFile(notes, `rescue ${shown ?? (await signature.innerText()).trim()}\n`);
 
-  await expect(first.getByTestId('rescue-state')).toHaveText(RESCUE_COPY.done, {
-    timeout: 120_000,
-  });
+  const state = first.getByTestId('rescue-state');
+  try {
+    await expect(state).toHaveText(RESCUE_COPY.done, { timeout: 120_000 });
+  } catch (failure) {
+    await appendFile(
+      notes,
+      `rescue did not finish: ${(await state.innerText()).trim()}\n`,
+    );
+    throw failure;
+  }
   await appendFile(
     notes,
     'the position is closed and the wallet holds nothing of ours\n',

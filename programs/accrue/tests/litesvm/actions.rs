@@ -326,6 +326,72 @@ impl World {
         }
     }
 
+    pub fn top_up_instruction(
+        &self,
+        opened: &OpenedPosition,
+        owner: Address,
+        collateral_amount: u64,
+        borrow_amount: u64,
+        minimum_destination_amount: u64,
+        leave_usdc_for_later_swap: bool,
+        jupiter_route_data: Vec<u8>,
+        route_accounts: Vec<AccountMeta>,
+    ) -> Instruction {
+        let mut accounts = accrue::accounts::TopUp {
+            owner,
+            config: self.config_address,
+            position: opened.address,
+            collateral_mint: self.collateral.liquidity_mint(),
+            destination_mint: self.destination_mint,
+            borrow_mint: self.borrow.liquidity_mint(),
+            position_collateral_account: opened.tokens.position_collateral,
+            position_usdc_account: opened.tokens.position_usdc,
+            position_destination_account: opened.tokens.position_destination,
+            owner_collateral_account: opened.tokens.owner_collateral,
+            obligation: opened.obligation,
+            lending_market: self.market,
+            lending_market_authority: self.market_authority,
+            collateral_reserve: self.collateral.address,
+            collateral_reserve_liquidity_supply: self.collateral.liquidity_supply_vault(),
+            collateral_reserve_collateral_mint: self.collateral.collateral_mint(),
+            collateral_reserve_collateral_supply: self.collateral.collateral_supply_vault(),
+            borrow_reserve: self.borrow.address,
+            borrow_reserve_liquidity_supply: self.borrow.liquidity_supply_vault(),
+            borrow_reserve_fee_receiver: self.borrow.liquidity_fee_vault(),
+            collateral_reserve_farm_state: None,
+            collateral_obligation_farm_state: None,
+            borrow_reserve_farm_state: Some(self.borrow_farm_state()),
+            borrow_obligation_farm_state: Some(
+                self.borrow_obligation_farm_state(&opened.obligation),
+            ),
+            scope_prices: self.scope_prices,
+            borrow_scope_prices: self.scope_prices,
+            farms_program: KAMINO_FARMS_PROGRAM_ID,
+            swap_program: JUPITER_V6_PROGRAM_ID,
+            kamino_program: KAMINO_LEND_PROGRAM_ID,
+            instruction_sysvar: INSTRUCTIONS_SYSVAR_ID,
+            kamino_collateral_token_program: TOKEN_PROGRAM_ID,
+            collateral_token_program: self.collateral.token_program(),
+            borrow_token_program: TOKEN_PROGRAM_ID,
+            destination_token_program: self.destination_token_program,
+        }
+        .to_account_metas(None);
+        accounts.extend(route_accounts);
+
+        Instruction {
+            program_id: accrue::ID,
+            accounts,
+            data: accrue::instruction::TopUp {
+                collateral_amount,
+                borrow_amount,
+                minimum_destination_amount,
+                leave_usdc_for_later_swap,
+                jupiter_route_data,
+            }
+            .data(),
+        }
+    }
+
     pub fn repay_instruction(
         &self,
         opened: &OpenedPosition,

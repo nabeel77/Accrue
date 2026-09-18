@@ -7,8 +7,10 @@ import { useCallback, useState, type JSX, type ReactNode } from 'react';
 import { AccrueMark } from '../../components/AccrueMark.js';
 import { Banner, Button, WalletPill } from '../../components/ui/index.js';
 import { COMMON, DEVNET, NAV } from '../../copy/common.js';
+import { FAILURE_COPY, FAILURE_DETAILS } from '../../copy/errors.js';
 import { useSession } from '../../client/session.js';
 import { TermsGate } from './TermsGate.js';
+import { WalletSheet } from './WalletSheet.js';
 
 const LINKS = [
   { href: '/app', label: NAV.deposit },
@@ -23,9 +25,10 @@ export function AppShell({
   children: ReactNode;
   isDevnet: boolean;
 }): JSX.Element {
-  const { me, signIn, signOut, busy } = useSession();
+  const { me, signOut, busy, failure, onTheWrongNetwork, networkName } = useSession();
   const path = usePathname();
   const [faucet, setFaucet] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [pickingWallet, setPickingWallet] = useState(false);
 
   const askTheFaucet = useCallback(async (): Promise<void> => {
     setFaucet('sending');
@@ -43,7 +46,14 @@ export function AppShell({
           : DEVNET.getTestTokens;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-ground)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        background: 'var(--color-ground)',
+      }}
+    >
       {isDevnet ? (
         <div data-testid="devnet-banner" style={{ padding: '8px 24px' }}>
           <Banner tone="notice">
@@ -138,15 +148,58 @@ export function AppShell({
             </Button>
           </span>
         ) : (
-          <Button testId="sign-in" onClick={() => void signIn()} disabled={busy}>
+          <Button
+            testId="sign-in"
+            onClick={() => {
+              setPickingWallet(true);
+            }}
+            disabled={busy}
+          >
             {busy ? COMMON.signingIn : COMMON.connectWallet}
           </Button>
         )}
       </header>
 
-      <main style={{ maxWidth: 1440, margin: '0 auto', padding: '24px' }}>
-        <TermsGate>{children}</TermsGate>
+      <main
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          width: '100%',
+          maxWidth: 1440,
+          margin: '0 auto',
+          padding: '24px',
+        }}
+      >
+        {onTheWrongNetwork ? (
+          <div style={{ paddingBottom: 16 }}>
+            <Banner tone="caution" testId="wrong-network">
+              {`${FAILURE_COPY.wrongNetwork} ${FAILURE_DETAILS.switchTo(networkName)}`}
+            </Banner>
+          </div>
+        ) : null}
+        {failure === null ? null : (
+          <div style={{ paddingBottom: 16 }}>
+            <Banner tone="caution" testId="session-failure">
+              {failure.sentence}
+            </Banner>
+          </div>
+        )}
+        <TermsGate
+          onConnect={() => {
+            setPickingWallet(true);
+          }}
+        >
+          {children}
+        </TermsGate>
       </main>
+
+      <WalletSheet
+        open={pickingWallet}
+        onClose={() => {
+          setPickingWallet(false);
+        }}
+      />
     </div>
   );
 }

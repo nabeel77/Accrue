@@ -8,6 +8,27 @@
       "when": 1789482528592,
       "tag": "0000_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789641726235,
+      "tag": "0001_faithful_havok",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789642706039,
+      "tag": "0002_striped_la_nuit",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789728956875,
+      "tag": "0003_dry_korg",
+      "breakpoints": true
     }
   ]
 }

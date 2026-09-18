@@ -1,4 +1,3 @@
-import { EXIT_LINE } from '../../../copy/banners.js';
 import { readEveryStock, readTheBorrowReserve } from '../../../server/markets.js';
 import { withinTheLimit } from '../../../server/rateLimit.js';
 import { ok, somethingWentWrong, tooMany } from '../../../server/respond.js';
@@ -56,7 +55,6 @@ export async function GET(): Promise<Response> {
           marginCallPeriodSeconds: reserve.deleverage.marginCallPeriodSeconds.toString(),
         },
       })),
-      exitLineWhenUnknown: EXIT_LINE.unknown,
     });
   } catch (failure) {
     return somethingWentWrong(failure);

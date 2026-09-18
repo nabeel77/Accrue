@@ -1,35 +1,49 @@
 'use client';
 
-/**
- * Wallet Standard, not the old adapter. We read the wallets the page advertises and use the two
- * features we need: connect and sign a message. Nothing here signs anything we did not build.
- */
+// Wallet Standard, not the old adapter.
+export interface StandardAccount {
+  readonly address: string;
+  readonly publicKey: Uint8Array;
+  readonly chains?: readonly string[];
+}
+
 export interface StandardWallet {
   readonly name: string;
   readonly icon?: string;
-  readonly accounts: readonly {
-    readonly address: string;
-    readonly publicKey: Uint8Array;
-  }[];
+  readonly chains?: readonly string[];
+  readonly accounts: readonly StandardAccount[];
   readonly features: Record<string, unknown>;
 }
 
 interface ConnectFeature {
-  connect(): Promise<{ accounts: readonly StandardWallet['accounts'][number][] }>;
+  connect(): Promise<{ accounts: readonly StandardAccount[] }>;
 }
 
 interface SignMessageFeature {
   signMessage(input: {
-    account: StandardWallet['accounts'][number];
+    account: StandardAccount;
     message: Uint8Array;
   }): Promise<readonly { signature: Uint8Array }[]>;
 }
 
 interface SignTransactionFeature {
   signTransaction(input: {
-    account: StandardWallet['accounts'][number];
+    account: StandardAccount;
     transaction: Uint8Array;
+    chain?: string;
   }): Promise<readonly { signedTransaction: Uint8Array }[]>;
+  // Wallet Standard says which transaction versions a wallet can read. One that predates
+  // version one does not list it, and handing it one anyway fails inside the wallet.
+  readonly supportedTransactionVersions?: readonly (string | number)[];
+}
+
+interface SignAndSendTransactionFeature {
+  signAndSendTransaction(input: {
+    account: StandardAccount;
+    transaction: Uint8Array;
+    chain: string;
+  }): Promise<readonly { signature: Uint8Array }[]>;
+  readonly supportedTransactionVersions?: readonly (string | number)[];
 }
 
 interface RegisterApi {
@@ -39,10 +53,11 @@ interface RegisterApi {
 const registered: StandardWallet[] = [];
 let listening = false;
 
-/**
- * The Wallet Standard handshake: wallets that loaded first answer the ready event, wallets that
- * load later announce themselves. No hardcoded list of wallets anywhere.
- */
+export function chainForCluster(cluster: 'devnet' | 'mainnet'): string {
+  return cluster === 'devnet' ? 'solana:devnet' : 'solana:mainnet';
+}
+
+// The Wallet Standard handshake: wallets already loaded answer the ready event, later ones announce.
 function listenForWallets(): void {
   if (listening || typeof window === 'undefined') {
     return;
@@ -69,26 +84,67 @@ export function availableWallets(): readonly StandardWallet[] {
   return registered;
 }
 
-export async function connectFirstWallet(): Promise<{
-  wallet: StandardWallet;
-  account: StandardWallet['accounts'][number];
-} | null> {
-  const [wallet] = availableWallets();
-  if (wallet === undefined) {
-    return null;
-  }
+// Only a wallet that says it speaks this chain is offered, and only its accounts that say so too.
+export function walletsForTheChain(chain: string): readonly StandardWallet[] {
+  return availableWallets().filter(
+    (wallet) => wallet.chains === undefined || wallet.chains.includes(chain),
+  );
+}
+
+export function accountsForTheChain(
+  wallet: StandardWallet,
+  chain: string,
+): readonly StandardAccount[] {
+  return wallet.accounts.filter(
+    (account) => account.chains === undefined || account.chains.includes(chain),
+  );
+}
+
+function theSigningFeature(wallet: StandardWallet): SignTransactionFeature | undefined {
+  return wallet.features['solana:signTransaction'] as SignTransactionFeature | undefined;
+}
+
+function theSendingFeature(
+  wallet: StandardWallet,
+): SignAndSendTransactionFeature | undefined {
+  return wallet.features['solana:signAndSendTransaction'] as
+    SignAndSendTransactionFeature | undefined;
+}
+
+export function canSignTransaction(wallet: StandardWallet): boolean {
+  return theSigningFeature(wallet) !== undefined;
+}
+
+export function canSignAndSendTransaction(wallet: StandardWallet): boolean {
+  return theSendingFeature(wallet) !== undefined;
+}
+
+export function takesVersionOne(wallet: StandardWallet): boolean {
+  const versions =
+    theSigningFeature(wallet)?.supportedTransactionVersions ??
+    theSendingFeature(wallet)?.supportedTransactionVersions;
+  return Array.isArray(versions) && versions.some((one) => one === 1 || one === '1');
+}
+
+export async function connectTheWallet(
+  wallet: StandardWallet,
+  chain: string,
+): Promise<{ wallet: StandardWallet; account: StandardAccount } | null> {
   const connect = wallet.features['standard:connect'] as ConnectFeature | undefined;
   if (connect === undefined) {
     return null;
   }
   const { accounts } = await connect.connect();
-  const account = accounts[0] ?? wallet.accounts[0];
+  const offered = accounts.filter(
+    (account) => account.chains === undefined || account.chains.includes(chain),
+  );
+  const account = offered[0] ?? accountsForTheChain(wallet, chain)[0];
   return account === undefined ? null : { wallet, account };
 }
 
 export async function signMessage(
   wallet: StandardWallet,
-  account: StandardWallet['accounts'][number],
+  account: StandardAccount,
   message: string,
 ): Promise<Uint8Array> {
   const feature = wallet.features['solana:signMessage'] as SignMessageFeature | undefined;
@@ -107,17 +163,53 @@ export async function signMessage(
 
 export async function signTransaction(
   wallet: StandardWallet,
-  account: StandardWallet['accounts'][number],
+  account: StandardAccount,
   transaction: Uint8Array,
+  chain: string,
 ): Promise<Uint8Array> {
   const feature = wallet.features['solana:signTransaction'] as
     SignTransactionFeature | undefined;
   if (feature === undefined) {
     throw new Error('that wallet cannot sign a transaction');
   }
-  const [signed] = await feature.signTransaction({ account, transaction });
+  const [signed] = await feature.signTransaction({ account, transaction, chain });
   if (signed === undefined) {
     throw new Error('that wallet returned no signed transaction');
   }
   return signed.signedTransaction;
+}
+
+const REMEMBERED = 'accrue.wallet';
+
+export function rememberTheChoice(name: string): void {
+  try {
+    window.localStorage.setItem(REMEMBERED, name);
+  } catch {
+    return;
+  }
+}
+
+export function theRememberedChoice(): string | null {
+  try {
+    return window.localStorage.getItem(REMEMBERED);
+  } catch {
+    return null;
+  }
+}
+
+export async function signAndSendTransaction(
+  wallet: StandardWallet,
+  account: StandardAccount,
+  transaction: Uint8Array,
+  chain: string,
+): Promise<Uint8Array> {
+  const feature = theSendingFeature(wallet);
+  if (feature === undefined) {
+    throw new Error('that wallet cannot send a transaction');
+  }
+  const [sent] = await feature.signAndSendTransaction({ account, transaction, chain });
+  if (sent === undefined) {
+    throw new Error('that wallet returned no signature');
+  }
+  return sent.signature;
 }

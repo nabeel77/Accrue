@@ -1,4 +1,6 @@
-import { createDatabaseClient, schema } from '@accrue/db';
+import { schema } from '@accrue/db';
+
+import { db } from '../../../../server/database.js';
 
 import { cronIsAuthorised } from '../../../../server/cron.js';
 import { readEveryStock, readTheBorrowReserve } from '../../../../server/markets.js';
@@ -39,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
       oraclePriceUsd: asNumber(entry.reserve.oraclePriceScaled),
       source: 'reserve account',
     }));
-    await createDatabaseClient().insert(schema.marketSnapshots).values(rows);
+    await db().insert(schema.marketSnapshots).values(rows);
     return ok({ written: rows.length });
   } catch (failure) {
     return somethingWentWrong(failure);
