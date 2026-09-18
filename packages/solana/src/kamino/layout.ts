@@ -68,7 +68,7 @@ const RESERVE_STATUS_OBSOLETE = 1;
 const BASIS_POINTS_PER_PERCENT = 100;
 const NO_SCOPE_FEED = 0xffff;
 
-/** One rolling cap the lending market puts on an outflow, as the reserve stores it. */
+// One rolling cap the lending market puts on an outflow, as the reserve stores it.
 export interface WithdrawalCapSnapshot {
   readonly capacity: bigint;
   readonly usedInThisWindow: bigint;
@@ -76,7 +76,7 @@ export interface WithdrawalCapSnapshot {
   readonly windowLengthSeconds: bigint;
 }
 
-/** A point on the reserve's own borrow rate curve: the rate charged at that utilisation. */
+// A point on the reserve's own borrow rate curve: the rate charged at that utilisation.
 export interface BorrowCurvePoint {
   readonly utilisationBps: number;
   readonly borrowRateBps: number;

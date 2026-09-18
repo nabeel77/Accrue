@@ -7,11 +7,13 @@ import {
   CURRENT_RISK_ACKNOWLEDGEMENT_VERSION,
   CURRENT_TERMS_VERSION,
   defaultStrategyFor,
+  valuedForBorrowing,
   type Destination,
 } from '@accrue/core';
 import {
   currentCluster,
   collateralForMint,
+  decodeScaledUiAmountMultiplier,
   INSTRUCTIONS_SYSVAR_ADDRESS,
   JUPITER_V6_PROGRAM_ADDRESS,
   KAMINO_FARMS_PROGRAM_ADDRESS,
@@ -35,12 +37,14 @@ import { CAPS } from '../env.js';
 import { standingOf } from '../gates.js';
 import { chain, nowUnixTimestamp, swapRouter } from '../rpc.js';
 import { positionAddresses } from './addresses.js';
+import { theLivePriceOf } from './livePrice.js';
 import { assemble, assembleAndSimulate, TransactionDoesNotFit } from './assemble.js';
-import { recordTheBuild } from './record.js';
+import { recordThePositionRow } from './record.js';
 import type { BuildRefusal, BuiltTransaction } from './shape.js';
 
 const BASIS_POINTS = 10_000n;
 const SCALED_FRACTION_ONE = 1n << 60n;
+const A_SLOT_IN_MILLISECONDS = 400;
 const ROUTE_MAX_ACCOUNTS = 28;
 
 export interface OpenRequest {
@@ -59,7 +63,7 @@ export type OpenOutcome =
   | {
       readonly built: readonly BuiltTransaction[];
       readonly summary: OpenSummary;
-      readonly buildId: string | null;
+      readonly positionId: string | null;
     }
   | { readonly refused: BuildRefusal };
 
@@ -82,20 +86,10 @@ export interface OpenSummary {
   readonly collateralDecimals: number;
   readonly slippageBps: number;
   readonly positionAddress: string;
+  readonly quotedAtMilliseconds: number;
 }
 
-/**
- * The order matters: the terms, then the acknowledgement, then the caps. A wallet that has not
- * acknowledged is told so before anything about its money is computed.
- */
-/**
- * The first path that fits, as the transaction format section sets out: one version 1 transaction
- * when the endpoint will take it, then opening without the swap and buying the destination after,
- * which is what the program's leave the USDC for a later swap flag is for, and last the token
- * accounts on their own. Only the first transaction of a path can be simulated, because the ones
- * after it depend on what the first one leaves behind, so the rest are compiled and measured and
- * the submit route simulates each in turn against the chain it is about to be sent to.
- */
+// The order matters: the terms, then the acknowledgement, then the caps.
 interface TokenAccountWanted {
   readonly account: Address;
   readonly mint: Address;
@@ -103,10 +97,25 @@ interface TokenAccountWanted {
   readonly owner?: Address;
 }
 
-/**
- * A position's token accounts have to exist before the program is called, and the ones already
- * there are left alone so the transaction stays as small as it can be.
- */
+async function multiplierOfTheMint(mint: Address): Promise<number> {
+  const { value } = await chain()
+    .rpc.getAccountInfo(mint, { encoding: 'base64', commitment: 'confirmed' })
+    .send();
+  return value === null
+    ? 1
+    : decodeScaledUiAmountMultiplier(
+        Uint8Array.from(Buffer.from(value.data[0], 'base64')),
+      );
+}
+
+// A blockhash dies at a block height, so the row records when that height is due to arrive.
+async function whenTheBlockhashDies(built: readonly BuiltTransaction[]): Promise<Date> {
+  const lastGood = BigInt(built[0]?.blockhashExpiresAtHeight ?? '0');
+  const now = await chain().rpc.getBlockHeight().send();
+  const blocksLeft = lastGood > now ? Number(lastGood - now) : 0;
+  return new Date(Date.now() + blocksLeft * A_SLOT_IN_MILLISECONDS);
+}
+
 async function theTokenAccountsToCreate(
   payer: Address,
   wanted: readonly TokenAccountWanted[],
@@ -115,7 +124,7 @@ async function theTokenAccountsToCreate(
   const { value } = await chain()
     .rpc.getMultipleAccounts(
       wanted.map((entry) => entry.account),
-      { encoding: 'base64' },
+      { encoding: 'base64', commitment: 'confirmed' },
     )
     .send();
 
@@ -188,10 +197,23 @@ export async function buildOpenPosition(
     return { refused: { refusal: 'paused', message: 'Position building is off.' } };
   }
 
+  const [config] = await findConfigPda();
+  const configAccount = await fetchConfig(chain().rpc, config, {
+    commitment: 'confirmed',
+  });
+  if (configAccount.data.openPaused || configAccount.data.sunset) {
+    return {
+      refused: {
+        refusal: 'programPaused',
+        message: 'The program is not taking new positions.',
+      },
+    };
+  }
+
   const stock = collateralForMint(address(input.stockMint));
   if (stock === null) {
     return {
-      refused: { refusal: 'strategy', message: 'That stock is not on the list.' },
+      refused: { refusal: 'stockNotOffered', message: 'That stock is not on the list.' },
     };
   }
   const cluster = currentCluster();
@@ -203,7 +225,12 @@ export async function buildOpenPosition(
     usdcMint === undefined ||
     destinationMint === undefined
   ) {
-    return { refused: { refusal: 'strategy', message: 'This cluster is not set up.' } };
+    return {
+      refused: {
+        refusal: 'pairNotOnThisNetwork',
+        message: 'This cluster is not set up.',
+      },
+    };
   }
 
   const now = nowUnixTimestamp();
@@ -219,7 +246,7 @@ export async function buildOpenPosition(
   if (targetLtvBps > strategyDefaults.targetLtvBps && input.overrideAccepted !== true) {
     return {
       refused: {
-        refusal: 'cap',
+        refusal: 'aboveTheDefaultLoanToValue',
         message: 'That is above the default loan to value.',
         detail: {
           defaultLtvBps: strategyDefaults.targetLtvBps,
@@ -231,16 +258,43 @@ export async function buildOpenPosition(
   }
   if (targetLtvBps > collateral.maxLoanToValueBps) {
     return {
-      refused: { refusal: 'strategy', message: 'That is above what the market allows.' },
+      refused: {
+        refusal: 'aboveTheMarketMaximum',
+        message: 'That is above what the market allows.',
+      },
     };
   }
 
   const collateralAmount = BigInt(input.collateralAmountRaw);
+  const collateralPriceScaled = await theLivePriceOf(collateral);
   const collateralUsdScaled =
-    (collateralAmount * collateral.oraclePriceScaled) /
-    10n ** BigInt(collateral.decimals);
+    (collateralAmount * collateralPriceScaled) / 10n ** BigInt(collateral.decimals);
+  const collateralUsd = Number(collateralUsdScaled) / Number(1n << 60n);
+  if (collateralUsd < CAPS.minPositionUsd()) {
+    return {
+      refused: {
+        refusal: 'positionTooSmall',
+        message: `The smallest position is ${CAPS.minPositionUsd()} dollars.`,
+        detail: { valueUsd: collateralUsd, minimumUsd: CAPS.minPositionUsd() },
+      },
+    };
+  }
+  if (collateralUsd > CAPS.maxPositionUsd()) {
+    return {
+      refused: {
+        refusal: 'positionTooLarge',
+        message: `The largest position is ${CAPS.maxPositionUsd()} dollars.`,
+        detail: { valueUsd: collateralUsd, maximumUsd: CAPS.maxPositionUsd() },
+      },
+    };
+  }
+
+  // Against a value under the one just read, because the market revalues the stock when the
+  // transaction runs and refuses a borrow that lands over the target.
   const borrowUsdc =
-    (collateralUsdScaled * BigInt(targetLtvBps) * 10n ** BigInt(borrow.decimals)) /
+    (valuedForBorrowing(collateralUsdScaled) *
+      BigInt(targetLtvBps) *
+      10n ** BigInt(borrow.decimals)) /
     BASIS_POINTS /
     (1n << 60n);
 
@@ -251,7 +305,7 @@ export async function buildOpenPosition(
   if (borrowUsdc > shareCeiling) {
     return {
       refused: {
-        refusal: 'liquidity',
+        refusal: 'aboveTheLiquidityShare',
         message: 'That borrow is too big a share of what is left.',
         detail: {
           requestedRaw: borrowUsdc.toString(),
@@ -278,12 +332,12 @@ export async function buildOpenPosition(
   });
 
   const alreadyThere = await chain()
-    .rpc.getAccountInfo(at.position, { encoding: 'base64' })
+    .rpc.getAccountInfo(at.position, { encoding: 'base64', commitment: 'confirmed' })
     .send();
   if (alreadyThere.value !== null) {
     return {
       refused: {
-        refusal: 'strategy',
+        refusal: 'positionAlreadyOpen',
         message: `You already have a position in ${stock.symbol} earning ${destination.symbol}. Close it before opening another.`,
         detail: { stock: stock.symbol, destination: destination.symbol },
       },
@@ -298,10 +352,10 @@ export async function buildOpenPosition(
     maxAccounts: ROUTE_MAX_ACCOUNTS,
     signingAuthority: at.position,
   });
+  const quotedAtMilliseconds = Date.now();
 
   const collateralVaults = reserveAccounts(collateral.snapshot);
   const borrowVaults = reserveAccounts(borrow.snapshot);
-  const [config] = await findConfigPda();
   const marketAuthority = await findLendingMarketAuthority(cluster.lendingMarket);
   const userMetadata = await findKaminoUserMetadata(at.position);
   const destinationTokenProgram =
@@ -343,12 +397,12 @@ export async function buildOpenPosition(
       swapProgram: JUPITER_V6_PROGRAM_ADDRESS,
       collateralAmount,
       borrowAmount: borrowUsdc,
-      minimumDestinationAmount: withTheSwap ? route.quote.amountOut : 0n,
+      minimumDestinationAmount: withTheSwap ? route.minimumAmountOut : 0n,
       strategy: {
         targetLtvBps,
         protectLtvBps,
         growBelowLtvBps: strategyDefaults.growBelowLtvBps,
-        growEnabled: input.growEnabled ?? true,
+        growEnabled: input.growEnabled ?? false,
         exitOnFlagEnabled: input.exitOnFlagEnabled ?? true,
       },
       leaveUsdcForLaterSwap: !withTheSwap,
@@ -370,7 +424,7 @@ export async function buildOpenPosition(
       obligation: at.obligation,
       collateralReserve: stock.reserve,
       swapProgram: JUPITER_V6_PROGRAM_ADDRESS,
-      minimumDestinationAmount: route.quote.amountOut,
+      minimumDestinationAmount: route.minimumAmountOut,
       jupiterRouteData: route.data,
     });
     return { ...buy, accounts: [...buy.accounts, ...route.accounts] };
@@ -414,7 +468,6 @@ export async function buildOpenPosition(
       : [[creates, [openPosition(false)], [buyTheDestination()]]]),
   ]);
 
-  const configAccount = await fetchConfig(chain().rpc, config);
   const scaledToWhole = (scaled: bigint): number =>
     Number(scaled) / Number(SCALED_FRACTION_ONE);
   const oraclePrice = scaledToWhole(collateral.oraclePriceScaled);
@@ -425,7 +478,7 @@ export async function buildOpenPosition(
 
   return {
     built,
-    buildId: await recordTheBuild({
+    positionId: await recordThePositionRow({
       walletAddress: input.wallet,
       positionAddress: at.position,
       marketAddress: cluster.lendingMarket,
@@ -433,13 +486,13 @@ export async function buildOpenPosition(
       targetLtvBps,
       protectLtvBps,
       growBelowLtvBps: strategyDefaults.growBelowLtvBps,
-      growEnabled: input.growEnabled ?? true,
+      growEnabled: input.growEnabled ?? false,
       exitOnFlagEnabled: input.exitOnFlagEnabled ?? true,
       feeBpsAtOpen: configAccount.data.performanceFeeBps,
       collateralMint: stock.mint,
       collateralDecimals: collateral.decimals,
       collateralAmountRaw: collateralAmount.toString(),
-      collateralMultiplierAtOpen: '1.000000',
+      collateralMultiplierAtOpen: (await multiplierOfTheMint(stock.mint)).toFixed(6),
       collateralPriceAtOpen: oraclePrice.toFixed(6),
       borrowMint: usdcMint,
       borrowAmountRaw: borrowUsdc.toString(),
@@ -452,7 +505,7 @@ export async function buildOpenPosition(
       liquidationThresholdAtOpen: (collateral.liquidationThresholdBps / 100).toFixed(6),
       liquidationPriceAtOpen: liquidationPriceAtOpen.toFixed(6),
       ltvOverrideAccepted: input.overrideAccepted ?? false,
-      blockhashExpiresAt: new Date(),
+      blockhashExpiresAt: await whenTheBlockhashDies(built),
     }),
     summary: {
       stockSymbol: stock.symbol,
@@ -462,7 +515,7 @@ export async function buildOpenPosition(
       borrowRateBps: borrow.borrowRateBps,
       destinationSymbol: destination.symbol,
       quotedDestinationRaw: route.quote.amountOut.toString(),
-      minimumDestinationRaw: route.quote.amountOut.toString(),
+      minimumDestinationRaw: route.minimumAmountOut.toString(),
       destinationTargetRateBps,
       maxLoanToValueBps: collateral.maxLoanToValueBps,
       liquidationThresholdBps: collateral.liquidationThresholdBps,
@@ -473,6 +526,7 @@ export async function buildOpenPosition(
       collateralDecimals: collateral.decimals,
       slippageBps: CAPS.maxSlippageBps(),
       positionAddress: at.position,
+      quotedAtMilliseconds,
     },
   };
 }

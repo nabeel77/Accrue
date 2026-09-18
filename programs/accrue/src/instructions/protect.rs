@@ -190,13 +190,19 @@ pub fn handle_protect<'info>(
     );
 
     let clock = Clock::get()?;
-    require_the_interval_has_elapsed(
-        accounts.position.last_protect_at,
-        clock.unix_timestamp,
-        accounts.config.min_protect_interval_seconds,
-    )?;
-
     let caller_is_the_owner = accounts.caller.key() == accounts.position.owner;
+    // The interval exists so a keeper cannot repay the same position in a loop for the bounty.
+    // Neither reason holds once the market can seize the collateral, and the owner is never
+    // farming their own position, so both of those act without waiting.
+    let past_the_liquidation_line =
+        loan_to_value_bps >= collateral_reserve.liquidation_threshold_bps()?;
+    if !caller_is_the_owner && !past_the_liquidation_line {
+        require_the_interval_has_elapsed(
+            accounts.position.last_protect_at,
+            clock.unix_timestamp,
+            accounts.config.min_protect_interval_seconds,
+        )?;
+    }
     let usdc_price = read_scope_price(
         &accounts.borrow_scope_prices,
         borrow_reserve.scope_feed_index()?,

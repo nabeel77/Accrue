@@ -1,5 +1,7 @@
 import type { CSSProperties, JSX, ReactNode } from 'react';
 
+export const CENTRED_SCREEN: CSSProperties = { width: '100%', margin: 'auto' };
+
 export function Panel({
   children,
   style,
@@ -73,7 +75,7 @@ export function Row({
   );
 }
 
-/** Every number, address, percentage and time. Tabular so columns line up. */
+// Every number, address, percentage and time.
 export function Mono({
   children,
   tone = 'text',
@@ -81,20 +83,22 @@ export function Mono({
   testId,
 }: {
   children: ReactNode;
-  tone?: 'text' | 'secondary' | 'muted' | 'gold' | 'accent';
+  tone?: 'text' | 'secondary' | 'muted' | 'gold' | 'accent' | 'caution';
   style?: CSSProperties;
   testId?: string;
 }): JSX.Element {
   const colour =
-    tone === 'gold'
-      ? 'var(--color-gold)'
-      : tone === 'accent'
-        ? 'var(--color-accent)'
-        : tone === 'secondary'
-          ? 'var(--color-text-secondary)'
-          : tone === 'muted'
-            ? 'var(--color-text-muted)'
-            : 'var(--color-text)';
+    tone === 'caution'
+      ? 'var(--color-health-caution)'
+      : tone === 'gold'
+        ? 'var(--color-gold)'
+        : tone === 'accent'
+          ? 'var(--color-accent)'
+          : tone === 'secondary'
+            ? 'var(--color-text-secondary)'
+            : tone === 'muted'
+              ? 'var(--color-text-muted)'
+              : 'var(--color-text)';
   return (
     <span
       data-testid={testId}
@@ -124,21 +128,34 @@ export function Muted({
   );
 }
 
-export function Secondary({ children }: { children: ReactNode }): JSX.Element {
-  return <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>{children}</p>;
+export function Secondary({
+  children,
+  testId,
+}: {
+  children: ReactNode;
+  testId?: string;
+}): JSX.Element {
+  return (
+    <p data-testid={testId} style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+      {children}
+    </p>
+  );
 }
 
 export function Heading({
   children,
   level = 2,
+  testId,
 }: {
   children: ReactNode;
   level?: 1 | 2 | 3;
+  testId?: string;
 }): JSX.Element {
   const size = level === 1 ? 28 : level === 2 ? 20 : 16;
   const Tag = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3';
   return (
     <Tag
+      data-testid={testId}
       style={{ fontSize: size, fontWeight: 500, margin: 0, color: 'var(--color-text)' }}
     >
       {children}

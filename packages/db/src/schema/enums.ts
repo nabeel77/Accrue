@@ -10,6 +10,7 @@ export const positionStatusEnum = pgEnum('position_status', [
   'left',
   'failed',
   'expired',
+  'abandoned',
 ]);
 
 export const positionHealthEnum = pgEnum('position_health', [
@@ -22,6 +23,15 @@ export const guardEventKindEnum = pgEnum('guard_event_kind', [
   'protect',
   'grow',
   'leave',
+]);
+
+// What one keeper round did about one position. A check is a round that looked and found
+// nothing to do, which is how a screen knows the guard is still being run.
+export const keeperRunKindEnum = pgEnum('keeper_run_kind', [
+  'protect',
+  'grow',
+  'leave',
+  'check',
 ]);
 
 export const keeperOutcomeEnum = pgEnum('keeper_outcome', [

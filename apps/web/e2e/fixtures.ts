@@ -7,8 +7,14 @@ import { installTestWallet, loadTestWallet, type TestWalletKeys } from './testWa
 
 const WALLET_NAME = 'Harness wallet';
 
-export const test = base.extend<{ wallet: TestWalletKeys }>({
-  wallet: async ({ page }, use) => {
+export interface WalletPretence {
+  readonly chains?: string[];
+  readonly refusesToSign?: boolean;
+}
+
+export const test = base.extend<{ wallet: TestWalletKeys; pretence: WalletPretence }>({
+  pretence: [{}, { option: true }],
+  wallet: async ({ page, pretence }, use) => {
     const wallet = await loadTestWallet();
     await page.exposeFunction('__accrueE2eSignMessage', async (message: number[]) => [
       ...(await wallet.signMessage(Uint8Array.from(message))),
@@ -23,6 +29,7 @@ export const test = base.extend<{ wallet: TestWalletKeys }>({
       address: wallet.address,
       publicKeyBytes: wallet.publicKeyBytes,
       name: WALLET_NAME,
+      ...pretence,
     });
     await use(wallet);
   },
@@ -30,8 +37,13 @@ export const test = base.extend<{ wallet: TestWalletKeys }>({
 
 export const expect = base.expect;
 
-export async function shoot(page: Page, name: string, width: string): Promise<string> {
+export async function shoot(
+  page: Page,
+  name: string,
+  width: string,
+  fullPage = true,
+): Promise<string> {
   const file = `${name}-${width}.png`;
-  await page.screenshot({ path: resolve(screenshotDirectory(), file), fullPage: true });
+  await page.screenshot({ path: resolve(screenshotDirectory(), file), fullPage });
   return file;
 }

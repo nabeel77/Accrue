@@ -5,10 +5,6 @@ import { useState, type JSX } from 'react';
 import { Button, Muted, Sheet, Stack } from '../../components/ui/index.js';
 import { useSession } from '../../client/session.js';
 
-/**
- * The sentences come from the module, never from this file, and every one of them is on screen
- * before the single button. There is no checkbox.
- */
 export function AcknowledgementSheet({
   open,
   onAccepted,

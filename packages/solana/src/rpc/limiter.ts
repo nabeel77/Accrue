@@ -1,10 +1,6 @@
-/**
- * A sliding window over the last second, shared by every caller of one client. The provider bills
- * and throttles by requests a second, so the limit belongs next to the transport rather than in
- * each route: one page that reads eight accounts must not be able to spend the whole budget.
- */
+// A sliding window over the last second, shared by every caller of one client.
 export interface RateLimiter {
-  /** Resolves when the caller may make its request. */
+  // Resolves when the caller may make its request.
   waitForATurn(): Promise<void>;
 }
 

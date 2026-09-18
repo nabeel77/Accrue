@@ -56,12 +56,6 @@ function addFileExtensionsToRelativeImports(directory: string): void {
   }
 }
 
-/**
- * Codama writes the address of every account the IDL gives a default into the client as a literal,
- * and those literals are whatever cluster the IDL was built for. A client that stands in a mainnet
- * address on devnet builds a transaction the program refuses, so each one is pointed at the
- * cluster module instead. Only the phantom type parameter is cast; the value is the real address.
- */
 const CLUSTER_ADDRESSES: Readonly<Record<string, string>> = {
   KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD: 'KAMINO_LENDING_PROGRAM_ADDRESS',
   FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr: 'KAMINO_FARMS_PROGRAM_ADDRESS',

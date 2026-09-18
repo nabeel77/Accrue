@@ -1,7 +1,7 @@
 export const BASIS_POINTS_DENOMINATOR = 10_000n;
 export const PERCENT_DENOMINATOR = 100n;
 
-/** The lending market keeps every value as a fraction scaled by two to the sixtieth. */
+// The lending market keeps every value as a fraction scaled by two to the sixtieth.
 export const SCALED_FRACTION_BITS = 60n;
 export const SCALED_FRACTION_ONE = 1n << SCALED_FRACTION_BITS;
 
@@ -32,7 +32,7 @@ export interface OraclePrice {
   readonly exponent: bigint;
 }
 
-/** One whole token's worth in dollars, at the lending market's own scale. */
+// One whole token's worth in dollars, at the lending market's own scale.
 export function usdPerWholeTokenScaled(price: OraclePrice): bigint {
   if (price.value <= 0n) {
     throw new Error('the oracle reported a price of zero');
@@ -73,7 +73,6 @@ export function rawAmountWorthRoundingDown(
   );
 }
 
-/** Sell a little more than the fair amount, so a fill inside the slippage still covers the repay. */
 export function addTheSlippageBuffer(rawAmount: bigint, maxSlippageBps: number): bigint {
   const remainingBps = BASIS_POINTS_DENOMINATOR - BigInt(maxSlippageBps);
   if (remainingBps <= 0n) {
@@ -91,10 +90,7 @@ export interface SwapSide {
   readonly priceScaled: bigint;
 }
 
-/**
- * The floor the program puts under a permissionless swap. The keeper computes the same number so
- * it never asks the router for a fill the program is going to refuse.
- */
+// The floor the program puts under a permissionless swap.
 export function minimumOutputTheOracleAllows(
   selling: SwapSide,
   buyingDecimals: number,

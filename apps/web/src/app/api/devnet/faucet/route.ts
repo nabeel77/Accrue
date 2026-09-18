@@ -1,28 +1,24 @@
 import { isDevnet, optional, required } from '../../../../server/env.js';
 import { callerAddress, withinTheLimit } from '../../../../server/rateLimit.js';
-import { ok, refuse, tooMany } from '../../../../server/respond.js';
+import { ok, refuse, refuseWith, tooMany } from '../../../../server/respond.js';
 import { walletOfTheSession } from '../../../../server/session.js';
 
-/**
- * The browser asks us, and we ask the faucet with the shared secret. The faucet address and the
- * secret never leave the server, and the wallet the tokens go to is the session's, never one the
- * caller names.
- */
+// The browser asks us, and we ask the faucet with the shared secret.
 export async function POST(request: Request): Promise<Response> {
   if (!isDevnet()) {
     return refuse('There is no faucet here.', 404);
   }
   const wallet = await walletOfTheSession();
   if (wallet === null) {
-    return refuse('Sign in first.', 401);
+    return refuseWith('signInFirst', 401);
   }
 
-  const perWallet = await withinTheLimit('read', 'devnet/faucet/wallet', wallet);
+  const perWallet = await withinTheLimit('faucet', 'devnet/faucet/wallet', wallet);
   if (!perWallet.allowed) {
     return tooMany(perWallet.retryAfterSeconds);
   }
   const perHost = await withinTheLimit(
-    'read',
+    'faucet',
     'devnet/faucet/host',
     callerAddress(request),
   );

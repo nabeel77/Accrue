@@ -38,7 +38,7 @@ function rpcUrl(): string {
   return url;
 }
 
-/** On the sandbox a destination is the mock mint of the same symbol. */
+// On the sandbox a destination is the mock mint of the same symbol.
 function mintOnThisCluster(destination: Destination): Address {
   if (clusterName() === 'mainnet') {
     return address(destination.mainnetMint);

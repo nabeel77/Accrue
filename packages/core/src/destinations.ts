@@ -1,19 +1,16 @@
-/**
- * Every yield token the app will offer, with the five eligibility checks recorded against it.
- * `pnpm destinations:check` runs them again live; nothing here is shown unless all five passed.
- */
+// Every yield token the app will offer, with the five eligibility checks recorded against it.
 export type ExitType = 'instant' | 'request';
 
 export interface EligibilityRecord {
-  /** Nothing on the mint stops a program account from holding it. */
+  // Nothing on the mint stops a program account from holding it.
   readonly mintIsNotPermissioned: boolean;
-  /** The router quotes 100 and 1,000 USDC with price impact under one percent. */
+  // The router quotes 100 and 1,000 USDC with price impact under one percent.
   readonly routesAtBothSizes: boolean;
-  /** Scope prices it, so the guard can sell it against a floor it computed itself. */
+  // Scope prices it, so the guard can sell it against a floor it computed itself.
   readonly hasAScopeFeed: boolean;
-  /** The exit type comes from the issuer's own documentation. */
+  // The exit type comes from the issuer's own documentation.
   readonly exitTypeIsDocumented: boolean;
-  /** The yield source fits in one honest sentence. */
+  // The yield source fits in one honest sentence.
   readonly yieldSourceIsOneSentence: boolean;
   readonly checkedOn: string;
 }
@@ -28,7 +25,7 @@ export interface Destination {
   readonly exitType: ExitType;
   readonly scopeFeedIndex: number;
   readonly defiLlamaPoolId: string;
-  /** The last published target, used only until a destination snapshot replaces it. */
+  // The last published target, used only until a destination snapshot replaces it.
   readonly targetRateBps: number;
   readonly targetRateSource: string;
   readonly eligibility: EligibilityRecord;
@@ -46,7 +43,7 @@ export const DESTINATIONS: readonly Destination[] = [
     scopeFeedIndex: 350,
     defiLlamaPoolId: '7083d6a5-e3cb-4eeb-8204-f1b735e4ecbb',
     targetRateBps: 1_154,
-    targetRateSource: 'ONre, 14 September 2026',
+    targetRateSource: 'ONre',
     eligibility: {
       mintIsNotPermissioned: true,
       routesAtBothSizes: true,
@@ -66,7 +63,7 @@ export function destinationBySymbol(symbol: string): Destination | null {
   return DESTINATIONS.find((entry) => entry.symbol === symbol) ?? null;
 }
 
-/** All five, every one required. A destination that fails any of them is never shown. */
+// All five, every one required.
 export function passesEveryEligibilityCheck(destination: Destination): boolean {
   const record = destination.eligibility;
   return (

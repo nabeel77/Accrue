@@ -1,7 +1,3 @@
-/**
- * The Wallet Standard handshake, written out here so this page depends on nothing but the browser
- * and whichever wallet answers. No hardcoded list of wallets.
- */
 export interface StandardAccount {
   readonly address: string;
   readonly publicKey: Uint8Array;

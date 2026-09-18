@@ -1,10 +1,10 @@
 import { BASIS_POINTS_DENOMINATOR } from '../money.js';
 
-/** The fall every screen stress tests against. */
+// The fall every screen stress tests against.
 export const STRESS_FALL_BPS = 2_000;
 
 export interface StressInputs {
-  /** What the collateral is worth now, in raw USDC terms. */
+  // What the collateral is worth now, in raw USDC terms.
   readonly collateralValue: bigint;
   readonly debt: bigint;
   readonly protectLtvBps: number;
@@ -16,7 +16,7 @@ export interface StressInputs {
 export interface StressResult {
   readonly fallBps: number;
   readonly collateralAfter: bigint;
-  /** What the guard would repay to come back to target, zero when it does not need to act. */
+  // What the guard would repay to come back to target, zero when it does not need to act.
   readonly protectAmount: bigint;
   readonly debtAfter: bigint;
   readonly loanToValueAfterBps: number;
@@ -24,10 +24,6 @@ export interface StressResult {
   readonly liquidatedBeforeTheGuardCouldAct: boolean;
 }
 
-/**
- * The same arithmetic the program does in `repay_to_reach_target`, so a screen never promises
- * something the chain would not do.
- */
 export function stressThePosition(inputs: StressInputs): StressResult {
   const fallBps = inputs.fallBps ?? STRESS_FALL_BPS;
   const remaining = BASIS_POINTS_DENOMINATOR - BigInt(fallBps);

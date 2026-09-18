@@ -6,7 +6,7 @@ import { SANDBOX_TOKENS } from './tokens.js';
 
 const PRICES_FILE = 'prices.json';
 
-/** What the sandbox believes each token is worth right now, in dollars, between runs. */
+// What the sandbox believes each token is worth right now, in dollars, between runs.
 export function priceBookPath(): string {
   return resolve(devnetDirectory(), PRICES_FILE);
 }

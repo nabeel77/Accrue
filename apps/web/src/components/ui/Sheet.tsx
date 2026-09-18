@@ -1,21 +1,38 @@
 'use client';
 
-import type { JSX, ReactNode } from 'react';
+import { useEffect, type JSX, type ReactNode } from 'react';
 
 import { Heading, Stack } from './primitives.js';
 
-/** Our own sheet. The app never calls alert, confirm or prompt. */
+// Our own sheet.
 export function Sheet({
   title,
   open,
   children,
   testId,
+  onClose,
 }: {
   title: string;
   open: boolean;
   children: ReactNode;
   testId?: string;
+  onClose?: () => void;
 }): JSX.Element | null {
+  useEffect(() => {
+    if (!open || onClose === undefined) {
+      return;
+    }
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [open, onClose]);
+
   if (!open) {
     return null;
   }
@@ -24,13 +41,19 @@ export function Sheet({
       data-testid={testId}
       role="dialog"
       aria-label={title}
+      onClick={(event) => {
+        if (onClose !== undefined && event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(12, 11, 10, 0.72)',
+        background: 'color-mix(in srgb, var(--color-ground) 72%, transparent)',
         display: 'flex',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         justifyContent: 'center',
+        padding: 16,
         zIndex: 20,
       }}
     >
@@ -41,7 +64,7 @@ export function Sheet({
           overflowY: 'auto',
           background: 'var(--color-panel)',
           border: '1px solid var(--color-hairline)',
-          borderRadius: 'var(--radius) var(--radius) 0 0',
+          borderRadius: 'var(--radius)',
           padding: 24,
         }}
       >

@@ -2,6 +2,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 
 import { address, isAddress, type Address, type KeyPairSigner } from '@solana/kit';
 
+import { shortenAddress } from '@accrue/core';
+
+import {
+  answer,
+  callerHost,
+  readBody,
+  theSecretMatches,
+  theSharedSecret,
+} from './httpService.js';
 import { connectToDevnet, reportStep, type Cluster } from './shared.js';
 import { grantTestTokens, mintAuthoritySigner } from './faucet.js';
 
@@ -9,7 +18,6 @@ const DEFAULT_PORT = 8787;
 const A_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const GRANTS_PER_ADDRESS_PER_DAY = 1;
 const GRANTS_PER_HOST_PER_DAY = 20;
-const LARGEST_BODY_BYTES = 4_096;
 
 interface Window {
   count: number;
@@ -44,59 +52,13 @@ function refund(windows: Map<string, Window>, key: string): void {
   }
 }
 
-function shorten(value: string): string {
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
-}
-
-function answer(response: ServerResponse, status: number, body: unknown): void {
-  const encoded = JSON.stringify(body);
-  response.writeHead(status, {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(encoded),
-  });
-  response.end(encoded);
-}
-
-async function readBody(request: IncomingMessage): Promise<string> {
-  const pieces: Buffer[] = [];
-  let length = 0;
-  for await (const chunk of request) {
-    const piece = Buffer.from(chunk as Buffer);
-    pieces.push(piece);
-    length += piece.length;
-    if (length > LARGEST_BODY_BYTES) {
-      throw new Error('that request body is too long');
-    }
-  }
-  return Buffer.concat(pieces).toString('utf8');
-}
-
-function callerHost(request: IncomingMessage): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0];
-  return (first ?? request.socket.remoteAddress ?? 'unknown').trim();
-}
-
-/**
- * The shared secret is what the web app's server side sends. It raises the daily limit for nobody:
- * it only proves the call did not come straight from a browser.
- */
-function theSecretMatches(request: IncomingMessage): boolean {
-  const expected = process.env['DEVNET_FAUCET_SECRET'];
-  if (expected === undefined || expected === '') {
-    return false;
-  }
-  const given = request.headers['x-faucet-secret'];
-  return typeof given === 'string' && given === expected;
-}
-
 async function handleGrant(
   cluster: Cluster,
   mintAuthority: KeyPairSigner,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
-  const secretIsRequired = (process.env['DEVNET_FAUCET_SECRET'] ?? '') !== '';
+  const secretIsRequired = theSharedSecret() !== '';
   if (secretIsRequired && !theSecretMatches(request)) {
     answer(response, 401, { error: 'this faucet only answers its own server' });
     return;
@@ -123,7 +85,9 @@ async function handleGrant(
 
   try {
     const result = await grantTestTokens(cluster, mintAuthority, wallet);
-    reportStep(`granted to ${shorten(wallet)}  ${result.signature}`);
+    reportStep(
+      `granted to ${shortenAddress(wallet)}  ${shortenAddress(result.signature)}`,
+    );
     answer(response, 200, {
       wallet: result.wallet,
       signature: result.signature,
@@ -132,7 +96,7 @@ async function handleGrant(
   } catch (failure) {
     refund(perWallet, wallet);
     refund(perHost, host);
-    reportStep(`grant to ${shorten(wallet)} failed`);
+    reportStep(`grant to ${shortenAddress(wallet)} failed`);
     answer(response, 502, {
       error: failure instanceof Error ? failure.message : 'the grant did not land',
     });
@@ -160,13 +124,11 @@ async function main(): Promise<void> {
 
   server.listen(port, () => {
     reportStep(
-      `devnet faucet listening on ${port}, minting as ${shorten(mintAuthority.address)}`,
+      `devnet faucet listening on ${port}, minting as ${shortenAddress(mintAuthority.address)}`,
     );
     reportStep(
       `  one grant per wallet a day, ${GRANTS_PER_HOST_PER_DAY} per host a day, shared secret ${
-        (process.env['DEVNET_FAUCET_SECRET'] ?? '') === ''
-          ? 'not set, so every caller is refused'
-          : 'required'
+        theSharedSecret() === '' ? 'not set, so every caller is refused' : 'required'
       }`,
     );
   });

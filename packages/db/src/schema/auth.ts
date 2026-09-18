@@ -7,9 +7,7 @@ export const authNonces = pgTable(
   'auth_nonces',
   {
     nonce: text('nonce').primaryKey(),
-    walletAddress: base58Address('wallet_address')
-      .notNull()
-      .references(() => wallets.address),
+    walletAddress: base58Address('wallet_address').notNull(),
     createdAt: instant('created_at').notNull().defaultNow(),
     expiresAt: instant('expires_at').notNull(),
     usedAt: instant('used_at'),

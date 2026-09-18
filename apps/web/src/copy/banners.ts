@@ -1,13 +1,14 @@
-/** Every banner is a function of the numbers, so the sentence and the figure never drift apart. */
+// Every banner is a function of the numbers, so the sentence and the figure never drift apart.
 export const BANNERS = {
-  caution: (distanceToLiquidation: string): string =>
-    `Your position is ${distanceToLiquidation} percent from liquidation. Repaying part of the loan or adding collateral moves it away.`,
-  danger: (
-    distanceToLiquidation: string,
-    protectLtv: string,
-    lastProtectAgo: string,
-  ): string =>
-    `Your position is ${distanceToLiquidation} percent from liquidation and above its guard level of ${protectLtv} percent. The last guard action was ${lastProtectAgo}. Press Protect now, or unwind, or add collateral.`,
+  caution: (fallToLiquidation: string, stockSymbol: string): string =>
+    `${stockSymbol} has to fall ${fallToLiquidation} from here before the market liquidates this position. Repaying part of the loan or adding stock moves that further away.`,
+  danger: (fallToLiquidation: string, stockSymbol: string, protectLtv: string): string =>
+    `${stockSymbol} has to fall only ${fallToLiquidation} from here before the market liquidates this position, and it is already above its guard level of ${protectLtv}.`,
+  guardActsNext: 'The guard repays part of the loan by itself on its next round.',
+  guardRepaidAndWaits: (lastRepaid: string, until: string): string =>
+    `The guard repaid ${lastRepaid} and takes its next turn in ${until}. If the market could seize this position before then, the guard acts at once instead of waiting.`,
+  guardHasNotActedYet: 'The guard has not repaid anything on this position yet.',
+  orDoItYourself: 'You can press Protect now instead, or unwind, or add stock.',
   guardWaiting: (aboveSince: string, keepersLastHour: string): string =>
     `Above the guard level for ${aboveSince} with no protect yet. ${keepersLastHour} keepers were seen in the last hour. Press Protect now to do it yourself.`,
   deleverage: (stockSymbol: string, deleverageStartsAt: string): string =>
@@ -43,11 +44,8 @@ export const REFUSALS = {
     `This borrow would take ${requestedShare} percent of the ${availableUsdc} USDC left to borrow right now. We stop at ${maxShare} percent, ${maxBorrowUsdc} USDC, because a bigger borrow moves the rate against you and against everyone else. Try a smaller amount or come back when more is available.`,
 } as const;
 
-export const EXIT_LINE = {
-  known: (sellableTodayUsd: string, slippageBps: string, quoteAge: string): string =>
-    `Exit today: up to ${sellableTodayUsd} dollars within ${slippageBps} basis points, from Jupiter, ${quoteAge}. Redeeming with the issuer is by request and can take days.`,
-  unknown:
-    'Exit today: unknown, no quote. This destination is not offered until a quote returns.',
+export const YIELD_LINE = {
+  aYear: (rate: string): string => `${rate} / yr`,
 } as const;
 
 export const POSITION_LABELS = {

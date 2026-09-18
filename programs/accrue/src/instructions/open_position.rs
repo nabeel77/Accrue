@@ -7,6 +7,7 @@ use crate::constants::{
     TOKEN_PROGRAM_ID,
 };
 use crate::error::AccrueError;
+use crate::guard::require_borrow_within_available_share;
 use crate::instructions::checks::require_the_vaults_the_borrow_reserve_names;
 use crate::invariants::{
     assert_invariants_hold, read_position_ledger, CollateralMovement, InvariantCheck,
@@ -21,8 +22,7 @@ use crate::kamino::cpi::{
 };
 use crate::kamino::{
     read_obligation_borrowed_amount_scaled, read_obligation_deposited_amount, read_reserve_account,
-    scaled_fraction_to_whole_units, scaled_fraction_to_whole_units_rounding_up,
-    SCALED_FRACTION_ONE,
+    scaled_fraction_to_whole_units_rounding_up, SCALED_FRACTION_ONE,
 };
 use crate::scope::usd_value_of_scaled;
 use crate::state::{Config, Position, PositionState, Strategy};
@@ -690,13 +690,8 @@ fn collateral_value_in_whole_usd(
     market_price_scaled: u128,
     decimals: u8,
 ) -> Result<u128> {
-    let price_whole = scaled_fraction_to_whole_units(
-        market_price_scaled
-            .checked_mul(SCALED_FRACTION_ONE)
-            .ok_or(AccrueError::MathOverflow)?,
-    );
     let value_scaled = u128::from(raw_amount)
-        .checked_mul(price_whole)
+        .checked_mul(market_price_scaled)
         .ok_or(AccrueError::MathOverflow)?;
     let divisor = ten_to_the(decimals)?
         .checked_mul(SCALED_FRACTION_ONE)
@@ -732,25 +727,52 @@ fn require_borrow_within_target(
     Ok(())
 }
 
-fn require_borrow_within_available_share(
-    borrow_amount: u64,
-    available_amount: u64,
-    max_share_bps: u16,
-) -> Result<()> {
-    let ceiling = u128::from(available_amount)
-        .checked_mul(u128::from(max_share_bps))
-        .ok_or(AccrueError::MathOverflow)?
-        .checked_div(u128::from(BASIS_POINTS_DENOMINATOR))
-        .ok_or(AccrueError::MathOverflow)?;
-    require!(
-        u128::from(borrow_amount) <= ceiling,
-        AccrueError::BorrowTooLargeAShareOfLiquidity
-    );
-    Ok(())
-}
-
 fn ten_to_the(decimals: u8) -> Result<u128> {
     10u128
         .checked_pow(u32::from(decimals))
         .ok_or_else(|| AccrueError::MathOverflow.into())
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::integer_division,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
+)]
+mod tests {
+    use super::*;
+
+    const EIGHT_DECIMALS: u8 = 8;
+
+    fn scaled(price: u128) -> u128 {
+        price * SCALED_FRACTION_ONE
+    }
+
+    #[test]
+    fn values_a_whole_token_at_its_price() {
+        let one_token = 100_000_000;
+        assert_eq!(
+            collateral_value_in_whole_usd(one_token, scaled(175), EIGHT_DECIMALS).unwrap(),
+            175
+        );
+    }
+
+    #[test]
+    fn values_a_stock_that_costs_more_than_two_hundred_and_fifty_six_dollars() {
+        let one_token = 100_000_000;
+        assert_eq!(
+            collateral_value_in_whole_usd(one_token, scaled(650), EIGHT_DECIMALS).unwrap(),
+            650
+        );
+    }
+
+    #[test]
+    fn values_a_whole_position_of_an_expensive_stock() {
+        let twenty_two_tokens = 2_200_000_000;
+        assert_eq!(
+            collateral_value_in_whole_usd(twenty_two_tokens, scaled(650), EIGHT_DECIMALS).unwrap(),
+            14_300
+        );
+    }
 }

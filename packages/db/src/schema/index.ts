@@ -6,6 +6,7 @@ export * from './positionSnapshots.js';
 export * from './guardEvents.js';
 export * from './keeperRuns.js';
 export * from './transactions.js';
+export * from './transactionBuilds.js';
 export * from './snapshots.js';
 export * from './rateLimitBuckets.js';
 export * from './auditLog.js';

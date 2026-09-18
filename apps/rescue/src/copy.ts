@@ -1,7 +1,4 @@
-/**
- * The rescue page stands on its own, so its words live with it. The copy test reads this file the
- * same way it reads the app's.
- */
+// The rescue page stands on its own, so its words live with it.
 export const RESCUE_COPY = {
   title: 'Return everything to my wallet',
   intro: 'Connect the wallet that owns the position.',

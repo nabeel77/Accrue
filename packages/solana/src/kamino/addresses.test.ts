@@ -47,7 +47,7 @@ function addressAt(data: Uint8Array, offset: number): Address {
   return getBase58Decoder().decode(data.subarray(offset, offset + 32)) as Address;
 }
 
-/** An address lookup table is a fixed header and then one address every 32 bytes. */
+// An address lookup table is a fixed header and then one address every 32 bytes.
 const LOOKUP_TABLE_HEADER_LENGTH = 56;
 
 function addressesInTheMarketsLookupTable(): Address[] {
@@ -63,7 +63,7 @@ function addressesInTheMarketsLookupTable(): Address[] {
   return entries;
 }
 
-/** The obligation fixture names the market it belongs to and the wallet that owns it. */
+// The obligation fixture names the market it belongs to and the wallet that owns it.
 const OBLIGATION_LENDING_MARKET = 32;
 const OBLIGATION_OWNER = 64;
 
@@ -77,7 +77,7 @@ const SCOPE_PRICES = fixtureAddress('oracle_scope_prices');
 const nvdaxReserve = decodeReserve(fixtureData('reserve_nvdax'));
 const usdcReserve = decodeReserve(fixtureData('reserve_usdc'));
 
-/** A stand in for a position address. Nothing here needs it to be an account that exists. */
+// A stand in for a position address.
 const A_POSITION = address('Bt5jTGYs2oGWTrz5VLVzbfMs5UWtTNLKWTSPrxwzTLcB');
 const A_WALLET = address('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 

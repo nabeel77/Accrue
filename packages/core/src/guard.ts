@@ -1,4 +1,11 @@
-import { BASIS_POINTS_DENOMINATOR, PERCENT_DENOMINATOR } from './money.js';
+import {
+  addTheSlippageBuffer,
+  BASIS_POINTS_DENOMINATOR,
+  PERCENT_DENOMINATOR,
+  rawAmountWorthRoundingDown,
+  rawAmountWorthRoundingUp,
+  usdValueOfScaled,
+} from './money.js';
 
 export interface ProtectAmounts {
   readonly repayUsdScaled: bigint;
@@ -12,10 +19,6 @@ function valueAllowedAtTarget(
   return (depositedValueScaled * BigInt(targetLtvBps)) / BASIS_POINTS_DENOMINATOR;
 }
 
-/**
- * The market weights every debt by the borrow factor of the reserve it came from, so a gap
- * measured in weighted value has to be divided by that factor to become real USDC again.
- */
 function weightedValueAsRealValue(
   weightedValueScaled: bigint,
   borrowFactorPct: number,
@@ -34,7 +37,7 @@ function weightedValueAsRealValue(
     : numerator / denominator + 1n;
 }
 
-/** What a position has to repay to come back down to its target. Zero when it is already there. */
+// What a position has to repay to come back down to its target.
 export function repayToReachTarget(
   adjustedDebtValueScaled: bigint,
   depositedValueScaled: bigint,
@@ -46,7 +49,7 @@ export function repayToReachTarget(
   return weightedValueAsRealValue(gap, borrowFactorPct, true);
 }
 
-/** What a position may borrow to come back up to its target. Zero when it is already past it. */
+// What a position may borrow to come back up to its target.
 export function borrowToReachTarget(
   adjustedDebtValueScaled: bigint,
   depositedValueScaled: bigint,
@@ -78,10 +81,6 @@ export function protectAmounts(
   };
 }
 
-/**
- * The market decides liquidation on the weighted debt, so that is the number the guard measures
- * against the levels the owner set.
- */
 export function loanToValueBps(
   adjustedDebtValueScaled: bigint,
   depositedValueScaled: bigint,
@@ -94,10 +93,6 @@ export function loanToValueBps(
   );
 }
 
-/**
- * The owner is charged on what the position earned, never on principal the owner repaid from
- * their own wallet, so the base is every dollar the sales raised minus every dollar repaid.
- */
 export function performanceFeeOnRealisedProfit(
   usdcFromSalesTotal: bigint,
   usdcRepaidTotal: bigint,
@@ -109,24 +104,19 @@ export function performanceFeeOnRealisedProfit(
 }
 
 export interface ClosingCost {
-  /** What the lending market is owed right now, in raw USDC. */
+  // What the lending market is owed right now, in raw USDC.
   readonly debt: bigint;
-  /** What the router says the yield token sells for, in raw USDC. */
+  // What the router says the yield token sells for, in raw USDC.
   readonly quotedUsdcOut: bigint;
-  /** The performance fee written into the position when it opened. */
+  // The performance fee written into the position when it opened.
   readonly feeBpsAtOpen: number;
-  /** The lending market's borrow rate for the year, in basis points. */
+  // The lending market's borrow rate for the year, in basis points.
   readonly borrowRateBps: number;
 }
 
 const DAYS_IN_A_YEAR = 365n;
 
-/**
- * What the owner should expect to add from their own wallet to close, for the review sheet. The
- * sale rarely covers the loan on its own: the swap costs something, the fee comes off the profit,
- * and interest runs from the first slot, so a day of it is counted in. Rounded up, because a
- * number shown too low is the one that fails.
- */
+// What the owner should expect to add from their own wallet to close, for the review sheet.
 export function usdcNeededToClose(cost: ClosingCost): bigint {
   const interestForADay = divideRoundingUp(
     cost.debt * BigInt(cost.borrowRateBps),
@@ -164,10 +154,6 @@ function aMarginCallPeriodHasElapsed(
   return startedAt !== 0n && now >= startedAt + periodSeconds;
 }
 
-/**
- * The bar for emptying a position without asking its owner: the market has to be taking it apart,
- * not merely to have the setting switched on. The same four cases the program checks.
- */
 export function thereIsAReasonToLeave(
   signals: DeleverageSignals,
   nowUnixTimestamp: bigint,
@@ -196,4 +182,59 @@ export function thereIsAReasonToLeave(
       nowUnixTimestamp,
     )
   );
+}
+
+export interface ProtectSale {
+  readonly adjustedDebtValueScaled: bigint;
+  readonly depositedValueScaled: bigint;
+  readonly targetLtvBps: number;
+  readonly borrowFactorPct: number;
+  readonly keeperBountyBps: number;
+  readonly keeperBountyCapUsdc: bigint;
+  readonly maxSlippageBps: number;
+  readonly usdcDecimals: number;
+  readonly usdcPriceScaled: bigint;
+  readonly destinationDecimals: number;
+  readonly destinationPriceScaled: bigint;
+  readonly destinationBalance: bigint;
+}
+
+// What the guard has to sell to repay its way back to target, the program's own arithmetic.
+export function destinationToSellForProtect(sale: ProtectSale): bigint {
+  const amounts = protectAmounts(
+    sale.adjustedDebtValueScaled,
+    sale.depositedValueScaled,
+    sale.targetLtvBps,
+    sale.keeperBountyBps,
+    sale.borrowFactorPct,
+  );
+
+  const repayNeeded = rawAmountWorthRoundingUp(
+    amounts.repayUsdScaled,
+    sale.usdcDecimals,
+    sale.usdcPriceScaled,
+  );
+  const bountyWanted = smaller(
+    rawAmountWorthRoundingDown(
+      amounts.bountyUsdScaled,
+      sale.usdcDecimals,
+      sale.usdcPriceScaled,
+    ),
+    sale.keeperBountyCapUsdc,
+  );
+
+  const atTheOraclePrice = rawAmountWorthRoundingUp(
+    usdValueOfScaled(repayNeeded + bountyWanted, sale.usdcDecimals, sale.usdcPriceScaled),
+    sale.destinationDecimals,
+    sale.destinationPriceScaled,
+  );
+
+  return smaller(
+    addTheSlippageBuffer(atTheOraclePrice, sale.maxSlippageBps),
+    sale.destinationBalance,
+  );
+}
+
+function smaller(left: bigint, right: bigint): bigint {
+  return left < right ? left : right;
 }

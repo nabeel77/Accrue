@@ -6,7 +6,8 @@ export type Outcome = 'landed' | 'reverted' | 'skipped';
 
 export interface AttemptedRun {
   readonly positionAddress: string;
-  readonly kind: GuardAction;
+  // A check is a round that looked at this position and found nothing to do.
+  readonly kind: GuardAction | 'check';
   readonly outcome: Outcome;
   readonly signature: string | null;
   readonly reason: string | null;
@@ -17,15 +18,15 @@ export interface RunLog {
   record(run: AttemptedRun): Promise<void>;
 }
 
-/**
- * One row per attempt, with nothing about the owner beyond the position address, which is public
- * on chain anyway. Never the route, never a wallet.
- */
-export function createRunLog(database: AccrueDatabase = createDatabaseClient()): RunLog {
+export function createRunLog(
+  keeperAddress: string,
+  database: AccrueDatabase = createDatabaseClient(),
+): RunLog {
   return {
     async record(run: AttemptedRun): Promise<void> {
       await database.insert(schema.keeperRuns).values({
         positionAddress: run.positionAddress,
+        keeperAddress,
         kind: run.kind,
         outcome: run.outcome,
         signature: run.signature,
@@ -36,15 +37,11 @@ export function createRunLog(database: AccrueDatabase = createDatabaseClient()):
   };
 }
 
-/**
- * The run log is bookkeeping, not money, so a keeper watching a sandbox runs without a database
- * rather than refusing to start. Anywhere a database is configured, that is what it writes to.
- */
-export function runLogFromTheEnvironment(): RunLog {
+export function runLogFromTheEnvironment(keeperAddress: string): RunLog {
   const connectionString = process.env['DATABASE_URL'];
   return connectionString === undefined || connectionString === ''
     ? createRunLogThatOnlyCounts()
-    : createRunLog();
+    : createRunLog(keeperAddress);
 }
 
 export function createRunLogThatOnlyCounts(): RunLog & {

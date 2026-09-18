@@ -3,25 +3,17 @@ import 'server-only';
 import { desc, eq } from 'drizzle-orm';
 
 import type { Destination } from '@accrue/core';
-import { createDatabaseClient, schema, type AccrueDatabase } from '@accrue/db';
+import { schema } from '@accrue/db';
 
-let database: AccrueDatabase | null = null;
-
-function db(): AccrueDatabase {
-  database ??= createDatabaseClient();
-  return database;
-}
+import { db } from './database.js';
 
 export interface DestinationTarget {
   readonly rateBps: number;
-  /** Where the figure came from, shown beside it on every screen. */
+  // Where the figure came from, shown beside it on every screen.
   readonly source: string;
+  readonly readAtMilliseconds: number | null;
 }
 
-/**
- * The latest hourly snapshot if there is one, otherwise the figure recorded in the config with the
- * day it was read. Either way the screen says which.
- */
 export async function latestDestinationTarget(
   destination: Destination,
 ): Promise<DestinationTarget> {
@@ -39,11 +31,16 @@ export async function latestDestinationTarget(
     if (row !== undefined) {
       return {
         rateBps: Math.round(Number(row.apy) * 100),
-        source: `${row.source}, ${new Date(row.takenAt).toISOString()}`,
+        source: row.source,
+        readAtMilliseconds: new Date(row.takenAt).getTime(),
       };
     }
   } catch {
     // No database, or no snapshot yet. The config figure is the honest fallback.
   }
-  return { rateBps: destination.targetRateBps, source: destination.targetRateSource };
+  return {
+    rateBps: destination.targetRateBps,
+    source: destination.targetRateSource,
+    readAtMilliseconds: null,
+  };
 }

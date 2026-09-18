@@ -19,6 +19,7 @@ export * from "./rescue.js";
 export * from "./setPaused.js";
 export * from "./setStrategy.js";
 export * from "./setSunset.js";
+export * from "./topUp.js";
 export * from "./unwind.js";
 export * from "./updateConfig.js";
 export * from "./withdrawCollateral.js";

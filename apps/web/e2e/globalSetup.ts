@@ -6,10 +6,6 @@ import nextEnv from '@next/env';
 import { screenshotDirectory } from './config.js';
 import { startTheRescuePage, startTheWebApp } from './servers.js';
 
-/**
- * Both servers start here rather than through Playwright's own, because the run stops the web app
- * part way through and carries on against the static page.
- */
 export default async function globalSetup(): Promise<void> {
   // The harness reads the laptop file for its own wallet and folder, and the app's own file for
   // everything the server needs. Neither one can see the other's variables in a deployment.

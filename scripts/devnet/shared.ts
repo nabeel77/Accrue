@@ -30,6 +30,8 @@ import {
   type SolanaRpcApi,
 } from '@solana/kit';
 
+import { shortenAddress } from '@accrue/core';
+
 const DEFAULT_DEVNET_RPC_URL = 'https://api.devnet.solana.com';
 const DEFAULT_KEYPAIR_DIRECTORY = '~/.config/accrue/devnet';
 const DEFAULT_ADMIN_KEYPAIR_PATH = '~/.config/solana/id.json';
@@ -55,6 +57,7 @@ export interface DevnetRegistry {
   readonly pools?: Record<string, string>;
   readonly treasury?: string;
   readonly admin?: string;
+  readonly lookupTable?: string;
 }
 
 export function expandHome(path: string): string {
@@ -77,10 +80,7 @@ export interface Cluster {
   readonly rpc: Rpc<SolanaRpcApi>;
 }
 
-/**
- * Reads and confirmations both go over plain requests. The public devnet endpoint drops its
- * websocket often enough that a subscription based confirmation leaves a script waiting forever.
- */
+// Reads and confirmations both go over plain requests.
 export function connectToDevnet(): Cluster {
   return { rpc: createSolanaRpc(devnetRpcUrl()) };
 }
@@ -94,7 +94,7 @@ export async function loadSignerFromFile(path: string): Promise<KeyPairSigner> {
   return createKeyPairSignerFromBytes(Uint8Array.from(secret));
 }
 
-/** The same sixty four byte file the Solana CLI writes: the seed, then the public key. */
+// The same sixty four byte file the Solana CLI writes: the seed, then the public key.
 export async function namedSigner(name: string): Promise<KeyPairSigner> {
   const path = keypairPath(name);
   if (existsSync(path)) {
@@ -181,10 +181,6 @@ async function pause(milliseconds: number): Promise<void> {
   await new Promise((wake) => setTimeout(wake, milliseconds));
 }
 
-/**
- * The public devnet endpoint rate limits hard, and one sandbox build sends dozens of
- * transactions, so anything that looks like congestion rather than a real refusal is tried again.
- */
 export async function sendInstructions(
   cluster: Cluster,
   payer: KeyPairSigner,
@@ -212,10 +208,6 @@ export interface TransactionShape {
   readonly computeUnits: bigint | null;
 }
 
-/**
- * What the transaction actually weighs once compiled, which is the only number worth quoting
- * against the four kilobyte and sixty four address limits version one sets.
- */
 export async function measureTransaction(
   cluster: Cluster,
   payer: KeyPairSigner,
@@ -371,4 +363,9 @@ export function reportStep(line: string): void {
 export function reportSignature(what: string, signature: string): void {
   console.log(`  ${what}  ${signature}`);
   console.log(`    ${explorerLink(signature)}`);
+}
+
+// What a long running service writes: the same line with nothing in it to look a wallet up by.
+export function reportServiceSignature(what: string, signature: string): void {
+  console.log(`  ${what}  ${shortenAddress(signature)}`);
 }

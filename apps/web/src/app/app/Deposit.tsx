@@ -3,22 +3,38 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
 import {
+  Banner,
   Button,
+  Explainer,
   Heading,
   Mono,
   Muted,
+  NumbersInMono,
   Panel,
   Row,
   Stack,
 } from '../../components/ui/index.js';
 import { COMMON } from '../../copy/common.js';
-import { DEPOSIT_COPY } from '../../copy/deposit.js';
-import { EXIT_LINE } from '../../copy/banners.js';
-import { money, percent, rawToWhole, wholeToRaw } from '../../client/format.js';
+import { DEPOSIT_COPY, EARNS_EXPLAINER_COPY } from '../../copy/deposit.js';
+import { earnsPerYearLines } from '../../client/earnsPerYearLines.js';
+import { YIELD_LINE } from '../../copy/banners.js';
+import { FAILURE_COPY, FAILURE_DETAILS } from '../../copy/errors.js';
+import {
+  howLongAgo,
+  money,
+  percent,
+  rawToWhole,
+  wholeToRaw,
+} from '../../client/format.js';
+import type { DepositSizing } from '@accrue/core/deposit';
+
 import { useSession } from '../../client/session.js';
 import { AcknowledgementSheet } from './AcknowledgementSheet.js';
 import { AdjustSheet, type Adjustments } from './AdjustSheet.js';
+import { DepositDetailsSheet } from './DepositDetailsSheet.js';
 import { ReviewSheet } from './ReviewSheet.js';
+import { TopUpSheet } from './TopUpSheet.js';
+import { YieldTokenDetailsSheet, type PriceSource } from './YieldTokenDetailsSheet.js';
 
 export interface StockRow {
   readonly symbol: string;
@@ -33,6 +49,13 @@ export interface StockRow {
   readonly oraclePriceScaled: string;
   readonly decimals: number;
   readonly balanceRaw: string | null;
+  readonly openPositionId: string | null;
+  readonly openPosition: {
+    readonly id: string;
+    readonly targetLtvBps: number;
+    readonly protectLtvBps: number;
+    readonly growEnabled: boolean;
+  } | null;
 }
 
 interface DestinationRow {
@@ -42,51 +65,118 @@ interface DestinationRow {
   readonly exitType: string;
   readonly targetRateBps: number;
   readonly targetRateSource: string;
+  readonly targetRateReadAtMilliseconds: number | null;
   readonly yieldSource: string;
+  // Null when no quote came back, and then the destination is not offered.
+  readonly exit: {
+    readonly sellableTodayUsdcRaw: string;
+    readonly slippageBps: number;
+    readonly quotedAtMilliseconds: number;
+    readonly destinationPerUsdc: number;
+  } | null;
 }
 
 const SCALED_FRACTION_ONE = 2n ** 60n;
+const STOCK_ROW_EXPLAINER_WIDTH = 30;
+const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 6_000;
+const A_PAUSE_IN_TYPING = 400;
+
+interface PositionSizeLimits {
+  readonly smallestUsd: number;
+  readonly largestUsd: number;
+}
+
+function wholeBalanceOf(entry: StockRow): number {
+  return entry.balanceRaw === null ? 0 : rawToWhole(entry.balanceRaw, entry.decimals);
+}
 
 export function Deposit(): JSX.Element {
   const { me, signAndSubmit } = useSession();
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
+  const [priceSource, setPriceSource] = useState<PriceSource>('jupiter');
   const [chosenDestination, setChosenDestination] = useState<string | null>(null);
   const [stocks, setStocks] = useState<StockRow[]>([]);
   const [borrowRateBps, setBorrowRateBps] = useState(0);
+  const [limits, setLimits] = useState<PositionSizeLimits | null>(null);
+  const [stalePrice, setStalePrice] = useState<{ ageSeconds: number } | null>(null);
   const [chosenStock, setChosenStock] = useState<string | null>(null);
   const [dollars, setDollars] = useState('');
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [adjustments, setAdjustments] = useState<Adjustments | null>(null);
   const [acknowledgementOpen, setAcknowledgementOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [exitShownFor, setExitShownFor] = useState<string | null>(null);
+  const [sizing, setSizing] = useState<DepositSizing | null>(null);
+  const [quotedAt, setQuotedAt] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const answer = await fetch('/api/destinations');
-      const body = (await answer.json()) as { destinations: DestinationRow[] };
+      const answer = await fetch('/api/destinations', { cache: 'no-store' });
+      const body = (await answer.json()) as {
+        destinations: DestinationRow[];
+        priceSource: PriceSource;
+      };
       setDestinations(body.destinations);
-      setChosenDestination((current) => current ?? body.destinations[0]?.symbol ?? null);
+      setPriceSource(body.priceSource);
+      const offered = body.destinations.find((entry) => entry.exit !== null);
+      setChosenDestination((current) => current ?? offered?.symbol ?? null);
     })();
   }, []);
 
-  // The list refetches when the yield token changes, because the net yield depends on it.
-  useEffect(() => {
+  const readTheDefaults = useCallback(async (): Promise<void> => {
     if (chosenDestination === null) {
       return;
     }
-    void (async () => {
-      const answer = await fetch(
-        `/api/defaults?destination=${encodeURIComponent(chosenDestination)}`,
-      );
-      const body = (await answer.json()) as {
-        stocks: StockRow[];
-        borrowRateBps: number;
-      };
-      setStocks(body.stocks);
-      setBorrowRateBps(body.borrowRateBps);
-      setChosenStock((current) => current ?? body.stocks[0]?.symbol ?? null);
-    })();
-  }, [chosenDestination]);
+    // The card's figures are worked out on the server, so the stock and the amount go with the
+    // request rather than being multiplied out in the browser.
+    const asked = new URLSearchParams({ destination: chosenDestination });
+    if (chosenStock !== null) {
+      asked.set('stock', chosenStock);
+    }
+    if (Number(dollars) > 0) {
+      asked.set('dollars', dollars);
+    }
+    const answer = await fetch(`/api/defaults?${asked.toString()}`, {
+      cache: 'no-store',
+    });
+    const body = (await answer.json()) as {
+      stocks: StockRow[];
+      borrowRateBps: number;
+      smallestPositionUsd: number;
+      largestPositionUsd: number;
+      oraclePriceAgeSeconds: number;
+      oraclePriceIsTooOld: boolean;
+      sizing: DepositSizing | null;
+      quotedAtMilliseconds: number | null;
+    };
+    setStocks(body.stocks);
+    setBorrowRateBps(body.borrowRateBps);
+    setLimits({
+      smallestUsd: body.smallestPositionUsd,
+      largestUsd: body.largestPositionUsd,
+    });
+    setStalePrice(
+      body.oraclePriceIsTooOld ? { ageSeconds: body.oraclePriceAgeSeconds } : null,
+    );
+    setChosenStock((current) => current ?? body.stocks[0]?.symbol ?? null);
+    setSizing(body.sizing);
+    setQuotedAt(body.quotedAtMilliseconds);
+  }, [chosenDestination, chosenStock, dollars]);
+
+  useEffect(() => {
+    const soon = setTimeout(() => {
+      void readTheDefaults();
+    }, A_PAUSE_IN_TYPING);
+    const again = setInterval(() => {
+      void readTheDefaults();
+    }, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
+    return () => {
+      clearTimeout(soon);
+      clearInterval(again);
+    };
+  }, [readTheDefaults]);
 
   const stock = useMemo(
     () => stocks.find((entry) => entry.symbol === chosenStock) ?? null,
@@ -106,17 +196,19 @@ export function Deposit(): JSX.Element {
   const targetLtvBps = adjustments?.targetLtvBps ?? stock?.targetLtvBps ?? 0;
   const protectLtvBps = adjustments?.protectLtvBps ?? stock?.protectLtvBps ?? 0;
   const borrowUsd = (amountUsd * targetLtvBps) / 10_000;
-  const netBps =
-    destination === null
+  // How far the stock has to fall from today's price before the market liquidates this position.
+  const liquidationFallBps =
+    stock === null || stock.liquidationThresholdBps === 0
       ? 0
-      : Math.round((targetLtvBps * (destination.targetRateBps - borrowRateBps)) / 10_000);
+      : Math.max(
+          10_000 - Math.round((targetLtvBps / stock.liquidationThresholdBps) * 10_000),
+          0,
+        );
 
-  const balanceOf = useCallback(
-    (entry: StockRow): number =>
-      entry.balanceRaw === null ? 0 : rawToWhole(entry.balanceRaw, entry.decimals),
-    [],
-  );
-  const holdsNoStock = stocks.every((entry) => balanceOf(entry) === 0);
+  const walletValueUsd = stock === null ? 0 : wholeBalanceOf(stock) * price;
+  const theMostThatCanBeDeposited =
+    limits === null ? walletValueUsd : Math.min(walletValueUsd, limits.largestUsd);
+  const holdsNoStock = stocks.every((entry) => wholeBalanceOf(entry) === 0);
 
   // The acknowledgement comes before the first position, not on the way in to the app.
   const openReview = useCallback((): void => {
@@ -124,257 +216,388 @@ export function Deposit(): JSX.Element {
       setAcknowledgementOpen(true);
       return;
     }
+    if (stock?.openPositionId != null) {
+      setTopUpOpen(true);
+      return;
+    }
     setReviewOpen(true);
-  }, [me]);
+  }, [me, stock]);
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns:
-          'minmax(260px, 320px) minmax(320px, 1fr) minmax(260px, 320px)',
-        gap: 20,
-        alignItems: 'start',
-      }}
-      data-testid="deposit-screen"
-      className="deposit-grid"
-    >
-      <Panel>
-        <Stack gap={12}>
-          <Heading level={3}>{DEPOSIT_COPY.stockColumnTitle}</Heading>
-          {stocks.length === 0 ? <Muted>{COMMON.loading}</Muted> : null}
-          {stocks.map((entry) => {
-            const balance = balanceOf(entry);
-            const chosen = entry.symbol === chosenStock;
-            return (
-              <button
-                key={entry.mint}
-                type="button"
-                data-testid={`stock-${entry.symbol}`}
-                onClick={() => {
-                  setChosenStock(entry.symbol);
-                  setAdjustments(null);
+    <Stack gap={16} testId="deposit-screen">
+      {stalePrice === null ? null : (
+        <Banner tone="caution" testId="stale-price">
+          {`${FAILURE_COPY.priceTooOld} ${FAILURE_DETAILS.priceAge(
+            stock?.symbol ?? DEPOSIT_COPY.stockColumnTitle,
+            howLongAgo(stalePrice.ageSeconds),
+          )}`}
+        </Banner>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'minmax(260px, 320px) minmax(320px, 1fr) minmax(260px, 320px)',
+          gap: 20,
+          alignItems: 'start',
+        }}
+        className="deposit-grid"
+      >
+        <Panel>
+          <Stack gap={12}>
+            <Row style={{ paddingRight: STOCK_ROW_EXPLAINER_WIDTH }}>
+              <Heading level={3}>{DEPOSIT_COPY.stockColumnTitle}</Heading>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                {DEPOSIT_COPY.earnsColumnTitle}
+              </span>
+            </Row>
+            {stocks.length === 0 ? <Muted>{COMMON.loading}</Muted> : null}
+            {stocks.map((entry) => {
+              const balance = wholeBalanceOf(entry);
+              const chosen = entry.symbol === chosenStock;
+              return (
+                <Row
+                  key={entry.mint}
+                  gap={10}
+                  style={{
+                    alignItems: 'flex-start',
+                    background: chosen ? 'var(--color-raised)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: chosen
+                      ? 'var(--color-accent-deeper)'
+                      : 'var(--color-hairline)',
+                    borderRadius: 'var(--radius)',
+                    padding: '10px 12px',
+                    opacity: balance > 0 ? 1 : 0.6,
+                  }}
+                >
+                  <button
+                    type="button"
+                    data-testid={`stock-${entry.symbol}`}
+                    data-mint={entry.mint}
+                    onClick={() => {
+                      setChosenStock(entry.symbol);
+                      setAdjustments(null);
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Row>
+                      <Mono>{entry.symbol}</Mono>
+                      <Mono tone="gold">{percent(entry.netYieldBps)}</Mono>
+                    </Row>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                      <NumbersInMono
+                        sentence={DEPOSIT_COPY.balanceInYourWallet(money(balance))}
+                      />
+                    </span>
+                  </button>
+                  {destination === null ? null : (
+                    <Explainer
+                      title={EARNS_EXPLAINER_COPY.title}
+                      testId={`stock-earns-explainer-${entry.symbol}`}
+                      lines={earnsPerYearLines({
+                        stockSymbol: entry.symbol,
+                        destinationSymbol: destination.symbol,
+                        targetLtvBps: entry.targetLtvBps,
+                        destinationRateBps: destination.targetRateBps,
+                        borrowRateBps,
+                        netYieldBps: entry.netYieldBps,
+                      })}
+                    />
+                  )}
+                </Row>
+              );
+            })}
+            {holdsNoStock ? <Muted>{DEPOSIT_COPY.stockEmpty}</Muted> : null}
+          </Stack>
+        </Panel>
+
+        <Panel>
+          <Stack gap={14}>
+            <Row>
+              <Mono tone="muted" style={{ fontSize: 20 }}>
+                {DEPOSIT_COPY.amountPrefix}
+              </Mono>
+              <input
+                data-testid="amount"
+                inputMode="decimal"
+                value={dollars}
+                placeholder="0.00"
+                aria-label={DEPOSIT_COPY.amountLabel}
+                onChange={(event) => {
+                  setDollars(event.target.value);
                 }}
                 style={{
-                  textAlign: 'left',
-                  background: chosen ? 'var(--color-raised)' : 'transparent',
-                  border: '1px solid',
-                  borderColor: chosen
-                    ? 'var(--color-accent-deeper)'
-                    : 'var(--color-hairline)',
+                  flex: 1,
+                  minWidth: 0,
+                  background: 'var(--color-raised-2)',
+                  border: '1px solid var(--color-hairline)',
                   borderRadius: 'var(--radius)',
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                  opacity: balance > 0 ? 1 : 0.6,
+                  padding: '12px 14px',
+                  color: 'var(--color-text)',
+                  fontFamily: 'var(--font-mono)',
+                  fontVariantNumeric: 'tabular-nums',
+                  fontSize: 20,
+                }}
+              />
+              {stock === null ? null : (
+                <Mono
+                  tone="secondary"
+                  testId="amount-badge"
+                  style={{
+                    border: '1px solid var(--color-hairline)',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--color-raised)',
+                    padding: '6px 10px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {stock.symbol}
+                </Mono>
+              )}
+              <Button
+                tone="quiet"
+                testId="amount-max"
+                onClick={() => {
+                  setDollars(
+                    (Math.floor(theMostThatCanBeDeposited * 100) / 100).toFixed(2),
+                  );
                 }}
               >
-                <Row>
-                  <Mono>{entry.symbol}</Mono>
-                  <Mono tone="gold">{percent(entry.netYieldBps)}</Mono>
-                </Row>
-                <Mono tone="muted" style={{ fontSize: 12 }}>
-                  {money(balance, 4)}
-                </Mono>
-              </button>
-            );
-          })}
-          {holdsNoStock ? <Muted>{DEPOSIT_COPY.stockEmpty}</Muted> : null}
-        </Stack>
-      </Panel>
-
-      <Panel>
-        <Stack gap={14}>
-          <Row>
-            <Mono>{stock?.symbol ?? COMMON.missingValue}</Mono>
-            <Mono tone="muted">
-              {stock?.symbol ?? ''} → {destination?.name ?? ''}
-            </Mono>
-          </Row>
-
-          <Row>
-            <input
-              data-testid="amount"
-              inputMode="decimal"
-              value={dollars}
-              placeholder="0.00"
-              onChange={(event) => {
-                setDollars(event.target.value);
-              }}
-              style={{
-                flex: 1,
-                background: 'var(--color-raised-2)',
-                border: '1px solid var(--color-hairline)',
-                borderRadius: 'var(--radius)',
-                padding: '12px 14px',
-                color: 'var(--color-text)',
-                fontFamily: 'var(--font-mono)',
-                fontVariantNumeric: 'tabular-nums',
-                fontSize: 20,
-              }}
-            />
-            <Button
-              tone="quiet"
-              testId="amount-max"
-              onClick={() => {
-                const balance = stock === null ? 0 : balanceOf(stock);
-                setDollars((balance * price).toFixed(2));
-              }}
-            >
-              {DEPOSIT_COPY.amountMax}
-            </Button>
-          </Row>
-          <Mono tone="muted">
-            {money(tokenEquivalent, 6)} {stock?.symbol ?? ''}
-          </Mono>
-
-          <Row>
-            <span style={{ color: 'var(--color-text-secondary)' }}>
-              {DEPOSIT_COPY.intoPrefix} {destination?.name ?? ''}
-            </span>
-            <Mono tone="gold">
-              {destination === null
-                ? COMMON.missingValue
-                : `${percent(destination.targetRateBps)} ${DEPOSIT_COPY.targetSuffix}`}
-            </Mono>
-          </Row>
-
-          <Stack gap={10}>
-            <Row>
-              <span style={{ color: 'var(--color-text-secondary)' }}>
-                {DEPOSIT_COPY.earnsAbout}
-              </span>
-              <Mono tone="gold" style={{ fontSize: 18 }}>
-                {percent(netBps)}
-              </Mono>
+                {DEPOSIT_COPY.amountMax}
+              </Button>
             </Row>
-            <Row>
-              <span style={{ color: 'var(--color-text-secondary)' }}>
-                {DEPOSIT_COPY.liquidatedIf} {stock?.symbol ?? ''} {DEPOSIT_COPY.falls}
-              </span>
-              <Mono>
-                {stock === null
-                  ? COMMON.missingValue
-                  : percent(
-                      Math.max(
-                        10_000 -
-                          Math.round(
-                            (targetLtvBps / stock.liquidationThresholdBps) * 10_000,
-                          ),
-                        0,
-                      ),
-                      0,
+            {stock === null ? null : (
+              <Mono tone="muted" testId="amount-under" style={{ fontSize: 12 }}>
+                {DEPOSIT_COPY.inYourWallet(money(wholeBalanceOf(stock), 6), stock.symbol)}
+              </Mono>
+            )}
+
+            {sizing === null || stock === null ? null : (
+              <Heading level={2} testId="earns-about">
+                {stock.openPositionId == null
+                  ? DEPOSIT_COPY.earnsLine(
+                      `$${money(sizing.earningsUsdAYear)}`,
+                      percent(sizing.netYieldBps),
+                    )
+                  : DEPOSIT_COPY.addsLine(
+                      `$${money(sizing.earningsUsdAYear)}`,
+                      stock.symbol,
+                      percent(sizing.netYieldBps),
                     )}
-              </Mono>
-            </Row>
-            <Row>
-              <span style={{ color: 'var(--color-text-secondary)' }}>
-                {DEPOSIT_COPY.guardRepaysAt}
-              </span>
-              <Mono tone="accent">{percent(protectLtvBps, 0)}</Mono>
-            </Row>
-            <Muted>{DEPOSIT_COPY.guardNote}</Muted>
-          </Stack>
+              </Heading>
+            )}
 
-          <Button
-            testId="deposit"
-            disabled={stock === null || destination === null || amountUsd <= 0}
-            onClick={openReview}
-          >
-            {DEPOSIT_COPY.deposit}
-          </Button>
-          <Muted>{DEPOSIT_COPY.oneSignatureNote}</Muted>
-          <Button
-            tone="link"
-            testId="adjust"
-            onClick={() => {
+            <Button
+              testId="deposit"
+              disabled={stock === null || destination === null || amountUsd <= 0}
+              onClick={openReview}
+            >
+              {DEPOSIT_COPY.deposit}
+            </Button>
+
+            <div>
+              <button
+                type="button"
+                data-testid="deposit-details"
+                disabled={sizing === null}
+                onClick={() => {
+                  setDetailsOpen(true);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  textDecoration: 'underline',
+                  cursor: sizing === null ? 'default' : 'pointer',
+                  padding: 0,
+                }}
+              >
+                {DEPOSIT_COPY.details}
+              </button>
+            </div>
+          </Stack>
+        </Panel>
+
+        <Panel>
+          <Stack gap={12}>
+            <Heading level={3}>{DEPOSIT_COPY.earnInColumnTitle}</Heading>
+            {destinations.length === 0 ? <Muted>{COMMON.loading}</Muted> : null}
+            {destinations.map((entry) => {
+              const chosen = entry.symbol === chosenDestination;
+              const offered = entry.exit !== null;
+              const showing = exitShownFor === entry.symbol;
+              return (
+                <div
+                  key={entry.mint}
+                  style={{
+                    border: '1px solid',
+                    borderColor: chosen
+                      ? 'var(--color-accent-deeper)'
+                      : 'var(--color-hairline)',
+                    background: chosen ? 'var(--color-raised)' : 'transparent',
+                    borderRadius: 'var(--radius)',
+                    padding: '10px 12px',
+                    opacity: offered ? 1 : 0.6,
+                  }}
+                >
+                  <button
+                    type="button"
+                    data-testid={`destination-${entry.symbol}`}
+                    disabled={!offered}
+                    onClick={() => {
+                      setChosenDestination(entry.symbol);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: offered ? 'pointer' : 'default',
+                    }}
+                  >
+                    <Row>
+                      <Mono>{entry.symbol}</Mono>
+                      <Mono tone="gold">
+                        {YIELD_LINE.aYear(percent(entry.targetRateBps))}
+                      </Mono>
+                    </Row>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`destination-details-${entry.symbol}`}
+                    onClick={() => {
+                      setExitShownFor(showing ? null : entry.symbol);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-text-muted)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: 0,
+                      marginTop: 8,
+                      fontSize: 12,
+                    }}
+                  >
+                    {DEPOSIT_COPY.details}
+                  </button>
+                  <YieldTokenDetailsSheet
+                    open={showing}
+                    destinationSymbol={entry.symbol}
+                    targetRateBps={entry.targetRateBps}
+                    targetRateSource={entry.targetRateSource}
+                    targetRateReadAtMilliseconds={entry.targetRateReadAtMilliseconds}
+                    exit={entry.exit}
+                    priceSource={priceSource}
+                    onClose={() => {
+                      setExitShownFor(null);
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </Stack>
+        </Panel>
+
+        {stock === null ? null : (
+          <AdjustSheet
+            open={adjustOpen}
+            stock={stock}
+            borrowRateBps={borrowRateBps}
+            destinationName={destination?.name ?? ''}
+            destinationSymbol={destination?.symbol ?? ''}
+            tokens={tokenEquivalent}
+            yieldSource={destination?.yieldSource ?? ''}
+            adjustments={adjustments}
+            onChange={setAdjustments}
+            onClose={() => {
+              setAdjustOpen(false);
+            }}
+          />
+        )}
+
+        {stock === null || destination === null ? null : (
+          <ReviewSheet
+            open={reviewOpen}
+            stock={stock}
+            destinationSymbol={destination.symbol}
+            collateralAmountRaw={wholeToRaw(tokenEquivalent, stock.decimals)}
+            adjustments={adjustments}
+            onClose={() => {
+              setReviewOpen(false);
+            }}
+            onSigned={async (transactions, buildId) =>
+              signAndSubmit(transactions, buildId)
+            }
+            walletAddress={me?.wallet ?? ''}
+            borrowUsd={borrowUsd}
+            rawToWhole={rawToWhole}
+          />
+        )}
+
+        {stock?.openPositionId == null ? null : (
+          <TopUpSheet
+            open={topUpOpen}
+            positionId={stock.openPositionId}
+            collateralAmountRaw={wholeToRaw(tokenEquivalent, stock.decimals)}
+            onClose={() => {
+              setTopUpOpen(false);
+            }}
+            onDone={() => {
+              void readTheDefaults();
+            }}
+          />
+        )}
+
+        {sizing === null || stock === null || destination === null ? null : (
+          <DepositDetailsSheet
+            open={detailsOpen}
+            stockSymbol={stock.symbol}
+            destinationSymbol={destination.symbol}
+            sizing={sizing}
+            quotedAtMilliseconds={quotedAt}
+            protectLtvBps={protectLtvBps}
+            liquidationFallBps={liquidationFallBps}
+            limits={limits}
+            openPosition={
+              stock.openPosition === null
+                ? null
+                : {
+                    href: `/app/positions/${stock.openPosition.id}`,
+                    targetLtvBps: stock.openPosition.targetLtvBps,
+                    protectLtvBps: stock.openPosition.protectLtvBps,
+                    growEnabled: stock.openPosition.growEnabled,
+                  }
+            }
+            onAdjust={() => {
+              setDetailsOpen(false);
               setAdjustOpen(true);
             }}
-          >
-            {DEPOSIT_COPY.adjust}
-          </Button>
-          <Muted>{DEPOSIT_COPY.referenceLine}</Muted>
-        </Stack>
-      </Panel>
+            onClose={() => {
+              setDetailsOpen(false);
+            }}
+          />
+        )}
 
-      <Panel>
-        <Stack gap={12}>
-          <Heading level={3}>{DEPOSIT_COPY.earnInColumnTitle}</Heading>
-          {destinations.map((entry) => {
-            const chosen = entry.symbol === chosenDestination;
-            return (
-              <button
-                key={entry.mint}
-                type="button"
-                data-testid={`destination-${entry.symbol}`}
-                onClick={() => {
-                  setChosenDestination(entry.symbol);
-                }}
-                style={{
-                  textAlign: 'left',
-                  background: chosen ? 'var(--color-raised)' : 'transparent',
-                  border: '1px solid',
-                  borderColor: chosen
-                    ? 'var(--color-accent-deeper)'
-                    : 'var(--color-hairline)',
-                  borderRadius: 'var(--radius)',
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                }}
-              >
-                <Row>
-                  <Mono>{entry.symbol}</Mono>
-                  <Mono tone="gold">
-                    {percent(entry.targetRateBps)} {DEPOSIT_COPY.targetSuffix}
-                  </Mono>
-                </Row>
-                <Mono tone="muted" style={{ fontSize: 12 }}>
-                  {EXIT_LINE.unknown}
-                </Mono>
-              </button>
-            );
-          })}
-        </Stack>
-      </Panel>
-
-      {stock === null ? null : (
-        <AdjustSheet
-          open={adjustOpen}
-          stock={stock}
-          borrowRateBps={borrowRateBps}
-          destinationName={destination?.name ?? ''}
-          yieldSource={destination?.yieldSource ?? ''}
-          adjustments={adjustments}
-          onChange={setAdjustments}
-          onClose={() => {
-            setAdjustOpen(false);
+        <AcknowledgementSheet
+          open={acknowledgementOpen}
+          onAccepted={() => {
+            setAcknowledgementOpen(false);
+            setReviewOpen(true);
           }}
         />
-      )}
-
-      {stock === null || destination === null ? null : (
-        <ReviewSheet
-          open={reviewOpen}
-          stock={stock}
-          destinationSymbol={destination.symbol}
-          collateralAmountRaw={wholeToRaw(tokenEquivalent, stock.decimals)}
-          adjustments={adjustments}
-          onClose={() => {
-            setReviewOpen(false);
-          }}
-          onSigned={async (transactions, buildId) => signAndSubmit(transactions, buildId)}
-          walletAddress={me?.wallet ?? ''}
-          borrowUsd={borrowUsd}
-          rawToWhole={rawToWhole}
-        />
-      )}
-
-      <AcknowledgementSheet
-        open={acknowledgementOpen}
-        onAccepted={() => {
-          setAcknowledgementOpen(false);
-          setReviewOpen(true);
-        }}
-      />
-    </div>
+      </div>
+    </Stack>
   );
 }

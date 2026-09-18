@@ -10,6 +10,7 @@ describe("Accrue's default strategy for a stock", () => {
       targetLtvBps: 4_000,
       protectLtvBps: 5_000,
       growBelowLtvBps: 3_000,
+      growEnabled: false,
     });
   });
 
@@ -19,7 +20,14 @@ describe("Accrue's default strategy for a stock", () => {
       targetLtvBps: 2_000,
       protectLtvBps: 2_500,
       growBelowLtvBps: 1_000,
+      growEnabled: false,
     });
+  });
+
+  it('never borrows more on a rising stock unless the owner asks for it', () => {
+    for (const maximumBps of [3_000, 5_500, 7_300]) {
+      expect(defaultStrategyFor(maximumBps).growEnabled).toBe(false);
+    }
   });
 
   it('stays inside the bounds the program checks', () => {

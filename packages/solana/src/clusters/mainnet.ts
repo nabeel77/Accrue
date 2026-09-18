@@ -10,6 +10,7 @@ export const MAINNET: ClusterAddresses = {
   scopeProgram: address('HFn8GnPADiny6XqUoWE8uRPPxb29ikn4yTuPa9MF2fWJ'),
   scopePriceAccount: address('3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH'),
   lendingMarket: address('5wJeMrUYECGq41fxRESKALVcHnNX26TAWy4W98yULsua'),
+  lookupTable: null,
   mints: {
     USDC: address('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
     NVDAx: address('Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh'),

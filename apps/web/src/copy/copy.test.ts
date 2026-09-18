@@ -11,7 +11,7 @@ import { FORBIDDEN_WORD_EXCEPTIONS } from './forbiddenWordExceptions.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** Every word and phrase that never appears anywhere a user reads, in any case. */
+// Every word and phrase that never appears anywhere a user reads, in any case.
 const FORBIDDEN: readonly string[] = [
   'safe',
   'guaranteed',
@@ -32,7 +32,7 @@ const FORBIDDEN: readonly string[] = [
   'if Accrue',
 ];
 
-/** The rescue page carries its own words, and they are held to the same list. */
+// The rescue page carries its own words, and they are held to the same list.
 const RESCUE_COPY_FILE = resolve(here, '../../../rescue/src/copy.ts');
 
 function copyFiles(): string[] {
@@ -44,19 +44,27 @@ function copyFiles(): string[] {
   ];
 }
 
-/** Every string literal and template chunk in the file, which is everything a user can read. */
+// Every string literal and template chunk in one file, which is everything a user can read in it.
+// Templates come out first and are taken out of the text, because an apostrophe inside one would
+// otherwise open a quoted literal that runs to the next apostrophe and swallows real sentences.
 function stringsIn(source: string): string[] {
   const found: string[] = [];
-  const quoted = source.match(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/gu) ?? [];
+  const withoutTemplates = source.replace(/`(?:[^`\\]|\\.)*`/gsu, (literal) => {
+    // A value is elided to {} so an approved sentence can be written without it.
+    found.push(literal.slice(1, -1).replace(/\$\{[^}]*\}/gu, '{}'));
+    return '``';
+  });
+  const quoted =
+    withoutTemplates.match(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/gu) ?? [];
   for (const literal of quoted) {
     found.push(literal.slice(1, -1));
   }
-  const templates = source.match(/`(?:[^`\\]|\\.)*`/gsu) ?? [];
-  for (const literal of templates) {
-    // A value is elided to {} so an approved sentence can be written without it.
-    found.push(literal.slice(1, -1).replace(/\$\{[^}]*\}/gu, '{}'));
-  }
   return found;
+}
+
+// Every sentence in every copy file, read one file at a time so no file can hide another's.
+function everySentence(files: readonly string[]): string[] {
+  return files.flatMap((file) => stringsIn(readFileSync(file, 'utf8')));
 }
 
 function isAllowed(sentence: string): boolean {
@@ -81,12 +89,10 @@ describe('the words a user reads', () => {
   });
 
   it('keeps every exception matching the copy exactly', () => {
-    const everything = copyFiles()
-      .map((file) => readFileSync(file, 'utf8'))
-      .join('\n');
+    const sentences = everySentence(copyFiles());
     for (const allowed of FORBIDDEN_WORD_EXCEPTIONS) {
       // The sentence is stored escaped in the source, so compare on the unescaped strings.
-      const appears = stringsIn(everything).some((sentence) => sentence === allowed);
+      const appears = sentences.some((sentence) => sentence === allowed);
       expect(appears, `the approved sentence is no longer in the copy: ${allowed}`).toBe(
         true,
       );
@@ -96,13 +102,12 @@ describe('the words a user reads', () => {
   it('shows the acknowledgement from the module and does not restate it', () => {
     expect(ACKNOWLEDGEMENT_COPY.title).toBe(RISK_ACKNOWLEDGEMENT_TITLE);
     // The exception list is the one place an approved sentence is written out again.
-    const everything = copyFiles()
-      .filter((file) => !file.endsWith('forbiddenWordExceptions.ts'))
-      .map((file) => readFileSync(file, 'utf8'))
-      .join('\n');
+    const sentences = everySentence(
+      copyFiles().filter((file) => !file.endsWith('forbiddenWordExceptions.ts')),
+    );
     for (const sentence of RISK_ACKNOWLEDGEMENT_SENTENCES) {
       expect(
-        everything.includes(sentence),
+        sentences.includes(sentence),
         'the acknowledgement sentences live in packages/core, not in the copy files',
       ).toBe(false);
     }

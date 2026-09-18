@@ -2,15 +2,16 @@ import 'server-only';
 
 import type { Address } from '@solana/kit';
 
-/** Everything a build route answers with, in one shape, so nothing leaks a database row. */
+// Everything a build route answers with, in one shape, so nothing leaks a database row.
 export interface BuiltTransaction {
-  /** Base64, version 1, already simulated. A failed simulation is never returned. */
+  // Base64, version 1, already simulated.
   readonly transaction: string;
-  readonly version: 1;
+  readonly version: 0 | 1;
   readonly bytes: number;
   readonly uniqueAddresses: number;
   readonly computeUnits: string | null;
-  readonly blockhashExpiresAtSlot: string;
+  // The last block height the blockhash is good for, which is when the build is dead.
+  readonly blockhashExpiresAtHeight: string;
 }
 
 export interface BuildRefusal {
@@ -18,10 +19,26 @@ export interface BuildRefusal {
     | 'terms'
     | 'acknowledgement'
     | 'paused'
+    | 'programPaused'
     | 'cap'
     | 'liquidity'
     | 'strategy'
-    | 'shortfall';
+    | 'shortfall'
+    | 'staleOracle'
+    | 'noRoute'
+    | 'capExhausted'
+    | 'stockNotOffered'
+    | 'pairNotOnThisNetwork'
+    | 'aboveTheMarketMaximum'
+    | 'positionAlreadyOpen'
+    | 'nothingToSell'
+    | 'notEnoughStock'
+    | 'guardLevelsOutOfBounds'
+    | 'noLoanToGuard'
+    | 'positionTooSmall'
+    | 'positionTooLarge'
+    | 'aboveTheDefaultLoanToValue'
+    | 'aboveTheLiquidityShare';
   readonly message: string;
   readonly detail?: Record<string, string | number>;
 }

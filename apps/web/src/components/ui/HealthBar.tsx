@@ -4,7 +4,7 @@ import { Mono, Row } from './primitives.js';
 
 const BASIS_POINTS = 10_000;
 
-/** The three zones, and jade never appears here. */
+// The three zones, and jade never appears here.
 export function HealthBar({
   fillBps,
   zone,

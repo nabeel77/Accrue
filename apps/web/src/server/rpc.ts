@@ -13,7 +13,7 @@ const BASIS_POINTS_PER_PERCENT = 100;
 
 let shared: ReturnType<typeof createAccrueRpc> | null = null;
 
-/** One client for the whole server, so the limiter is shared by every route. */
+// One client for the whole server, so the limiter is shared by every route.
 export function chain(): ReturnType<typeof createAccrueRpc> {
   shared ??= createAccrueRpc({
     url: rpcUrl(),

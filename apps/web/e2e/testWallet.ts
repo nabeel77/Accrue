@@ -24,10 +24,7 @@ function expand(path: string): string {
   return path.startsWith('~') ? resolve(homedir(), path.slice(2)) : resolve(path);
 }
 
-/**
- * One wallet, used for nothing but this run, read from the path in the environment. The admin key
- * is never loaded here and nothing in this folder can reach it.
- */
+// One wallet, used for nothing but this run, read from the path in the environment.
 export async function loadTestWallet(): Promise<TestWalletKeys> {
   const path = process.env['E2E_WALLET_KEYPAIR_PATH'];
   if (path === undefined || path === '') {
@@ -45,7 +42,7 @@ export async function loadTestWallet(): Promise<TestWalletKeys> {
     async signMessage(message) {
       return new Uint8Array(await signBytes(keyPair.privateKey, message));
     },
-    /** Decoded, signed and encoded by the same library the app builds with, never by hand. */
+    // Decoded, signed and encoded by the same library the app builds with, never by hand.
     async signTransaction(transaction) {
       const signed = await partiallySignTransaction(
         [keyPair],
@@ -56,19 +53,20 @@ export async function loadTestWallet(): Promise<TestWalletKeys> {
   };
 }
 
-/**
- * Runs inside the page. It registers a Wallet Standard wallet the same way a real one does, and
- * every signature it produces comes back from the harness, never from anything in the browser.
- */
+// Runs inside the page. The two pretences are how a wallet on the wrong network and a reader who
+// closes the signing window are put in front of the app on purpose.
 export function installTestWallet(seed: {
   address: string;
   publicKeyBytes: number[];
   name: string;
+  chains?: string[];
+  refusesToSign?: boolean;
 }): void {
+  const chains = seed.chains ?? ['solana:devnet'];
   const account = {
     address: seed.address,
     publicKey: Uint8Array.from(seed.publicKeyBytes),
-    chains: ['solana:devnet'],
+    chains,
     features: ['solana:signMessage', 'solana:signTransaction'],
   };
 
@@ -81,7 +79,7 @@ export function installTestWallet(seed: {
     version: '1.0.0',
     name: seed.name,
     icon: 'data:image/svg+xml;base64,',
-    chains: ['solana:devnet'],
+    chains,
     accounts: [account],
     features: {
       'standard:connect': {
@@ -104,6 +102,9 @@ export function installTestWallet(seed: {
       'solana:signTransaction': {
         version: '1.0.0',
         signTransaction: async (input: { transaction: Uint8Array }) => {
+          if (seed.refusesToSign === true) {
+            throw new Error('User rejected the request.');
+          }
           const signed = await bridge.__accrueE2eSignTransaction([...input.transaction]);
           return [{ signedTransaction: Uint8Array.from(signed) }];
         },

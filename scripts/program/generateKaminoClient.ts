@@ -123,11 +123,6 @@ const RUST_KEYWORDS = new Set([
   'try',
 ]);
 
-/**
- * Codama writes the lending program id from the IDL and uses it as the stand in for an optional
- * account nobody passed. That address has to be the one this build actually calls, or the stand in
- * names an account the transaction does not carry, so it is pointed at the cluster module.
- */
 function pointTheProgramIdAtTheClusterModule(directory: string): void {
   const programsFile = resolve(directory, 'programs.rs');
   const original = readFileSync(programsFile, 'utf8');

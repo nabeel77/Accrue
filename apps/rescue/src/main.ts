@@ -11,6 +11,7 @@ import {
   type RescuablePosition,
 } from './chain.js';
 import { RESCUE_COPY } from './copy.js';
+import { whyItFailed } from './failure.js';
 import {
   connectFirstWallet,
   signTransaction,
@@ -97,8 +98,8 @@ async function listPositions(): Promise<void> {
     for (const position of found) {
       positions.append(cardFor(position, owner));
     }
-  } catch {
-    status.textContent = RESCUE_COPY.failed;
+  } catch (failure) {
+    status.textContent = `${RESCUE_COPY.failed} ${whyItFailed(failure)}`;
   }
 }
 
@@ -161,7 +162,7 @@ async function rescue(
     const sign = (unsigned: Uint8Array): Promise<Uint8Array> =>
       signTransaction(signingWallet, signingAccount, unsigned);
 
-    const signature = await signAndSend(rpc, owner, plan.rescue, sign);
+    const signature = await signAndSend(rpc, CLUSTERS[chosen], owner, plan.rescue, sign);
     const shown = labelled(RESCUE_COPY.signatureLabel, shorten(signature));
     shown.dataset['testid'] = 'rescue-signature';
     shown.title = signature;
@@ -171,17 +172,17 @@ async function rescue(
     // The tokens are already back, so a loan that cannot be settled is reported and nothing else.
     try {
       for (const step of plan.settle) {
-        await signAndSend(rpc, owner, step, sign);
+        await signAndSend(rpc, CLUSTERS[chosen], owner, step, sign);
       }
       line.textContent = RESCUE_COPY.done;
-    } catch {
+    } catch (failure) {
       line.textContent =
         plan.stillOwedUsdc === null
-          ? RESCUE_COPY.returned
-          : RESCUE_COPY.stillOwed(plan.stillOwedUsdc);
+          ? `${RESCUE_COPY.returned} ${whyItFailed(failure)}`
+          : `${RESCUE_COPY.stillOwed(plan.stillOwedUsdc)} ${whyItFailed(failure)}`;
     }
-  } catch {
-    line.textContent = RESCUE_COPY.failed;
+  } catch (failure) {
+    line.textContent = `${RESCUE_COPY.failed} ${whyItFailed(failure)}`;
   } finally {
     button.disabled = false;
     button.textContent = RESCUE_COPY.button;

@@ -9,4 +9,11 @@ export const PORTFOLIO_COPY = {
   putToWork: 'Put to work',
   health: 'Health',
   guard: 'Guard',
+  worth: 'Stock in the market',
+  holding: 'Holding',
+  netRate: 'Earning, after the loan',
+  liquidatedAt: 'Liquidated at',
+  loanToValue: 'Loan to value',
+  aYear: (rate: string): string => `${rate} / yr`,
+  ofTarget: (now: string, target: string): string => `${now} of ${target}`,
 } as const;
