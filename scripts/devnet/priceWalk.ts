@@ -25,6 +25,12 @@ export interface WalkKnobs {
   // How many seconds of earning the yield token gets for every second that passes on a sandbox,
   // so a rate published per year is visible in a sitting.
   readonly yieldTimesFaster: number;
+  // A yield token earns, but its price is a mark that can be written down, so the sandbox marks it
+  // down now and then and climbs back to where it was over the steps that follow.
+  readonly yieldDipOdds: number;
+  readonly yieldDipLowPercent: number;
+  readonly yieldDipHighPercent: number;
+  readonly yieldWobblePercent: number;
 }
 
 const DEFAULTS: WalkKnobs = {
@@ -37,6 +43,10 @@ const DEFAULTS: WalkKnobs = {
   bigMoveHighPercent: 25,
   recoverySteps: 6,
   yieldTimesFaster: 1,
+  yieldDipOdds: 0.03,
+  yieldDipLowPercent: 1,
+  yieldDipHighPercent: 3,
+  yieldWobblePercent: 0.15,
 };
 
 function number(name: string, fallback: number): number {
@@ -61,6 +71,19 @@ export function knobsFromTheEnvironment(): WalkKnobs {
     ),
     recoverySteps: number('DEVNET_PRICE_RECOVERY_STEPS', DEFAULTS.recoverySteps),
     yieldTimesFaster: number('DEVNET_YIELD_TIMES_FASTER', DEFAULTS.yieldTimesFaster),
+    yieldDipOdds: number('DEVNET_YIELD_DIP_ODDS', DEFAULTS.yieldDipOdds),
+    yieldDipLowPercent: number(
+      'DEVNET_YIELD_DIP_LOW_PERCENT',
+      DEFAULTS.yieldDipLowPercent,
+    ),
+    yieldDipHighPercent: number(
+      'DEVNET_YIELD_DIP_HIGH_PERCENT',
+      DEFAULTS.yieldDipHighPercent,
+    ),
+    yieldWobblePercent: number(
+      'DEVNET_YIELD_WOBBLE_PERCENT',
+      DEFAULTS.yieldWobblePercent,
+    ),
   };
 }
 
@@ -115,6 +138,12 @@ export interface WalkState {
   recoveryStepsLeft: number;
 }
 
+export interface YieldWalkState {
+  recoveryStepsLeft: number;
+  // A yield token has no book price to come back to, so a mark down remembers where it fell from.
+  climbingBackTo: number | null;
+}
+
 export interface Step {
   readonly symbol: string;
   readonly from: number;
@@ -150,6 +179,41 @@ export function stepAStock(
     const drift = (roll() * 2 - 1) * knobs.stepPercent;
     movePercent = drift + (gapPercent * knobs.pullPercent) / PERCENT;
     why = 'drift';
+  }
+
+  const to = clampToTheBounds(price * (1 + movePercent / PERCENT), bounds);
+  return { symbol: token.symbol, from: price, to, why };
+}
+
+// One move for one yield token: earning is applied on every write, so this is only the mark, which
+// is written down now and then and climbs back to where it fell from over the steps that follow.
+export function stepAYieldToken(
+  token: SandboxToken,
+  price: number,
+  bounds: PriceBounds,
+  knobs: WalkKnobs,
+  state: YieldWalkState,
+  roll: () => number = Math.random,
+): Step {
+  let movePercent: number;
+  let why: string;
+  if (state.recoveryStepsLeft > 0 && state.climbingBackTo !== null) {
+    const gapPercent = ((state.climbingBackTo - price) / price) * PERCENT;
+    movePercent = gapPercent / state.recoveryStepsLeft;
+    why = `climbing back, ${state.recoveryStepsLeft} steps left`;
+    state.recoveryStepsLeft -= 1;
+    if (state.recoveryStepsLeft === 0) {
+      state.climbingBackTo = null;
+    }
+  } else if (roll() < knobs.yieldDipOdds) {
+    const spread = knobs.yieldDipHighPercent - knobs.yieldDipLowPercent;
+    movePercent = -(knobs.yieldDipLowPercent + roll() * spread);
+    state.recoveryStepsLeft = knobs.recoverySteps;
+    state.climbingBackTo = price;
+    why = 'marked down';
+  } else {
+    movePercent = (roll() * 2 - 1) * knobs.yieldWobblePercent;
+    why = 'wobble';
   }
 
   const to = clampToTheBounds(price * (1 + movePercent / PERCENT), bounds);
