@@ -37,6 +37,17 @@ interface PortfolioValue {
     readonly usdcInYourWalletUsd: number;
     readonly everythingYouHoldUsd: number;
   };
+  readonly earned: {
+    readonly earnedUsd: number;
+    readonly earnedBps: number;
+    readonly direction: 'up' | 'down' | 'flat';
+  };
+  readonly holdings: readonly {
+    readonly symbol: string;
+    readonly amount: number;
+    readonly priceUsd: number;
+    readonly valueUsd: number;
+  }[];
   readonly changeUsd: number;
   readonly changeBps: number;
   readonly direction: 'up' | 'down' | 'flat';
@@ -142,26 +153,74 @@ export default function PortfolioPage(): JSX.Element {
             </Stack>
           ) : (
             <>
-              <Mono
-                testId="portfolio-total"
-                style={{ fontSize: 44, fontWeight: 500, lineHeight: 1.1 }}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 20,
+                  width: '100%',
+                  alignItems: 'start',
+                }}
               >
-                {`$${money(value.breakdown.everythingYouHoldUsd)}`}
-              </Mono>
-              <Muted>{PORTFOLIO_VALUE_COPY.everythingYouHold}</Muted>
+                <Stack gap={4} style={{ alignItems: 'center' }}>
+                  <Muted>{PORTFOLIO_VALUE_COPY.inAccrue}</Muted>
+                  <Mono
+                    testId="portfolio-total"
+                    style={{ fontSize: 40, fontWeight: 500, lineHeight: 1.1 }}
+                  >
+                    {`$${money(value.breakdown.positionEquityUsd)}`}
+                  </Mono>
+                  <Muted>{PORTFOLIO_VALUE_COPY.whatYourPositionsAreWorth}</Muted>
+                </Stack>
 
-              <Row style={{ justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <Mono
-                  testId="portfolio-change"
-                  tone={value.direction === 'down' ? 'caution' : 'accent'}
-                >
-                  {`${value.changeUsd < 0 ? '−' : '+'}$${money(Math.abs(value.changeUsd))}`}
-                </Mono>
-                <Mono tone={value.direction === 'down' ? 'caution' : 'accent'}>
-                  {`${value.changeBps < 0 ? '−' : '+'}${percent(Math.abs(value.changeBps))}`}
-                </Mono>
-                <Muted>{PORTFOLIO_VALUE_COPY.inYourPositions}</Muted>
-              </Row>
+                <Stack gap={4} style={{ alignItems: 'center' }}>
+                  <Muted>{PORTFOLIO_VALUE_COPY.earnedSoFar}</Muted>
+                  <Mono
+                    testId="portfolio-earned"
+                    tone={value.earned.direction === 'down' ? 'caution' : 'accent'}
+                    style={{ fontSize: 40, fontWeight: 500, lineHeight: 1.1 }}
+                  >
+                    {`${value.earned.earnedUsd < 0 ? '−' : '+'}$${money(Math.abs(value.earned.earnedUsd))}`}
+                  </Mono>
+                  <Row style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Mono
+                      testId="portfolio-earned-percent"
+                      tone={value.earned.direction === 'down' ? 'caution' : 'accent'}
+                    >
+                      {`${value.earned.earnedBps < 0 ? '−' : '+'}${percent(Math.abs(value.earned.earnedBps))}`}
+                    </Mono>
+                    <Muted>{PORTFOLIO_VALUE_COPY.afterTheLoan}</Muted>
+                  </Row>
+                </Stack>
+              </div>
+
+              {value.holdings.length === 0 ? (
+                <Muted testId="nothing-earning">
+                  {PORTFOLIO_VALUE_COPY.nothingEarningYet}
+                </Muted>
+              ) : (
+                <Stack gap={8} style={{ width: '100%' }}>
+                  <Muted>{PORTFOLIO_VALUE_COPY.holdingTitle}</Muted>
+                  {value.holdings.map((holding) => (
+                    <Row key={holding.symbol} data-testid={`holding-${holding.symbol}`}>
+                      <Mono>
+                        {PORTFOLIO_VALUE_COPY.holdingLine(
+                          money(holding.amount),
+                          holding.symbol,
+                        )}
+                      </Mono>
+                      <Row style={{ gap: 10 }}>
+                        <Muted>
+                          {PORTFOLIO_VALUE_COPY.holdingPrice(
+                            `$${holding.priceUsd.toFixed(4)}`,
+                          )}
+                        </Muted>
+                        <Mono>{`$${money(holding.valueUsd)}`}</Mono>
+                      </Row>
+                    </Row>
+                  ))}
+                </Stack>
+              )}
 
               {value.line.length < 2 ? (
                 <Muted testId="portfolio-no-line">

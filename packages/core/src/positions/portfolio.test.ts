@@ -5,6 +5,7 @@ import {
   equityOfAPosition,
   howTheEquityHasMoved,
   theLineToDraw,
+  whatThePositionsHaveEarned,
 } from './portfolio.js';
 
 const SPYX = { collateralValueUsd: 2_012.52, debtUsd: 990, destinationValueUsd: 970.48 };
@@ -97,5 +98,56 @@ describe('the line the chart draws', () => {
 
   it('draws nothing from nothing', () => {
     expect(theLineToDraw([], 120)).toStrictEqual([]);
+  });
+});
+
+describe('whatThePositionsHaveEarned', () => {
+  it('has earned nothing the moment the loan bought the yield token', () => {
+    const earned = whatThePositionsHaveEarned([
+      { collateralValueUsd: 2_500, debtUsd: 1_000, destinationValueUsd: 1_000 },
+    ]);
+    expect(earned).toEqual({ earnedUsd: 0, earnedBps: 0, direction: 'flat' });
+  });
+
+  it('counts what the yield token is worth above what is still owed', () => {
+    const earned = whatThePositionsHaveEarned([
+      { collateralValueUsd: 2_500, debtUsd: 1_000, destinationValueUsd: 1_115.4 },
+    ]);
+    expect(earned.earnedUsd).toBeCloseTo(115.4, 6);
+    expect(earned.earnedBps).toBe(1_154);
+    expect(earned.direction).toBe('up');
+  });
+
+  it('goes down when the loan has cost more than the yield token made', () => {
+    const earned = whatThePositionsHaveEarned([
+      { collateralValueUsd: 2_500, debtUsd: 1_020, destinationValueUsd: 1_000 },
+    ]);
+    expect(earned.earnedUsd).toBeCloseTo(-20, 6);
+    expect(earned.earnedBps).toBe(-196);
+    expect(earned.direction).toBe('down');
+  });
+
+  it('adds every position together', () => {
+    const earned = whatThePositionsHaveEarned([
+      { collateralValueUsd: 2_500, debtUsd: 1_000, destinationValueUsd: 1_050 },
+      { collateralValueUsd: 900, debtUsd: 500, destinationValueUsd: 530 },
+    ]);
+    expect(earned.earnedUsd).toBeCloseTo(80, 6);
+    expect(earned.earnedBps).toBe(533);
+  });
+
+  it('says nothing rather than dividing by a loan of nothing', () => {
+    const earned = whatThePositionsHaveEarned([
+      { collateralValueUsd: 2_500, debtUsd: 0, destinationValueUsd: 0 },
+    ]);
+    expect(earned).toEqual({ earnedUsd: 0, earnedBps: 0, direction: 'flat' });
+  });
+
+  it('is nothing when there are no positions at all', () => {
+    expect(whatThePositionsHaveEarned([])).toEqual({
+      earnedUsd: 0,
+      earnedBps: 0,
+      direction: 'flat',
+    });
   });
 });

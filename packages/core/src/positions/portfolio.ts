@@ -46,6 +46,30 @@ export function breakDownThePortfolio(
   };
 }
 
+export interface WhatItHasEarned {
+  readonly earnedUsd: number;
+  readonly earnedBps: number;
+  readonly direction: 'up' | 'down' | 'flat';
+}
+
+// The yield token was bought with the loan, so what it is worth above what is still owed is what
+// the position has made, after the cost of the loan and anything the guard spent getting out.
+export function whatThePositionsHaveEarned(
+  positions: readonly APositionsWorth[],
+): WhatItHasEarned {
+  const yieldTokensUsd = positions.reduce(
+    (total, one) => total + one.destinationValueUsd,
+    0,
+  );
+  const owedUsd = positions.reduce((total, one) => total + one.debtUsd, 0);
+  const earnedUsd = yieldTokensUsd - owedUsd;
+  return {
+    earnedUsd,
+    earnedBps: owedUsd <= 0 ? 0 : Math.round((earnedUsd / owedUsd) * BASIS_POINTS),
+    direction: earnedUsd > 0 ? 'up' : earnedUsd < 0 ? 'down' : 'flat',
+  };
+}
+
 export interface HowItHasMoved {
   readonly changeUsd: number;
   readonly changeBps: number;
