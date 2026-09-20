@@ -1,370 +1,493 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useRef, type JSX } from 'react';
+import { useEffect, useRef, type CSSProperties, type JSX } from 'react';
 
 import { AccrueMark } from '../components/AccrueMark.js';
 import { LANDING_COPY } from '../copy/landing.js';
-import { mountAccrueMotion } from './accrueMotion.js';
-import { mountHeroCanvas } from './heroCanvas.js';
-import { readLandingPalette } from './palette.js';
-import { BeatCopy } from './BeatCopy.js';
-import { HeroBeat } from './HeroBeat.js';
-import { ObjectColumn } from './ObjectColumn.js';
+import { FlowCard } from './FlowCard.js';
+import { GuardCard } from './GuardCard.js';
+import { HeroCanvas } from './heroCanvas.js';
+import { revealOnScroll } from './reveal.js';
+import { rollNumbersIntoView } from './rollNumbers.js';
 
-const SCROLL_SPAN = '900vh';
-const RAIL_DOTS = ['01', '02', '03', '04', '05', '06'] as const;
-const NOISE_TEXTURE =
-  "url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22160%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%222%22/><feColorMatrix type=%22saturate%22 values=%220%22/></filter><rect width=%22160%22 height=%22160%22 filter=%22url(%23n)%22 opacity=%220.35%22/></svg>')";
+const PAGE = 1180;
+const SIDE = 'clamp(16px,4vw,56px)';
+const BOTTOM = 'clamp(56px,8vh,120px)';
 
-const openAppLinkStyle = {
-  border: '1px solid var(--color-accent)',
-  color: 'var(--color-accent)',
-  borderRadius: 'var(--radius)',
-  display: 'flex',
-  alignItems: 'center',
+const EYEBROW: CSSProperties = {
+  fontFamily: "'Geist Mono', monospace",
+  fontSize: 11,
+  letterSpacing: '.16em',
+  textTransform: 'uppercase',
+  color: '#6E675F',
 };
 
+const TITLE: CSSProperties = {
+  margin: 0,
+  fontSize: 'clamp(28px,3.4vw,44px)',
+  fontWeight: 300,
+  letterSpacing: '-.03em',
+};
+
+const SECTION: CSSProperties = {
+  padding: `0 ${SIDE} ${BOTTOM}`,
+  maxWidth: PAGE,
+  margin: '0 auto',
+  boxSizing: 'border-box',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 28,
+};
+
+function Wordmark({ size = 22, colour = '#F0EDE8' }): JSX.Element {
+  return (
+    <a
+      href="#top"
+      style={{ display: 'flex', alignItems: 'center', gap: 10, color: colour }}
+    >
+      <AccrueMark size={size} />
+      <span
+        style={{
+          fontSize: size >= 22 ? 16 : 14,
+          fontWeight: 500,
+          letterSpacing: '-.02em',
+        }}
+      >
+        {LANDING_COPY.wordmark}
+      </span>
+    </a>
+  );
+}
+
+function OpenApp({ big = false }): JSX.Element {
+  return (
+    <a
+      href="/app"
+      data-testid="open-app"
+      style={{
+        background: '#37B98D',
+        color: '#0C0B0A',
+        borderRadius: 8,
+        padding: big ? '0 24px' : '0 18px',
+        height: big ? 50 : 40,
+        display: 'flex',
+        alignItems: 'center',
+        fontSize: big ? 15 : 14,
+        fontWeight: 500,
+      }}
+    >
+      {LANDING_COPY.openApp}
+    </a>
+  );
+}
+
+function XMark(): JSX.Element {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="currentColor"
+    >
+      <path d="M18.9 2H22l-7 8 8.2 12h-6.4l-5-7.3L5.9 22H2.8l7.5-8.6L2.4 2h6.6l4.5 6.6L18.9 2Zm-1.1 18h1.7L7.3 3.8H5.5L17.8 20Z" />
+    </svg>
+  );
+}
+
 export function LandingStage(): JSX.Element {
-  const rootRef = useRef<HTMLDivElement>(null);
+  const hero = useRef<HTMLElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (root === null) {
+    const element = hero.current;
+    const surface = canvas.current;
+    if (element === null || surface === null) {
       return;
     }
-    const hero = root.querySelector<HTMLElement>('[data-hero]');
-    const canvas = root.querySelector<HTMLCanvasElement>('[data-hero-canvas]');
-    const motion = mountAccrueMotion(root, {
-      liquidationLabelPrefix: LANDING_COPY.guard.liquidatedAtPrefix,
-    });
-    const livingHero =
-      hero === null || canvas === null
-        ? null
-        : mountHeroCanvas(hero, canvas, readLandingPalette(root), LANDING_COPY.heroChart);
+    const painting = new HeroCanvas(element, surface);
     return () => {
-      motion.stop();
-      livingHero?.stop();
+      painting.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = root.current;
+    if (element === null) {
+      return;
+    }
+    const stopRevealing = revealOnScroll(element);
+    const stopRolling = rollNumbersIntoView(element);
+    return () => {
+      stopRevealing();
+      stopRolling();
     };
   }, []);
 
   return (
     <div
-      ref={rootRef}
+      ref={root}
+      data-testid="landing"
       style={{
-        position: 'relative',
-        background: 'var(--color-ground)',
-        color: 'var(--color-text)',
+        background: '#0C0B0A',
+        color: '#F0EDE8',
+        fontFamily: "'Geist', system-ui, sans-serif",
       }}
     >
-      <div data-scroll style={{ height: SCROLL_SPAN, position: 'relative' }}>
-        <div
-          data-stage
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 5,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          padding: `16px ${SIDE}`,
+          background: 'rgba(12,11,10,0.88)',
+          backdropFilter: 'blur(10px)',
+        }}
+      >
+        <Wordmark />
+        <OpenApp />
+      </header>
+
+      <section
+        id="top"
+        ref={hero}
+        data-hero
+        style={{
+          position: 'relative',
+          minHeight: '82vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          overflow: 'hidden',
+          padding: `clamp(48px,10vh,120px) ${SIDE}`,
+        }}
+      >
+        <canvas
+          ref={canvas}
           style={{
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
+            position: 'absolute',
+            inset: 0,
             width: '100%',
-            overflow: 'hidden',
-            containerType: 'size',
-            background: 'var(--color-ground)',
+            height: '100%',
+            display: 'block',
+            opacity: 0.7,
+          }}
+        />
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            maxWidth: 820,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 28,
           }}
         >
-          <div
-            data-glow-a
+          <h1
+            data-testid="hero-headline"
             style={{
-              position: 'absolute',
-              left: '50%',
-              top: '20%',
-              width: '120cqh',
-              height: '120cqh',
-              margin: '-60cqh 0 0 -60cqh',
-              borderRadius: '50%',
-              background:
-                'radial-gradient(circle, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 64%)',
-              opacity: 0.4,
-            }}
-          />
-          <div
-            data-glow-b
-            style={{
-              position: 'absolute',
-              left: '72%',
-              top: '62%',
-              width: '90cqh',
-              height: '90cqh',
-              margin: '-45cqh 0 0 -45cqh',
-              borderRadius: '50%',
-              background:
-                'radial-gradient(circle, color-mix(in srgb, var(--color-gold) 14%, transparent), transparent 62%)',
-              opacity: 0,
-            }}
-          />
-          <div
-            data-vign
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background:
-                'radial-gradient(ellipse at 50% 50%, transparent 38%, color-mix(in srgb, var(--color-ground) 85%, transparent) 100%)',
-              opacity: 0.25,
-            }}
-          />
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              pointerEvents: 'none',
-              opacity: 0.4,
-              mixBlendMode: 'soft-light',
-              backgroundImage: NOISE_TEXTURE,
-            }}
-          />
-
-          <header
-            style={{
-              position: 'absolute',
-              zIndex: 9,
-              top: 0,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-              padding: '2.4cqh clamp(14px,4cqw,44px)',
+              margin: 0,
+              fontSize: 'clamp(40px,6.2vw,84px)',
+              fontWeight: 300,
+              letterSpacing: '-.035em',
+              lineHeight: 1.02,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <AccrueMark size={22} />
+            {LANDING_COPY.hero.headline.split(' ').map((word, index) => (
               <span
+                key={`${word}-${index}`}
+                className="acr-word"
                 style={{
-                  fontSize: 'clamp(14px,1.3cqw,17px)',
-                  fontWeight: 500,
-                  letterSpacing: '-0.02em',
+                  display: 'inline-block',
+                  whiteSpace: 'pre',
+                  animationDelay: `${(index * 70) / 1_000}s`,
                 }}
               >
-                {LANDING_COPY.wordmark}
+                {index === LANDING_COPY.hero.headline.split(' ').length - 1
+                  ? word
+                  : `${word} `}
               </span>
-            </div>
-            <Link
-              data-cursor
-              data-testid="open-app-header"
-              href="/app"
-              style={{ ...openAppLinkStyle, padding: '0 18px', height: 44, fontSize: 14 }}
-            >
-              {LANDING_COPY.openApp}
-            </Link>
-          </header>
-
-          <div
-            data-rail
+            ))}
+          </h1>
+          <p
             style={{
-              position: 'absolute',
-              zIndex: 8,
-              right: 'clamp(10px,1.6cqw,22px)',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
+              margin: 0,
+              fontSize: 'clamp(16px,1.4vw,20px)',
+              lineHeight: 1.6,
+              color: '#B8B1A8',
+              maxWidth: '60ch',
             }}
           >
+            {LANDING_COPY.hero.body}
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 12,
+            }}
+          >
+            <OpenApp big />
+            <a
+              href="#how"
+              style={{
+                border: '1px solid #22201D',
+                color: '#D9D2C8',
+                borderRadius: 8,
+                padding: '0 22px',
+                height: 50,
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: 15,
+              }}
+            >
+              {LANDING_COPY.hero.seeHowItWorks}
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="how"
+        style={{
+          padding: `clamp(56px,8vh,120px) ${SIDE} ${BOTTOM}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 36,
+          maxWidth: PAGE,
+          margin: '0 auto',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={EYEBROW}>{LANDING_COPY.howItWorks.eyebrow}</span>
+          <h2 style={TITLE}>{LANDING_COPY.howItWorks.title}</h2>
+        </div>
+        <FlowCard />
+        <a
+          href="/app"
+          style={{
+            alignSelf: 'flex-start',
+            background: '#37B98D',
+            color: '#0C0B0A',
+            borderRadius: 8,
+            padding: '0 24px',
+            height: 50,
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 15,
+            fontWeight: 500,
+          }}
+        >
+          {LANDING_COPY.openApp}
+        </a>
+      </section>
+
+      <section style={SECTION}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={EYEBROW}>{LANDING_COPY.tryTheGuard.eyebrow}</span>
+          <h2 style={TITLE}>{LANDING_COPY.tryTheGuard.title}</h2>
+          <p style={{ margin: 0, fontSize: 14, color: '#6E675F' }}>
+            {LANDING_COPY.tryTheGuard.setup}
+          </p>
+        </div>
+        <GuardCard />
+      </section>
+
+      <section style={SECTION}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={EYEBROW}>{LANDING_COPY.whatItEarns.eyebrow}</span>
+          <h2 style={TITLE}>{LANDING_COPY.whatItEarns.title}</h2>
+        </div>
+        <div
+          className="tnum acr-earns"
+          style={{
+            background: '#121110',
+            border: '1px solid #22201D',
+            borderRadius: 16,
+            padding: `0 clamp(16px,2.6vw,36px)`,
+            display: 'grid',
+            gridTemplateColumns: '1fr auto auto auto',
+            columnGap: 'clamp(12px,2vw,28px)',
+            alignItems: 'baseline',
+          }}
+        >
+          {[
+            LANDING_COPY.whatItEarns.stockColumn,
+            LANDING_COPY.whatItEarns.earnsColumn,
+            LANDING_COPY.whatItEarns.yieldColumn,
+            LANDING_COPY.whatItEarns.loanColumn,
+          ].map((heading, index) => (
+            <span
+              key={heading}
+              style={{
+                padding: '14px 0',
+                fontSize: 11,
+                letterSpacing: '.12em',
+                textTransform: 'uppercase',
+                color: '#6E675F',
+                borderBottom: '1px solid #1A1815',
+                textAlign: index === 0 ? 'left' : 'right',
+              }}
+            >
+              {heading}
+            </span>
+          ))}
+          {LANDING_COPY.whatItEarns.rows.map((row, rowIndex) => {
+            const edge =
+              rowIndex === LANDING_COPY.whatItEarns.rows.length - 1
+                ? undefined
+                : '1px solid #1A1815';
+            const cell: CSSProperties = {
+              padding: '18px 0',
+              fontFamily: "'Geist Mono', monospace",
+              fontSize: 15,
+              borderBottom: edge,
+            };
+            return [
+              <span key={`${row.symbol}-name`} style={cell}>
+                {row.symbol}
+              </span>,
+              <span
+                key={`${row.symbol}-earns`}
+                data-testid={`earns-${row.symbol}`}
+                style={{ ...cell, textAlign: 'right', color: '#E2B871' }}
+              >
+                {row.earns}
+              </span>,
+              <span
+                key={`${row.symbol}-yield`}
+                style={{ ...cell, textAlign: 'right', color: '#9A938A' }}
+              >
+                {row.yieldRate}
+              </span>,
+              <span
+                key={`${row.symbol}-loan`}
+                style={{ ...cell, textAlign: 'right', color: '#9A938A' }}
+              >
+                {row.loanRate}
+              </span>,
+            ];
+          })}
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: '14px 0',
+              fontFamily: "'Geist Mono', monospace",
+              fontSize: 12,
+              color: '#6E675F',
+              borderTop: '1px solid #1A1815',
+            }}
+          >
+            {LANDING_COPY.whatItEarns.formula}
+          </div>
+        </div>
+      </section>
+
+      <section style={SECTION}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={EYEBROW}>{LANDING_COPY.whatYouKeep.eyebrow}</span>
+        </div>
+        <div className="acr-three" style={{ display: 'grid', gap: 14 }}>
+          {LANDING_COPY.whatYouKeep.cards.map((card) => (
             <div
-              className="mono"
+              key={card.title}
+              style={{
+                background: '#121110',
+                border: '1px solid #22201D',
+                borderRadius: 16,
+                padding: 'clamp(20px,2.4vw,32px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              <AccrueMark size={20} monochrome monochromeColor="#37B98D" />
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 19,
+                  fontWeight: 500,
+                  letterSpacing: '-.02em',
+                }}
+              >
+                {card.title}
+              </h3>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#9A938A' }}>
+                {card.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ ...SECTION, gap: 24 }}>
+        <span style={EYEBROW}>{LANDING_COPY.builtOn.eyebrow}</span>
+        <div className="acr-built" style={{ display: 'grid', gap: '12px 28px' }}>
+          {LANDING_COPY.builtOn.parts.map((part) => (
+            <div
+              key={part.name}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
-                fontSize: 9,
-                letterSpacing: '.1em',
-                color: 'var(--color-text-muted)',
+                gap: 4,
+                padding: '14px 0',
+                borderTop: '1px solid #1A1815',
               }}
             >
-              {RAIL_DOTS.map((dot, index) => (
-                <span key={dot} data-rail-dot={index}>
-                  {dot}
-                </span>
-              ))}
+              <span style={{ fontSize: 17, fontWeight: 500, letterSpacing: '-.02em' }}>
+                {part.name}
+              </span>
+              <span style={{ fontSize: 13, color: '#6E675F' }}>{part.what}</span>
             </div>
-            <div
-              style={{
-                position: 'relative',
-                width: 2,
-                height: '28cqh',
-                background: 'var(--color-hairline)',
-                borderRadius: 2,
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                data-rail-fill
-                style={{
-                  position: 'absolute',
-                  inset: '0 0 auto 0',
-                  height: '0%',
-                  background:
-                    'linear-gradient(180deg, var(--color-accent), var(--color-accent-deep))',
-                }}
-              />
-            </div>
-          </div>
-
-          <HeroBeat />
-
-          <div
-            data-set
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: 'clamp(18px,3cqw,56px)',
-              padding: '13cqh clamp(14px,5cqw,56px) 8cqh',
-              pointerEvents: 'none',
-            }}
-          >
-            <BeatCopy />
-            <ObjectColumn />
-          </div>
-
-          <div
-            data-close
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '2.6cqh',
-              padding: '14cqh clamp(14px,5cqw,56px) 10cqh',
-              opacity: 0,
-              pointerEvents: 'none',
-            }}
-          >
-            <span data-close-mark style={{ display: 'inline-flex' }}>
-              <AccrueMark size={76} />
-            </span>
-            <Link
-              data-cline="0"
-              data-cursor
-              data-testid="open-app-close"
-              href="/app"
-              style={{
-                ...openAppLinkStyle,
-                padding: '0 24px',
-                height: 50,
-                fontSize: 16,
-                pointerEvents: 'auto',
-              }}
-            >
-              {LANDING_COPY.openApp}
-            </Link>
-          </div>
-
-          <div
-            data-follow
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              zIndex: 6,
-              borderRadius: 12,
-              background: 'var(--color-panel)',
-              boxShadow: '0 0 0 1px var(--color-hairline)',
-              padding: 'clamp(11px,1.5cqw,18px) clamp(9px,1.2cqw,16px)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              gap: 5,
-              opacity: 0,
-              transformOrigin: '50% 50%',
-            }}
-          >
-            <span
-              className="mono"
-              style={{ fontSize: 'clamp(11px,1.2cqw,15px)', fontWeight: 500 }}
-            >
-              {LANDING_COPY.followToken.symbol}
-            </span>
-            <span
-              data-follow-value
-              className="mono"
-              style={{
-                fontSize: 'clamp(9px,.85cqw,12px)',
-                color: 'var(--color-gold)',
-                opacity: 0,
-              }}
-            >
-              {LANDING_COPY.followToken.value}
-            </span>
-            <span
-              data-yours
-              className="mono"
-              style={{
-                position: 'absolute',
-                right: -9,
-                bottom: -11,
-                background: 'var(--color-ground)',
-                border: '1px solid var(--color-accent)',
-                color: 'var(--color-accent)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '2px 9px',
-                fontSize: 10,
-                letterSpacing: '.06em',
-                opacity: 0,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {LANDING_COPY.followToken.badge}
-            </span>
-          </div>
-
-          <div
-            data-cursor-dot
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              zIndex: 10,
-              width: 12,
-              height: 12,
-              margin: '-6px 0 0 -6px',
-              borderRadius: '50%',
-              border:
-                '1px solid color-mix(in srgb, var(--color-accent) 70%, transparent)',
-              opacity: 0,
-              pointerEvents: 'none',
-              transition:
-                'width .18s ease, height .18s ease, margin .18s ease, background-color .18s ease',
-            }}
-          />
+          ))}
         </div>
-      </div>
+      </section>
 
       <footer
         style={{
+          borderTop: '1px solid #161412',
+          padding: `32px ${SIDE} 48px`,
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
-          gap: 10,
-          padding: '32px clamp(14px,4vw,44px) 40px',
-          borderTop: '1px solid var(--color-hairline)',
+          gap: '16px 28px',
+          maxWidth: PAGE,
+          margin: '0 auto',
+          boxSizing: 'border-box',
         }}
       >
-        <AccrueMark size={18} />
-        <span
+        <Wordmark size={18} colour="#9A938A" />
+        <a href="/app" style={{ fontSize: 14, color: '#9A938A' }}>
+          {LANDING_COPY.openApp}
+        </a>
+        <a href="/app/about" style={{ fontSize: 14, color: '#9A938A' }}>
+          {LANDING_COPY.about}
+        </a>
+        <a
+          href={LANDING_COPY.xHref}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={LANDING_COPY.xLabel}
+          data-testid="x-link"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
             fontSize: 14,
-            fontWeight: 500,
-            letterSpacing: '-0.02em',
-            color: 'var(--color-text-secondary)',
+            color: '#9A938A',
           }}
         >
-          {LANDING_COPY.wordmark}
-        </span>
+          <XMark />
+        </a>
       </footer>
     </div>
   );

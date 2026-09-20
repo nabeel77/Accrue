@@ -1,21 +1,25 @@
-import { withAlpha, type HeroPalette } from './palette.js';
+const JADE = '#37B98D';
+const JADE_DEEP = '#2E8F6E';
+const JADE_DEEPER = '#26654F';
+const GOLD = '#E2B871';
+const HAIRLINE = '#22201D';
+const MUTED = '#6E675F';
 
 const DRAW_SECONDS = 12;
-const DIP_EVERY_SECONDS = 20;
-const DIP_LENGTH_SECONDS = 2;
-const POINT_SPACING_PIXELS = 2;
-const NARROW_WIDTH = 780;
-const SIMULATION_SEED = 20260915;
-const TICKER_PIXELS_PER_SECOND = 20;
-const THROTTLE_FALLBACK_MILLISECONDS = 250;
-const GRID_SPACING_PIXELS = 80;
-const GUARD_LABEL_SECONDS = 3;
+const DIP_EVERY = 20;
+const DIP_LENGTH = 2;
+const STEP_X = 2;
+const GRID_LABELS = ['176.00', '160.00', '144.00', '128.00'];
+const LIQUIDATION_LABEL = 'liquidation 117.33';
+const REPAID_LABEL = 'guard repaid $80';
 
-function easeInOut(time: number): number {
-  return time < 0.5 ? 2 * time * time : 1 - Math.pow(-2 * time + 2, 2) / 2;
+function easeInOut(fraction: number): number {
+  return fraction < 0.5
+    ? 2 * fraction * fraction
+    : 1 - Math.pow(-2 * fraction + 2, 2) / 2;
 }
 
-function seededRandom(seed: number): () => number {
+function randomFrom(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state * 1664525 + 1013904223) >>> 0;
@@ -23,304 +27,215 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-interface PricePoint {
+interface APoint {
   readonly x: number;
   readonly y: number;
+  readonly t: number;
 }
 
-interface GuardTick {
-  readonly atSeconds: number;
+interface AFire {
+  readonly t: number;
   readonly x: number;
   readonly y: number;
 }
 
 interface Simulation {
-  points: PricePoint[];
-  random: () => number;
+  pts: APoint[];
+  rand: () => number;
   y: number;
-  guardTicks: GuardTick[];
-  dipIndex: number;
-  firedInThisDip: boolean;
+  fires: AFire[];
+  k: number;
+  firedThis: boolean;
 }
 
-export interface HeroLabels {
-  readonly liquidationLabel: string;
-  readonly guardTickLabel: string;
-  readonly gridLabels: readonly string[];
-}
-
-class LivingHero {
+export class HeroCanvas {
   private readonly element: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
-  private readonly tickerTrack: HTMLElement | null;
-  private readonly palette: HeroPalette;
-  private readonly labels: HeroLabels;
-  private readonly frozenSeconds: number | null;
-  private readonly reducedMotion: boolean;
-
   private context: CanvasRenderingContext2D | null = null;
-  private width = 1;
-  private height = 1;
-  private isNarrow = false;
-  private headPixels = 1;
-  private pixelsPerSecond = 1;
-  private liquidationBaseY = 1;
+  private readonly reduced: boolean;
+  private readonly mouse = { x: 0, y: 0 };
+  private width = 0;
+  private height = 0;
+  private narrow = false;
+  private headX = 0;
+  private speed = 1;
+  private goldBase = 0;
   private simulation: Simulation | null = null;
-  private pointerOffset = { x: 0, y: 0 };
-  private tickerPaused = false;
   private startedAt = 0;
-  private frameHandle = 0;
-  private frameRan = false;
-  private stopped = false;
-  private readonly throttleHandle: ReturnType<typeof setInterval> | null = null;
-  private readonly resizeObserver: ResizeObserver | null = null;
-  private readonly onPointerMove: (event: MouseEvent) => void;
-  private readonly onTickerEnter: () => void;
-  private readonly onTickerLeave: () => void;
+  private dead = false;
+  private observer: ResizeObserver | null = null;
+  private readonly onMouseMove: (event: MouseEvent) => void;
 
-  constructor(
-    element: HTMLElement,
-    canvas: HTMLCanvasElement,
-    palette: HeroPalette,
-    labels: HeroLabels,
-    frozenSeconds: number | null,
-  ) {
+  constructor(element: HTMLElement, canvas: HTMLCanvasElement) {
     this.element = element;
     this.canvas = canvas;
-    this.tickerTrack = element.querySelector<HTMLElement>('[data-ticker-track]');
-    this.palette = palette;
-    this.labels = labels;
-    this.frozenSeconds = frozenSeconds;
-    this.reducedMotion =
-      frozenSeconds === null &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    this.onPointerMove = (event: MouseEvent): void => {
-      const box = this.element.getBoundingClientRect();
-      this.pointerOffset = {
-        x: ((event.clientX - box.left) / Math.max(1, box.width) - 0.5) * 2,
-        y: ((event.clientY - box.top) / Math.max(1, box.height) - 0.5) * 2,
-      };
-    };
-    this.onTickerEnter = (): void => {
-      this.tickerPaused = true;
-    };
-    this.onTickerLeave = (): void => {
-      this.tickerPaused = false;
-    };
-
+    this.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.resize();
+
     if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => {
+      this.observer = new ResizeObserver(() => {
         this.resize();
         this.renderStill();
       });
-      this.resizeObserver.observe(element);
+      this.observer.observe(element);
     }
-    const tickerWindow = this.tickerTrack?.parentElement ?? null;
-    tickerWindow?.addEventListener('mouseenter', this.onTickerEnter);
-    tickerWindow?.addEventListener('mouseleave', this.onTickerLeave);
 
-    if (frozenSeconds !== null || this.reducedMotion) {
+    this.onMouseMove = (event: MouseEvent): void => {
+      const box = this.element.getBoundingClientRect();
+      this.mouse.x = ((event.clientX - box.left) / Math.max(1, box.width) - 0.5) * 2;
+      this.mouse.y = ((event.clientY - box.top) / Math.max(1, box.height) - 0.5) * 2;
+    };
+
+    if (this.reduced) {
       this.renderStill();
       return;
     }
-    if (!this.isNarrow) {
-      window.addEventListener('mousemove', this.onPointerMove, { passive: true });
+    if (!this.narrow) {
+      window.addEventListener('mousemove', this.onMouseMove, { passive: true });
     }
     this.startedAt = performance.now();
-    this.frameHandle = requestAnimationFrame((now) => {
-      this.runFrame(now);
-    });
-    // A hidden tab throttles animation frames, so a timer keeps the line moving.
-    this.throttleHandle = setInterval(() => {
-      if (!this.frameRan) {
-        this.drawAtTime((performance.now() - this.startedAt) / 1000);
-      }
-      this.frameRan = false;
-    }, THROTTLE_FALLBACK_MILLISECONDS);
+    requestAnimationFrame(this.tick);
   }
 
   stop(): void {
-    this.stopped = true;
-    cancelAnimationFrame(this.frameHandle);
-    if (this.throttleHandle !== null) {
-      clearInterval(this.throttleHandle);
-    }
-    this.resizeObserver?.disconnect();
-    window.removeEventListener('mousemove', this.onPointerMove);
-    const tickerWindow = this.tickerTrack?.parentElement ?? null;
-    tickerWindow?.removeEventListener('mouseenter', this.onTickerEnter);
-    tickerWindow?.removeEventListener('mouseleave', this.onTickerLeave);
+    this.dead = true;
+    this.observer?.disconnect();
+    window.removeEventListener('mousemove', this.onMouseMove);
   }
 
+  private readonly tick = (now: number): void => {
+    if (this.dead) {
+      return;
+    }
+    this.frame((now - this.startedAt) / 1_000);
+    requestAnimationFrame(this.tick);
+  };
+
   private resize(): void {
-    const box = this.element.getBoundingClientRect();
-    const devicePixels = Math.min(2, window.devicePixelRatio || 1);
-    this.width = Math.max(1, Math.round(this.element.clientWidth || box.width));
-    this.height = Math.max(1, Math.round(this.element.clientHeight || box.height));
-    this.isNarrow = this.width < NARROW_WIDTH;
-    this.canvas.width = this.width * devicePixels;
-    this.canvas.height = this.height * devicePixels;
-    this.canvas.style.width = `${this.width}px`;
-    this.canvas.style.height = `${this.height}px`;
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const width = Math.round(this.element.clientWidth);
+    const height = Math.round(this.element.clientHeight);
+    if (width === 0 || height === 0) {
+      return;
+    }
+    this.width = width;
+    this.height = height;
+    this.narrow = width < 780;
+    this.canvas.width = width * ratio;
+    this.canvas.height = height * ratio;
     const context = this.canvas.getContext('2d');
     if (context === null) {
       return;
     }
-    context.setTransform(devicePixels, 0, 0, devicePixels, 0, 0);
     this.context = context;
-    this.headPixels = (this.width * 2) / 3;
-    this.pixelsPerSecond = this.headPixels / DRAW_SECONDS;
-    this.liquidationBaseY = this.height * 0.6;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.headX = (width * 2) / 3;
+    this.speed = this.headX / DRAW_SECONDS;
+    this.goldBase = height * 0.6;
     this.simulation = null;
   }
 
-  private simulate(seconds: number): Simulation {
+  private goldAt(seconds: number, fires: readonly AFire[]): number {
+    let where = this.goldBase;
+    for (const fire of fires) {
+      if (seconds >= fire.t) {
+        where += 12 * easeInOut(Math.min(1, (seconds - fire.t) / 0.6));
+      }
+    }
+    return where;
+  }
+
+  private simulate(until: number): Simulation {
     const height = this.height;
     this.simulation ??= {
-      points: [],
-      random: seededRandom(SIMULATION_SEED),
+      pts: [],
+      rand: randomFrom(20260915),
       y: height * 0.42,
-      guardTicks: [],
-      dipIndex: -1,
-      firedInThisDip: false,
+      fires: [],
+      k: -1,
+      firedThis: false,
     };
-    const simulation = this.simulation;
-    const wanted = Math.floor((this.pixelsPerSecond * seconds) / POINT_SPACING_PIXELS);
-    while (simulation.points.length <= wanted) {
-      const pointX = simulation.points.length * POINT_SPACING_PIXELS;
-      const atSeconds = pointX / this.pixelsPerSecond;
-      const random = simulation.random;
-      const noise = (random() + random() - 1) * 1.6;
-      let step = noise - 0.045;
-      const dip = Math.floor((atSeconds - DIP_EVERY_SECONDS) / DIP_EVERY_SECONDS);
+    const state = this.simulation;
+    const needed = Math.floor((this.speed * until) / STEP_X);
+    while (state.pts.length <= needed) {
+      const index = state.pts.length;
+      const pointX = index * STEP_X;
+      const at = pointX / this.speed;
+      const noise = (state.rand() + state.rand() - 1) * 1.6;
+      let moveY = noise - 0.045;
+      const dipNumber = Math.floor((at - DIP_EVERY) / DIP_EVERY);
       const inDip =
-        atSeconds >= DIP_EVERY_SECONDS &&
-        atSeconds - (DIP_EVERY_SECONDS + dip * DIP_EVERY_SECONDS) < DIP_LENGTH_SECONDS;
-      const liquidationY = this.liquidationLineAt(atSeconds, simulation.guardTicks);
+        at >= DIP_EVERY && at - (DIP_EVERY + dipNumber * DIP_EVERY) < DIP_LENGTH;
+      const goldY = this.goldAt(at, state.fires);
       if (inDip) {
-        if (dip !== simulation.dipIndex) {
-          simulation.dipIndex = dip;
-          simulation.firedInThisDip = false;
+        if (dipNumber !== state.k) {
+          state.k = dipNumber;
+          state.firedThis = false;
         }
-        step += (liquidationY - simulation.y) * 0.035 + 0.6;
-        // The guard fires once per dip, when the line comes near the liquidation line.
-        if (
-          !simulation.firedInThisDip &&
-          Math.abs(simulation.y - liquidationY) < 0.15 * height
-        ) {
-          simulation.firedInThisDip = true;
-          simulation.guardTicks.push({ atSeconds, x: pointX, y: simulation.y });
+        moveY += (goldY - state.y) * 0.035 + 0.6;
+        if (!state.firedThis && Math.abs(state.y - goldY) < 0.15 * height) {
+          state.firedThis = true;
+          state.fires.push({ t: at, x: pointX, y: state.y });
         }
       } else {
-        step += (height * 0.42 - simulation.y) * 0.004;
+        moveY += (height * 0.42 - state.y) * 0.004;
       }
-      simulation.y += step;
-      if (simulation.y < height * 0.2) {
-        simulation.y = height * 0.2 + (height * 0.2 - simulation.y) * 0.5;
+      state.y += moveY;
+      if (state.y < height * 0.2) {
+        state.y = height * 0.2 + (height * 0.2 - state.y) * 0.5;
       }
-      if (simulation.y > height * 0.82) {
-        simulation.y = height * 0.82 - (simulation.y - height * 0.82) * 0.5;
+      if (state.y > height * 0.82) {
+        state.y = height * 0.82 - (state.y - height * 0.82) * 0.5;
       }
-      simulation.points.push({ x: pointX, y: simulation.y });
+      state.pts.push({ x: pointX, y: state.y, t: at });
     }
-    return simulation;
+    return state;
   }
 
-  private liquidationLineAt(seconds: number, ticks: readonly GuardTick[]): number {
-    let lineY = this.liquidationBaseY;
-    for (const tick of ticks) {
-      if (seconds >= tick.atSeconds) {
-        lineY += 12 * easeInOut(Math.min(1, (seconds - tick.atSeconds) / 0.6));
-      }
-    }
-    return lineY;
-  }
-
-  private drawAtTime(seconds: number): void {
-    const simulation = this.simulate(seconds);
-    this.draw(seconds, simulation, false);
-    if (this.tickerTrack !== null && !this.tickerPaused) {
-      const half = this.tickerTrack.scrollWidth / 2 || 1;
-      const offset = (seconds * TICKER_PIXELS_PER_SECOND) % half;
-      this.tickerTrack.style.transform = `translate3d(${(-offset).toFixed(1)}px,0,0)`;
-    }
+  private frame(seconds: number): void {
+    this.draw(seconds, this.simulate(seconds), false);
   }
 
   private renderStill(): void {
     if (this.context === null) {
       return;
     }
-    const seconds = this.frozenSeconds ?? DRAW_SECONDS;
     this.simulation = null;
-    this.draw(seconds, this.simulate(seconds), this.reducedMotion);
-    if (this.tickerTrack !== null && this.frozenSeconds !== null) {
-      const half = this.tickerTrack.scrollWidth / 2 || 1;
-      const offset = (seconds * TICKER_PIXELS_PER_SECOND) % half;
-      this.tickerTrack.style.transform = `translate3d(${(-offset).toFixed(1)}px,0,0)`;
-    }
+    this.draw(DRAW_SECONDS, this.simulate(DRAW_SECONDS), true);
   }
 
-  private runFrame(now: number): void {
-    if (this.stopped) {
-      return;
-    }
-    this.frameRan = true;
-    this.drawAtTime((now - this.startedAt) / 1000);
-    this.frameHandle = requestAnimationFrame((next) => {
-      this.runFrame(next);
-    });
-  }
-
-  private draw(seconds: number, simulation: Simulation, still: boolean): void {
+  private draw(seconds: number, state: Simulation, still: boolean): void {
     const context = this.context;
-    if (context === null) {
-      return;
-    }
     const width = this.width;
     const height = this.height;
+    if (context === null || width === 0 || height === 0) {
+      return;
+    }
     context.clearRect(0, 0, width, height);
 
-    const pointerX = still ? 0 : this.pointerOffset.x * (this.isNarrow ? 0 : 3);
-    const pointerY = still ? 0 : this.pointerOffset.y * (this.isNarrow ? 0 : 3);
+    const pullX = still ? 0 : this.mouse.x * (this.narrow ? 0 : 3);
+    const pullY = still ? 0 : this.mouse.y * (this.narrow ? 0 : 3);
     const drift = still ? 0 : seconds;
     const planes = [
+      { colour: JADE_DEEPER, alpha: 0.07, y: 0.78, h: 0.22, w: 1, inset: 0.6, pull: 0.9 },
       {
-        colour: this.palette.accentDeeper,
-        alpha: 0.07,
-        top: 0.78,
-        tall: 0.22,
-        wide: 1.0,
-        inset: 0.6,
-        depth: 0.9,
-      },
-      {
-        colour: this.palette.accentDeep,
+        colour: JADE_DEEP,
         alpha: 0.06,
-        top: 0.56,
-        tall: 0.2,
-        wide: 0.72,
+        y: 0.56,
+        h: 0.2,
+        w: 0.72,
         inset: 0.45,
-        depth: 0.7,
+        pull: 0.7,
       },
-      {
-        colour: this.palette.accent,
-        alpha: 0.05,
-        top: 0.36,
-        tall: 0.18,
-        wide: 0.44,
-        inset: 0.3,
-        depth: 0.5,
-      },
+      { colour: JADE, alpha: 0.05, y: 0.36, h: 0.18, w: 0.44, inset: 0.3, pull: 0.5 },
     ];
     planes.forEach((plane, index) => {
-      const offsetX = Math.sin(drift * 0.11 + index) * 14 + pointerX * plane.depth;
-      const offsetY = Math.cos(drift * 0.09 + index * 1.7) * 8 + pointerY * plane.depth;
+      const offsetX = Math.sin(drift * 0.11 + index) * 14 + pullX * plane.pull;
+      const offsetY = Math.cos(drift * 0.09 + index * 1.7) * 8 + pullY * plane.pull;
       const centreX = width / 2 + offsetX;
-      const top = height * plane.top + offsetY;
-      const bottom = top + height * plane.tall;
-      const half = (width * plane.wide) / 2;
+      const top = height * plane.y + offsetY;
+      const bottom = top + height * plane.h;
+      const half = (width * plane.w) / 2;
       const inset = half * plane.inset;
       context.beginPath();
       context.moveTo(centreX - half + inset, top);
@@ -334,131 +249,104 @@ class LivingHero {
       context.globalAlpha = 1;
     });
 
-    context.strokeStyle = this.palette.hairline;
+    context.strokeStyle = HAIRLINE;
     context.lineWidth = 1;
     context.font = "10px 'Geist Mono', ui-monospace, monospace";
     context.textAlign = 'right';
     context.textBaseline = 'middle';
-    let gridIndex = 0;
-    for (let gridY = GRID_SPACING_PIXELS; gridY < height; gridY += GRID_SPACING_PIXELS) {
+    for (let rowY = 80, row = 0; rowY < height; rowY += 80, row += 1) {
       context.beginPath();
-      context.moveTo(0, gridY + 0.5);
-      context.lineTo(width, gridY + 0.5);
+      context.moveTo(0, rowY + 0.5);
+      context.lineTo(width, rowY + 0.5);
       context.stroke();
-      const label = this.labels.gridLabels[gridIndex];
+      const label = GRID_LABELS[row];
       if (label !== undefined) {
-        context.fillStyle = this.palette.muted;
-        context.fillText(label, width - (this.isNarrow ? 12 : 44), gridY - 8);
+        context.fillStyle = MUTED;
+        context.fillText(label, width - (this.narrow ? 12 : 44), rowY - 8);
       }
-      gridIndex += 1;
     }
 
-    const liquidationY =
-      Math.round(this.liquidationLineAt(seconds, simulation.guardTicks)) + 0.5;
-    context.strokeStyle = this.palette.gold;
+    const goldY = Math.round(this.goldAt(seconds, state.fires)) + 0.5;
+    context.strokeStyle = GOLD;
     context.globalAlpha = 0.8;
     context.beginPath();
-    context.moveTo(0, liquidationY);
-    context.lineTo(width, liquidationY);
+    context.moveTo(0, goldY);
+    context.lineTo(width, goldY);
     context.stroke();
     context.globalAlpha = 1;
-    context.fillStyle = this.palette.gold;
+    context.fillStyle = GOLD;
     context.textAlign = 'left';
-    context.fillText(this.labels.liquidationLabel, 12, liquidationY - 8);
+    context.fillText(LIQUIDATION_LABEL, 12, goldY - 8);
 
-    const headWorldX = this.pixelsPerSecond * seconds;
-    const scrolledBy = Math.max(0, headWorldX - this.headPixels);
-    const points = simulation.points;
-    let first = 0;
-    while (
-      first < points.length - 1 &&
-      (points[first]?.x ?? 0) < scrolledBy - POINT_SPACING_PIXELS * 2
-    ) {
-      first += 1;
+    const headWorldX = this.speed * seconds;
+    const offset = Math.max(0, headWorldX - this.headX);
+    const points = state.pts;
+    let start = 0;
+    while (start < points.length - 1 && (points[start]?.x ?? 0) < offset - STEP_X * 2) {
+      start += 1;
     }
-    const last = Math.min(
-      points.length - 1,
-      Math.floor(headWorldX / POINT_SPACING_PIXELS),
-    );
-    const head = points[last];
-    if (last <= first || head === undefined) {
+    const last = Math.min(points.length - 1, Math.floor(headWorldX / STEP_X));
+    if (last <= start) {
       return;
     }
     context.beginPath();
-    for (let index = first; index <= last; index += 1) {
+    for (let index = start; index <= last; index += 1) {
       const point = points[index];
       if (point === undefined) {
         continue;
       }
-      if (index === first) {
-        context.moveTo(point.x - scrolledBy, point.y);
+      if (index === start) {
+        context.moveTo(point.x - offset, point.y);
       } else {
-        context.lineTo(point.x - scrolledBy, point.y);
+        context.lineTo(point.x - offset, point.y);
       }
     }
-    context.strokeStyle = this.palette.accent;
+    context.strokeStyle = JADE;
     context.lineWidth = 1.5;
     context.lineJoin = 'round';
     context.stroke();
 
-    const headX = head.x - scrolledBy;
+    const head = points[last];
+    if (head === undefined) {
+      return;
+    }
+    const headX = head.x - offset;
     const headY = head.y;
     const glow = context.createRadialGradient(headX, headY, 0, headX, headY, 16);
-    glow.addColorStop(0, withAlpha(this.palette.accent, 0.45));
-    glow.addColorStop(1, withAlpha(this.palette.accent, 0));
+    glow.addColorStop(0, 'rgba(55,185,141,0.45)');
+    glow.addColorStop(1, 'rgba(55,185,141,0)');
     context.fillStyle = glow;
     context.beginPath();
     context.arc(headX, headY, 16, 0, Math.PI * 2);
     context.fill();
-    context.fillStyle = this.palette.accent;
+    context.fillStyle = JADE;
     context.beginPath();
     context.arc(headX, headY, 3, 0, Math.PI * 2);
     context.fill();
 
-    for (const tick of simulation.guardTicks) {
-      if (tick.atSeconds > seconds) {
+    for (const fire of state.fires) {
+      if (fire.t > seconds) {
         continue;
       }
-      const tickX = tick.x - scrolledBy;
-      if (tickX < -10) {
+      const fireX = fire.x - offset;
+      if (fireX < -10) {
         continue;
       }
-      context.strokeStyle = this.palette.accent;
+      context.strokeStyle = JADE;
       context.lineWidth = 1.5;
       context.beginPath();
-      context.moveTo(tickX + 0.5, tick.y + 4);
-      context.lineTo(tickX + 0.5, tick.y + 10);
+      context.moveTo(fireX + 0.5, fire.y + 4);
+      context.lineTo(fireX + 0.5, fire.y + 10);
       context.stroke();
-      const age = seconds - tick.atSeconds;
-      if (age >= GUARD_LABEL_SECONDS) {
-        continue;
+      const age = seconds - fire.t;
+      if (age < 3) {
+        const alpha = age < 0.4 ? age / 0.4 : age > 2.4 ? (3 - age) / 0.6 : 1;
+        context.globalAlpha = Math.max(0, Math.min(1, alpha));
+        context.fillStyle = JADE;
+        context.textAlign = 'left';
+        context.fillText(REPAID_LABEL, headX + 14, headY + 18);
+        context.globalAlpha = 1;
       }
-      const fade =
-        age < 0.4 ? age / 0.4 : age > 2.4 ? (GUARD_LABEL_SECONDS - age) / 0.6 : 1;
-      context.globalAlpha = Math.max(0, Math.min(1, fade));
-      context.fillStyle = this.palette.accent;
-      context.textAlign = 'left';
-      context.fillText(this.labels.guardTickLabel, headX + 14, headY + 18);
-      context.globalAlpha = 1;
     }
   }
-}
-
-export interface MountedHero {
-  stop: () => void;
-}
-
-export function mountHeroCanvas(
-  element: HTMLElement,
-  canvas: HTMLCanvasElement,
-  palette: HeroPalette,
-  labels: HeroLabels,
-  frozenSeconds: number | null = null,
-): MountedHero {
-  const hero = new LivingHero(element, canvas, palette, labels, frozenSeconds);
-  return {
-    stop: () => {
-      hero.stop();
-    },
-  };
 }

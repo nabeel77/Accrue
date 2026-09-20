@@ -1,3 +1,19 @@
+export const PORTFOLIO_VALUE_COPY = {
+  everythingYouHold: 'everything you hold',
+  inYourPositions: 'in your positions',
+  seeBreakdown: 'See breakdown',
+  breakdownTitle: 'What that adds up to',
+  stockInTheMarket: 'Stock in the market',
+  yieldTokens: 'Yield tokens',
+  owed: 'Owed to the market',
+  positionEquity: 'Your positions are worth',
+  stockInYourWallet: 'Stock in your wallet',
+  usdcInYourWallet: 'USDC in your wallet',
+  everything: 'Everything you hold',
+  since: (howLongAgo: string): string => `since ${howLongAgo}`,
+  nothingYet: 'Nothing yet. Your first deposit starts the line.',
+} as const;
+
 export const PORTFOLIO_COPY = {
   title: 'Portfolio',
   inAccrue: 'In Accrue',
