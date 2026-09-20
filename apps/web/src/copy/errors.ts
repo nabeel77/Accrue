@@ -17,6 +17,7 @@ export const FAILURE_CODES = [
   'wrongNetwork',
   'priceTooOld',
   'signInFirst',
+  'faucetLimitReached',
   'signInFailed',
   'noWallet',
   'walletCannotSign',
@@ -69,6 +70,8 @@ export const FAILURE_COPY: Record<FailureCode, string> = {
   wrongNetwork: 'Your wallet is on another network.',
   priceTooOld: "The market's price behind these numbers is older than it should be.",
   signInFirst: 'Sign in with this wallet to see that.',
+  faucetLimitReached:
+    'This wallet has had its test tokens for today. The faucet opens again tomorrow.',
   signInFailed: 'That sign in did not go through. Try again.',
   noWallet: 'No wallet answered on this browser. Install one and reload.',
   walletCannotSign:

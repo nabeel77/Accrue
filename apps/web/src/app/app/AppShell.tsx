@@ -27,13 +27,19 @@ export function AppShell({
 }): JSX.Element {
   const { me, signOut, busy, failure, onTheWrongNetwork, networkName } = useSession();
   const path = usePathname();
-  const [faucet, setFaucet] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [faucet, setFaucet] = useState<
+    'idle' | 'sending' | 'sent' | 'failed' | 'limit reached'
+  >('idle');
   const [pickingWallet, setPickingWallet] = useState(false);
   const [whatTheFaucetSent, setWhatTheFaucetSent] = useState('');
 
   const askTheFaucet = useCallback(async (): Promise<void> => {
     setFaucet('sending');
     const answer = await fetch('/api/devnet/faucet', { method: 'POST' });
+    if (answer.status === 429) {
+      setFaucet('limit reached');
+      return;
+    }
     if (!answer.ok) {
       setFaucet('failed');
       return;
@@ -85,7 +91,9 @@ export function AppShell({
               }}
             >
               <span>{DEVNET.banner}</span>
-              {me?.signedIn === true ? (
+              {me?.signedIn !== true ? null : faucet === 'limit reached' ? (
+                <span data-testid="faucet-limit">{FAILURE_COPY.faucetLimitReached}</span>
+              ) : (
                 <Button
                   tone="quiet"
                   testId="faucet"
@@ -94,7 +102,7 @@ export function AppShell({
                 >
                   {faucetLine}
                 </Button>
-              ) : null}
+              )}
             </span>
           </Banner>
         </div>

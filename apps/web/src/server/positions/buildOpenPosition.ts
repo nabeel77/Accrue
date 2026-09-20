@@ -289,8 +289,6 @@ export async function buildOpenPosition(
     };
   }
 
-  // Against a value under the one just read, because the market revalues the stock when the
-  // transaction runs and refuses a borrow that lands over the target.
   const borrowUsdc =
     (valuedForBorrowing(collateralUsdScaled) *
       BigInt(targetLtvBps) *
@@ -318,7 +316,7 @@ export async function buildOpenPosition(
   }
 
   const owner = address(input.wallet);
-  const at = await positionAddresses({
+  const addresses = await positionAddresses({
     owner,
     collateralMint: stock.mint,
     collateralTokenProgram: collateral.snapshot.liquidityTokenProgram,
@@ -331,10 +329,13 @@ export async function buildOpenPosition(
         : TOKEN_PROGRAM_ADDRESS,
   });
 
-  const alreadyThere = await chain()
-    .rpc.getAccountInfo(at.position, { encoding: 'base64', commitment: 'confirmed' })
+  const positionAccountOnChain = await chain()
+    .rpc.getAccountInfo(addresses.position, {
+      encoding: 'base64',
+      commitment: 'confirmed',
+    })
     .send();
-  if (alreadyThere.value !== null) {
+  if (positionAccountOnChain.value !== null) {
     return {
       refused: {
         refusal: 'positionAlreadyOpen',
@@ -350,14 +351,14 @@ export async function buildOpenPosition(
     amountIn: borrowUsdc,
     slippageBps: CAPS.maxSlippageBps(),
     maxAccounts: ROUTE_MAX_ACCOUNTS,
-    signingAuthority: at.position,
+    signingAuthority: addresses.position,
   });
   const quotedAtMilliseconds = Date.now();
 
   const collateralVaults = reserveAccounts(collateral.snapshot);
   const borrowVaults = reserveAccounts(borrow.snapshot);
   const marketAuthority = await findLendingMarketAuthority(cluster.lendingMarket);
-  const userMetadata = await findKaminoUserMetadata(at.position);
+  const userMetadata = await findKaminoUserMetadata(addresses.position);
   const destinationTokenProgram =
     destination.tokenProgram === 'token2022'
       ? address('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb')
@@ -367,17 +368,17 @@ export async function buildOpenPosition(
     const open = getOpenPositionInstruction({
       owner: { address: owner } as never,
       config,
-      position: at.position,
+      position: addresses.position,
       collateralMint: stock.mint,
       destinationMint,
       borrowMint: usdcMint,
-      ownerCollateralAccount: at.ownerCollateral,
-      positionCollateralAccount: at.positionCollateral,
-      positionUsdcAccount: at.positionUsdc,
-      positionDestinationAccount: at.positionDestination,
+      ownerCollateralAccount: addresses.ownerCollateral,
+      positionCollateralAccount: addresses.positionCollateral,
+      positionUsdcAccount: addresses.positionUsdc,
+      positionDestinationAccount: addresses.positionDestination,
       lendingMarket: cluster.lendingMarket,
       lendingMarketAuthority: marketAuthority,
-      obligation: at.obligation,
+      obligation: addresses.obligation,
       userMetadata,
       collateralReserve: stock.reserve,
       collateralReserveLiquiditySupply: collateralVaults.liquiditySupply,
@@ -417,11 +418,11 @@ export async function buildOpenPosition(
     const buy = getBuyDestinationInstruction({
       owner: { address: owner } as never,
       config,
-      position: at.position,
-      positionCollateralAccount: at.positionCollateral,
-      positionUsdcAccount: at.positionUsdc,
-      positionDestinationAccount: at.positionDestination,
-      obligation: at.obligation,
+      position: addresses.position,
+      positionCollateralAccount: addresses.positionCollateral,
+      positionUsdcAccount: addresses.positionUsdc,
+      positionDestinationAccount: addresses.positionDestination,
+      obligation: addresses.obligation,
       collateralReserve: stock.reserve,
       swapProgram: JUPITER_V6_PROGRAM_ADDRESS,
       minimumDestinationAmount: route.minimumAmountOut,
@@ -434,30 +435,34 @@ export async function buildOpenPosition(
     owner,
     [
       {
-        account: at.positionCollateral,
+        account: addresses.positionCollateral,
         mint: stock.mint,
         tokenProgram: collateral.snapshot.liquidityTokenProgram,
       },
-      { account: at.positionUsdc, mint: usdcMint, tokenProgram: TOKEN_PROGRAM_ADDRESS },
       {
-        account: at.positionDestination,
+        account: addresses.positionUsdc,
+        mint: usdcMint,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      },
+      {
+        account: addresses.positionDestination,
         mint: destinationMint,
         tokenProgram: destinationTokenProgram,
       },
       {
-        account: at.ownerUsdc,
+        account: addresses.ownerUsdc,
         mint: usdcMint,
         tokenProgram: TOKEN_PROGRAM_ADDRESS,
         owner,
       },
       {
-        account: at.ownerDestination,
+        account: addresses.ownerDestination,
         mint: destinationMint,
         tokenProgram: destinationTokenProgram,
         owner,
       },
     ],
-    at.position,
+    addresses.position,
   );
 
   const built = await theTransactionsThatFit(owner, [
@@ -480,9 +485,9 @@ export async function buildOpenPosition(
     built,
     positionId: await recordThePositionRow({
       walletAddress: input.wallet,
-      positionAddress: at.position,
+      positionAddress: addresses.position,
       marketAddress: cluster.lendingMarket,
-      obligationAddress: at.obligation,
+      obligationAddress: addresses.obligation,
       targetLtvBps,
       protectLtvBps,
       growBelowLtvBps: strategyDefaults.growBelowLtvBps,
@@ -525,7 +530,7 @@ export async function buildOpenPosition(
       oraclePriceScaled: collateral.oraclePriceScaled.toString(),
       collateralDecimals: collateral.decimals,
       slippageBps: CAPS.maxSlippageBps(),
-      positionAddress: at.position,
+      positionAddress: addresses.position,
       quotedAtMilliseconds,
     },
   };
