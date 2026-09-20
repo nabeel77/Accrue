@@ -5,7 +5,13 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
 import { AccrueMark } from '../../components/AccrueMark.js';
-import { Banner, Button, WalletPill } from '../../components/ui/index.js';
+import {
+  Banner,
+  Button,
+  Toast,
+  WalletPill,
+  type ToastTone,
+} from '../../components/ui/index.js';
 import { COMMON, DEVNET, NAV } from '../../copy/common.js';
 import { FAILURE_COPY, FAILURE_DETAILS } from '../../copy/errors.js';
 import { useSession } from '../../client/session.js';
@@ -25,23 +31,31 @@ export function AppShell({
   children: ReactNode;
   isDevnet: boolean;
 }): JSX.Element {
-  const { me, signOut, busy, failure, onTheWrongNetwork, networkName } = useSession();
+  const {
+    me,
+    signOut,
+    busy,
+    failure,
+    onTheWrongNetwork,
+    networkName,
+    noteTokensGranted,
+  } = useSession();
   const path = usePathname();
-  const [faucet, setFaucet] = useState<
-    'idle' | 'sending' | 'sent' | 'failed' | 'limit reached'
-  >('idle');
+  const [faucet, setFaucet] = useState<'idle' | 'sending' | 'limit reached'>('idle');
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [pickingWallet, setPickingWallet] = useState(false);
-  const [whatTheFaucetSent, setWhatTheFaucetSent] = useState('');
 
   const askTheFaucet = useCallback(async (): Promise<void> => {
     setFaucet('sending');
     const answer = await fetch('/api/devnet/faucet', { method: 'POST' });
     if (answer.status === 429) {
       setFaucet('limit reached');
+      setToast({ message: FAILURE_COPY.faucetLimitReached, tone: 'failure' });
       return;
     }
     if (!answer.ok) {
-      setFaucet('failed');
+      setFaucet('idle');
+      setToast({ message: DEVNET.testTokensFailed, tone: 'failure' });
       return;
     }
     const granted = (await answer.json()) as {
@@ -54,20 +68,16 @@ export function AppShell({
     if (granted.solSent != null) {
       named.push(DEVNET.andSomeSol(granted.solSent));
     }
-    setWhatTheFaucetSent(named.join(', '));
-    setFaucet('sent');
-  }, []);
-
-  const faucetLine =
-    faucet === 'sending'
-      ? DEVNET.gettingTestTokens
-      : faucet === 'sent'
-        ? whatTheFaucetSent === ''
+    setFaucet('idle');
+    setToast({
+      message:
+        named.length === 0
           ? DEVNET.testTokensSentNothingNamed
-          : DEVNET.testTokensSent(whatTheFaucetSent)
-        : faucet === 'failed'
-          ? DEVNET.testTokensFailed
-          : DEVNET.getTestTokens;
+          : DEVNET.testTokensSent(named.join(', ')),
+      tone: 'confirmation',
+    });
+    noteTokensGranted();
+  }, [noteTokensGranted]);
 
   return (
     <div
@@ -100,7 +110,7 @@ export function AppShell({
                   disabled={faucet === 'sending'}
                   onClick={() => void askTheFaucet()}
                 >
-                  {faucetLine}
+                  {DEVNET.getTestTokens}
                 </Button>
               )}
             </span>
@@ -219,6 +229,15 @@ export function AppShell({
           {children}
         </TermsGate>
       </main>
+
+      <Toast
+        message={toast?.message ?? null}
+        tone={toast?.tone ?? 'confirmation'}
+        testId="faucet-toast"
+        onDone={() => {
+          setToast(null);
+        }}
+      />
 
       <WalletSheet
         open={pickingWallet}

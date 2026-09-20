@@ -9,6 +9,7 @@ import {
   Muted,
   Panel,
   Row,
+  SkeletonRows,
   Stack,
   TransactionLink,
 } from '../../../components/ui/index.js';
@@ -60,7 +61,11 @@ export default function ActivityPage(): JSX.Element {
     <Stack gap={20} style={{ ...CENTRED_SCREEN, maxWidth: 900 }} testId="activity-screen">
       <Heading level={1}>{ACTIVITY_COPY.title}</Heading>
 
-      {events === null ? <Muted>{COMMON.loading}</Muted> : null}
+      {events === null ? (
+        <Panel>
+          <SkeletonRows rows={6} height={16} testId="activity-loading" />
+        </Panel>
+      ) : null}
       {events !== null && events.length === 0 ? (
         <Panel>
           <Muted>{ACTIVITY_COPY.empty}</Muted>

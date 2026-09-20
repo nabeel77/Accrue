@@ -9,6 +9,7 @@ import {
   Muted,
   Row,
   Sheet,
+  SkeletonRows,
   Stack,
   TransactionLink,
 } from '../../components/ui/index.js';
@@ -127,7 +128,9 @@ export function TopUpSheet({
             {failure.sentence}
           </Banner>
         )}
-        {summary === null && failure === null ? <Muted>{COMMON.loading}</Muted> : null}
+        {summary === null && failure === null ? (
+          <SkeletonRows rows={4} testId="top-up-loading" />
+        ) : null}
 
         {summary === null ? null : (
           <Stack gap={10}>

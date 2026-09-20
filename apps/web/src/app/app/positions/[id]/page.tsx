@@ -19,6 +19,7 @@ import {
   Row,
   Explainer,
   Sheet,
+  SkeletonCard,
   Slider,
   Stack,
   Toggle,
@@ -285,7 +286,10 @@ export default function PositionPage(): JSX.Element {
   if (onChain === null) {
     // A row of ours with no account on the chain is a position that has already been closed.
     return read === 'waiting' ? (
-      <Muted>{COMMON.loading}</Muted>
+      <Stack gap={16} style={{ ...CENTRED_SCREEN, maxWidth: 780 }}>
+        <SkeletonCard lines={4} testId="position-loading" />
+        <SkeletonCard lines={3} />
+      </Stack>
     ) : (
       <Stack
         gap={16}

@@ -92,12 +92,17 @@ describe('every limit', () => {
       variable: 'RATE_LIMIT_FAUCET_PER_WALLET',
       fallback: 2,
     });
+    expect(LIMIT_VARIABLES.marketMove).toStrictEqual({
+      variable: 'RATE_LIMIT_MARKET_MOVE_PER_WALLET',
+      fallback: 60,
+    });
   });
 
   it('has a name for every route that answers a browser', () => {
     expect(Object.keys(LIMIT_VARIABLES).sort()).toStrictEqual([
       'build',
       'faucet',
+      'marketMove',
       'nonce',
       'read',
       'submit',
