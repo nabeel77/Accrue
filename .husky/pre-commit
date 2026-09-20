@@ -1,6 +1,8 @@
 set -e
 
-pnpm exec lint-staged
+pnpm run lint
+pnpm run typecheck
+pnpm run check:no-web3js
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 pnpm run test
