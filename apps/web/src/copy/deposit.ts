@@ -16,6 +16,8 @@ export const DEPOSIT_COPY = {
     `Earns ≈ ${earnings} / year · ${netYield}`,
   addsLine: (earnings: string, stockSymbol: string, netYield: string): string =>
     `Adds ≈ ${earnings} / year to your ${stockSymbol} position · ${netYield}`,
+  receivesLine: (destinationAmount: string, destinationSymbol: string): string =>
+    `You receive ≈ ${destinationAmount} ${destinationSymbol}`,
   details: 'Details',
   depositRow: 'Deposit',
   borrowedRow: 'Borrowed',

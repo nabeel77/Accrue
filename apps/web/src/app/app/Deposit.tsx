@@ -408,6 +408,20 @@ export function Deposit(): JSX.Element {
               </Heading>
             )}
 
+            {sizing?.destinationAmount == null || destination === null ? null : (
+              <span
+                data-testid="receives-about"
+                style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
+              >
+                <NumbersInMono
+                  sentence={DEPOSIT_COPY.receivesLine(
+                    money(sizing.destinationAmount, 4),
+                    destination.symbol,
+                  )}
+                />
+              </span>
+            )}
+
             <Button
               testId="deposit"
               disabled={stock === null || destination === null || amountUsd <= 0}
