@@ -1,15 +1,10 @@
 import type { JSX } from 'react';
 
 const MARK_VIEWBOX = '0 0 48 48';
-
-const MARK_LEVELS = [
-  { points: '11.78,28 36.22,28 44,42 4,42', colorToken: 'var(--color-accent)' },
-  {
-    points: '17.89,17 30.11,17 35.11,26 12.89,26',
-    colorToken: 'var(--color-accent-deep)',
-  },
-  { points: '24,6 29,15 19,15', colorToken: 'var(--color-accent-deeper)' },
-] as const;
+const STEP_LINE = 'M6 38 H16 V29 H26 V20 H36 V11 H42';
+const STEP_STROKE = 4;
+const DOT = { cx: 42, cy: 11, r: 3.2 } as const;
+const SMALLEST_SIZE_THAT_KEEPS_THE_DOT = 24;
 
 export interface AccrueMarkProps {
   size?: number;
@@ -24,6 +19,7 @@ export function AccrueMark({
   monochromeColor = 'var(--color-text)',
   title = 'Accrue',
 }: AccrueMarkProps): JSX.Element {
+  const showsTheDot = !monochrome && size >= SMALLEST_SIZE_THAT_KEEPS_THE_DOT;
   return (
     <svg
       width={size}
@@ -33,13 +29,17 @@ export function AccrueMark({
       aria-label={title}
       focusable="false"
     >
-      {MARK_LEVELS.map((level) => (
-        <polygon
-          key={level.points}
-          points={level.points}
-          fill={monochrome ? monochromeColor : level.colorToken}
-        />
-      ))}
+      <path
+        d={STEP_LINE}
+        fill="none"
+        stroke={monochrome ? monochromeColor : 'var(--color-accent)'}
+        strokeWidth={STEP_STROKE}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {showsTheDot ? (
+        <circle cx={DOT.cx} cy={DOT.cy} r={DOT.r} fill="var(--color-gold)" />
+      ) : null}
     </svg>
   );
 }
@@ -67,7 +67,7 @@ export function AccrueWordmark({
         style={{
           fontSize,
           fontWeight: 500,
-          letterSpacing: '-0.02em',
+          letterSpacing: '-0.03em',
           color: monochrome ? monochromeColor : 'var(--color-text)',
         }}
       >
