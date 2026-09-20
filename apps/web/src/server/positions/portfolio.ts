@@ -14,6 +14,7 @@ import {
 import { schema } from '@accrue/db';
 
 import { db } from '../database.js';
+import type { AStockInYourWallet } from '../markets.js';
 import { positionsOf } from './list.js';
 
 const MOST_POINTS_ON_THE_LINE = 120;
@@ -29,6 +30,7 @@ export interface AYieldTokenHolding {
 
 export interface PortfolioReading {
   readonly breakdown: PortfolioBreakdown;
+  readonly walletStocks: readonly AStockInYourWallet[];
   readonly earned: WhatItHasEarned;
   readonly holdings: readonly AYieldTokenHolding[];
   readonly changeUsd: number;
@@ -89,6 +91,7 @@ export async function readThePortfolio(
   stockInYourWalletUsd: number,
   usdcInYourWalletUsd: number,
   holdings: readonly AYieldTokenHolding[],
+  walletStocks: readonly AStockInYourWallet[],
 ): Promise<PortfolioReading> {
   const breakdown = breakDownThePortfolio(
     positions,
@@ -111,6 +114,7 @@ export async function readThePortfolio(
 
   return {
     breakdown,
+    walletStocks,
     earned: whatThePositionsHaveEarned(positions),
     holdings,
     changeUsd: moved.changeUsd,

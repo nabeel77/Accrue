@@ -16,7 +16,6 @@ export interface PriceSensitivePosition {
   readonly protectLtvBps: number;
 }
 
-// Loan to value moves against the collateral price: half the price is twice the ratio.
 export function loanToValueAtANewPrice(
   watched: PriceSensitivePosition,
   priceScaled: bigint,

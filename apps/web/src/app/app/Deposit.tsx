@@ -16,6 +16,7 @@ import {
   SkeletonCard,
   Stack,
 } from '../../components/ui/index.js';
+import { COMMON } from '../../copy/common.js';
 import { DEPOSIT_COPY, EARNS_EXPLAINER_COPY } from '../../copy/deposit.js';
 import { earnsPerYearLines } from '../../client/earnsPerYearLines.js';
 import { YIELD_LINE } from '../../copy/banners.js';
@@ -42,6 +43,11 @@ import { DepositDetailsSheet } from './DepositDetailsSheet.js';
 import { ReviewSheet } from './ReviewSheet.js';
 import { TopUpSheet } from './TopUpSheet.js';
 import { YieldTokenDetailsSheet, type PriceSource } from './YieldTokenDetailsSheet.js';
+
+export interface CatalogueRow {
+  readonly symbol: string;
+  readonly name: string;
+}
 
 export interface StockRow {
   readonly symbol: string;
@@ -86,6 +92,7 @@ interface DestinationRow {
 const SCALED_FRACTION_ONE = 2n ** 60n;
 const STOCK_ROW_EXPLAINER_WIDTH = 30;
 const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 6_000;
+const STOCK_LIST_HEIGHT = 'min(56vh, 460px)';
 const A_PAUSE_IN_TYPING = 400;
 
 interface PositionSizeLimits {
@@ -103,6 +110,7 @@ export function Deposit(): JSX.Element {
   const [priceSource, setPriceSource] = useState<PriceSource>('jupiter');
   const [chosenDestination, setChosenDestination] = useState<string | null>(null);
   const [stocks, setStocks] = useState<StockRow[]>([]);
+  const [catalogue, setCatalogue] = useState<CatalogueRow[]>([]);
   const [borrowRateBps, setBorrowRateBps] = useState(0);
   const [limits, setLimits] = useState<PositionSizeLimits | null>(null);
   const [stalePrice, setStalePrice] = useState<{ ageSeconds: number } | null>(null);
@@ -148,6 +156,7 @@ export function Deposit(): JSX.Element {
     });
     const body = (await answer.json()) as {
       stocks: StockRow[];
+      catalogue: CatalogueRow[];
       borrowRateBps: number;
       smallestPositionUsd: number;
       largestPositionUsd: number;
@@ -157,6 +166,7 @@ export function Deposit(): JSX.Element {
       quotedAtMilliseconds: number | null;
     };
     setStocks(body.stocks);
+    setCatalogue(body.catalogue);
     setBorrowRateBps(body.borrowRateBps);
     setLimits({
       smallestUsd: body.smallestPositionUsd,
@@ -219,7 +229,7 @@ export function Deposit(): JSX.Element {
   }, [me, stock]);
 
   return (
-    <Stack gap={16} testId="deposit-screen">
+    <Stack gap={16} testId="deposit-screen" style={CENTRED_SCREEN}>
       {stalePrice === null ? null : (
         <Banner tone="caution" testId="stale-price">
           {`${FAILURE_COPY.priceTooOld} ${FAILURE_DETAILS.priceAge(
@@ -230,7 +240,7 @@ export function Deposit(): JSX.Element {
       )}
       <div
         style={{
-          ...CENTRED_SCREEN,
+          width: '100%',
           display: 'grid',
           gridTemplateColumns:
             'minmax(260px, 320px) minmax(320px, 1fr) minmax(260px, 320px)',
@@ -247,77 +257,133 @@ export function Deposit(): JSX.Element {
                 {DEPOSIT_COPY.earnsColumnTitle}
               </span>
             </Row>
-            {stocks.length === 0 ? (
-              <Stack gap={10} testId="stocks-loading">
-                <SkeletonCard lines={1} />
-                <SkeletonCard lines={1} />
-                <SkeletonCard lines={1} />
-              </Stack>
-            ) : null}
-            {stocks.map((entry) => {
-              const balance = wholeBalanceOf(entry);
-              const chosen = entry.symbol === chosenStock;
-              return (
-                <Row
-                  key={entry.mint}
-                  gap={10}
-                  style={{
-                    alignItems: 'flex-start',
-                    background: chosen ? 'var(--color-raised)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: chosen
-                      ? 'var(--color-accent-deeper)'
-                      : 'var(--color-hairline)',
-                    borderRadius: 'var(--radius)',
-                    padding: '10px 12px',
-                    opacity: balance > 0 ? 1 : 0.6,
-                  }}
-                >
-                  <button
-                    type="button"
-                    data-testid={`stock-${entry.symbol}`}
-                    data-mint={entry.mint}
-                    onClick={() => {
-                      setChosenStock(entry.symbol);
-                      setAdjustments(null);
-                    }}
+            <Stack
+              gap={12}
+              testId="stock-list"
+              className="acr-scroll"
+              style={{
+                maxHeight: STOCK_LIST_HEIGHT,
+                overflowY: 'auto',
+                paddingRight: 4,
+              }}
+            >
+              {stocks.length === 0 ? (
+                <Stack gap={10} testId="stocks-loading">
+                  <SkeletonCard lines={1} />
+                  <SkeletonCard lines={1} />
+                  <SkeletonCard lines={1} />
+                </Stack>
+              ) : null}
+              {stocks.map((entry) => {
+                const balance = wholeBalanceOf(entry);
+                const chosen = entry.symbol === chosenStock;
+                return (
+                  <Row
+                    key={entry.mint}
+                    gap={10}
                     style={{
-                      flex: 1,
-                      minWidth: 0,
-                      textAlign: 'left',
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
+                      alignItems: 'flex-start',
+                      border: '1px solid',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      minHeight: 60,
+                      position: 'relative',
+                      background: chosen
+                        ? 'linear-gradient(90deg, rgba(55,185,141,.24), rgba(111,216,176,.08) 55%, rgba(226,184,113,.12))'
+                        : 'transparent',
+                      borderColor: 'transparent',
+                      transition: 'background .25s',
+                      opacity: balance > 0 ? 1 : 0.6,
                     }}
                   >
-                    <Row>
-                      <Mono>{entry.symbol}</Mono>
-                      <Mono tone="gold">{percent(entry.netYieldBps)}</Mono>
-                    </Row>
-                    <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-                      <NumbersInMono
-                        sentence={DEPOSIT_COPY.balanceInYourWallet(money(balance))}
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        left: -2,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        opacity: chosen ? 1 : 0,
+                        transition: 'opacity .25s',
+                      }}
+                    >
+                      <path
+                        d="M1 12 H5 V7 H9 V2 H13"
+                        fill="none"
+                        stroke="#37B98D"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                    </span>
-                  </button>
-                  {destination === null ? null : (
-                    <Explainer
-                      title={EARNS_EXPLAINER_COPY.title}
-                      testId={`stock-earns-explainer-${entry.symbol}`}
-                      lines={earnsPerYearLines({
-                        stockSymbol: entry.symbol,
-                        destinationSymbol: destination.symbol,
-                        targetLtvBps: entry.targetLtvBps,
-                        destinationRateBps: destination.targetRateBps,
-                        borrowRateBps,
-                        netYieldBps: entry.netYieldBps,
-                      })}
-                    />
-                  )}
+                    </svg>
+                    <button
+                      type="button"
+                      data-testid={`stock-${entry.symbol}`}
+                      data-mint={entry.mint}
+                      onClick={() => {
+                        setChosenStock(entry.symbol);
+                        setAdjustments(null);
+                      }}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Row>
+                        <Mono>{entry.symbol}</Mono>
+                        <Mono tone="gold">{percent(entry.netYieldBps)}</Mono>
+                      </Row>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                        <NumbersInMono
+                          sentence={DEPOSIT_COPY.balanceInYourWallet(money(balance))}
+                        />
+                      </span>
+                    </button>
+                    {destination === null ? null : (
+                      <Explainer
+                        title={EARNS_EXPLAINER_COPY.title}
+                        testId={`stock-earns-explainer-${entry.symbol}`}
+                        lines={earnsPerYearLines({
+                          stockSymbol: entry.symbol,
+                          destinationSymbol: destination.symbol,
+                          targetLtvBps: entry.targetLtvBps,
+                          destinationRateBps: destination.targetRateBps,
+                          borrowRateBps,
+                          netYieldBps: entry.netYieldBps,
+                        })}
+                      />
+                    )}
+                  </Row>
+                );
+              })}
+              {catalogue.map((entry) => (
+                <Row
+                  key={entry.symbol}
+                  data-testid={`stock-unavailable-${entry.symbol}`}
+                  style={{
+                    alignItems: 'center',
+                    border: '1px solid transparent',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    minHeight: 60,
+                    opacity: 0.45,
+                  }}
+                >
+                  <Mono>{entry.symbol}</Mono>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                    {DEPOSIT_COPY.notOnThisNetwork}
+                  </span>
                 </Row>
-              );
-            })}
+              ))}
+            </Stack>
             {holdsNoStock ? <Muted>{DEPOSIT_COPY.stockEmpty}</Muted> : null}
           </Stack>
         </Panel>
@@ -501,6 +567,19 @@ export function Deposit(): JSX.Element {
                       <Mono>{entry.symbol}</Mono>
                       <Mono tone="gold">
                         {YIELD_LINE.aYear(percent(entry.targetRateBps))}
+                      </Mono>
+                    </Row>
+                    <Row style={{ marginTop: 4 }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+                        {DEPOSIT_COPY.exchangeRate}
+                      </span>
+                      <Mono tone="secondary" style={{ fontSize: 12 }}>
+                        {entry.exit === null
+                          ? COMMON.missingValue
+                          : DEPOSIT_COPY.oneIsWorth(
+                              entry.symbol,
+                              money(1 / entry.exit.destinationPerUsdc, 4),
+                            )}
                       </Mono>
                     </Row>
                   </button>

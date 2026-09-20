@@ -3,7 +3,10 @@ import { address } from '@solana/kit';
 import { currentCluster } from '@accrue/solana';
 import { readScopePrice } from '@accrue/solana/kamino';
 
-import { destinationForMintOnThisCluster } from '../../../server/markets.js';
+import {
+  destinationForMintOnThisCluster,
+  theStocksInYourWallet,
+} from '../../../server/markets.js';
 import { positionsOwnedOnChain } from '../../../server/positions/ownedOnChain.js';
 import { readOnePosition } from '../../../server/positions/readPositions.js';
 import {
@@ -100,6 +103,7 @@ export async function GET(): Promise<Response> {
       stockInYourWalletUsd,
       usdcInYourWalletUsd,
       [...byYieldToken.values()].filter((holding) => holding.amount > 0),
+      await theStocksInYourWallet(wallet),
     );
     return ok({ readAt: new Date().toISOString(), ...portfolio });
   } catch (failure) {

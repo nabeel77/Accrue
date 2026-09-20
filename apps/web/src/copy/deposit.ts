@@ -1,4 +1,7 @@
 export const DEPOSIT_COPY = {
+  exchangeRate: 'Exchange rate',
+  oneIsWorth: (symbol: string, usdc: string): string => `1 ${symbol} = ${usdc} USDC`,
+  notOnThisNetwork: 'not on this network',
   amountLabel: 'Dollars of',
   amountPrefix: '$',
   amountMax: 'MAX',

@@ -2,6 +2,7 @@ export const PORTFOLIO_VALUE_COPY = {
   earnedSoFar: 'Earned so far',
   afterTheLoan: 'after the loan',
   inAccrue: 'In Accrue',
+  owedToTheMarket: 'Owed',
   whatYourPositionsAreWorth: 'what your positions are worth',
   holdingTitle: 'What is earning for you',
   holdingLine: (amount: string, symbol: string): string => `${amount} ${symbol}`,
@@ -24,6 +25,11 @@ export const PORTFOLIO_VALUE_COPY = {
 
 export const PORTFOLIO_COPY = {
   title: 'Portfolio',
+  guarded: 'Guarded',
+  noLongerOpen: 'No longer open',
+  inWhat: 'In',
+  priceAndDistance: (price: string, away: string): string => `${price}, ${away} away`,
+  balanceAndValue: (balance: string, value: string): string => `${balance} · ${value}`,
   inAccrue: 'In Accrue',
   owed: 'Owed',
   earned: 'Earned so far',

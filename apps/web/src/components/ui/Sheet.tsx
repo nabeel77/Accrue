@@ -49,7 +49,8 @@ export function Sheet({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'color-mix(in srgb, var(--color-ground) 72%, transparent)',
+        background: 'rgba(6,5,5,0.78)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -62,10 +63,11 @@ export function Sheet({
           width: 'min(560px, 100%)',
           maxHeight: '88vh',
           overflowY: 'auto',
-          background: 'var(--color-panel)',
-          border: '1px solid var(--color-hairline)',
-          borderRadius: 'var(--radius)',
-          padding: 24,
+          background: '#121110',
+          border: '1px solid #22201D',
+          borderRadius: 16,
+          padding: 'clamp(20px,3vw,28px)',
+          animation: 'acr-sheet 240ms ease-out both',
         }}
       >
         <Stack gap={16}>
