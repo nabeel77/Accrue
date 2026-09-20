@@ -1,0 +1,21 @@
+app = "accrue-keeper"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  keeper = "sh scripts/deploy/with-keys.sh node apps/keeper/dist/index.js"
+  cron = "pnpm exec tsx scripts/devnet/cron.ts"
+
+[env]
+  SOLANA_CLUSTER = "devnet"
+  JUPITER_API_URL = "https://lite-api.jup.ag"
+  KEEPER_INTERVAL_SECONDS = "30"
+  KEEPER_PRIORITY_FEE_LAMPORTS = "50000"
+  KEEPER_KEYPAIR_PATH = "/tmp/accrue-keys/keeper.json"
+  DEVNET_CRON_SECONDS = "30"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

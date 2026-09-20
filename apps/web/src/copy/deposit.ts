@@ -2,9 +2,12 @@ export const DEPOSIT_COPY = {
   amountLabel: 'Dollars of',
   amountPrefix: '$',
   amountMax: 'MAX',
+  amountMaxWaitingForAPrice: 'price loading',
   // The one small line under the amount field.
   inYourWallet: (balance: string, stockSymbol: string): string =>
     `${balance} ${stockSymbol} in your wallet`,
+  inYourWalletWorth: (balance: string, stockSymbol: string, valueUsd: string): string =>
+    `${balance} ${stockSymbol} in your wallet ≈ ${valueUsd}`,
   stockColumnTitle: 'Stock',
   earnsColumnTitle: 'Earns / yr',
   balanceInYourWallet: (balance: string): string => `${balance} in your wallet`,
@@ -25,8 +28,7 @@ export const DEPOSIT_COPY = {
   netRow: 'Net',
   guardRepaysAtRow: 'Guard repays at',
   loanToValueLevel: (level: string): string => `${level} LTV`,
-  liquidationRow: (stockSymbol: string): string => `Liquidation ${stockSymbol}`,
-  fallOf: (percentage: string): string => `−${percentage}`,
+  liquidationRow: 'Liquidation',
   quoteRow: 'Quote',
   positionSizeRow: 'Position size',
   sizeRange: (smallest: string, largest: string): string =>

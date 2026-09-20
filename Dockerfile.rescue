@@ -1,0 +1,15 @@
+FROM node:24-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @accrue/rescue build
+
+FROM nginx:alpine
+COPY --from=build /app/apps/rescue/dist /usr/share/nginx/html
+EXPOSE 80

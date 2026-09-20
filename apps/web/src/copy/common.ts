@@ -5,6 +5,14 @@ export const NAV = {
   about: 'About',
 } as const;
 
+// A guard or liquidation line in both its units, the fall in the stock first because that is the
+// one a reader can picture, the loan to value after it.
+export const A_LINE_IN_BOTH_UNITS = (
+  stockSymbol: string,
+  fall: string,
+  level: string,
+): string => `${stockSymbol} −${fall} · ${level} LTV`;
+
 export const COMMON = {
   connectWallet: 'Connect wallet',
   signIn: 'Sign in',

@@ -61,4 +61,17 @@ export const CLOSING_COPY = {
   shortfallSentence:
     'Closing a position may need a small amount of USDC from your wallet to cover the difference between what the yield token sells for and what is owed.',
   estimateLabel: 'Estimated from your wallet',
+  youNeedAbout: (amountUsd: string): string =>
+    `You need about ${amountUsd} of USDC in your wallet to close`,
+  noPriceRightNow: (destinationSymbol: string): string =>
+    `Could not get a price for your ${destinationSymbol} right now`,
+  tryAgain: 'Try again',
+  askingForAPrice: 'Asking for a price',
+} as const;
+
+export const TEST_USDC_COPY = {
+  get: 'Get test USDC',
+  getting: 'Getting test USDC',
+  sent: 'Test USDC sent',
+  failed: 'The faucet did not answer. Try again.',
 } as const;

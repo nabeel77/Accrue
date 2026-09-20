@@ -9,7 +9,9 @@
     ".": "./src/index.ts",
     "./freshness": "./src/positions/freshness.ts",
     "./deposit": "./src/positions/defaults.ts",
-    "./borrow-more": "./src/positions/borrowMore.ts"
+    "./borrow-more": "./src/positions/borrowMore.ts",
+    "./max-deposit": "./src/positions/maxDeposit.ts",
+    "./price-fall": "./src/positions/priceFall.ts"
   },
   "scripts": {
     "build": "tsc --build",

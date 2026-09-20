@@ -1,0 +1,127 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    outputs:
+      keeper: ${{ steps.filter.outputs.keeper }}
+      prices: ${{ steps.filter.outputs.prices }}
+      faucet: ${{ steps.filter.outputs.faucet }}
+      rescue: ${{ steps.filter.outputs.rescue }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'packages/**'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'scripts/deploy/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+            keeper:
+              - *shared
+              - 'apps/keeper/**'
+              - 'scripts/devnet/cron.ts'
+              - 'fly.keeper.toml'
+            prices:
+              - *shared
+              - 'scripts/devnet/**'
+              - 'tests/fixtures/accounts/**'
+              - 'fly.prices.toml'
+            faucet:
+              - *shared
+              - 'scripts/devnet/**'
+              - 'fly.faucet.toml'
+            rescue:
+              - 'apps/rescue/**'
+              - 'packages/core/**'
+              - 'packages/solana/**'
+              - 'Dockerfile.rescue'
+              - '.dockerignore'
+              - 'pnpm-lock.yaml'
+              - 'fly.rescue.toml'
+
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      needs.changes.outputs.keeper == 'true' ||
+      needs.changes.outputs.prices == 'true' ||
+      needs.changes.outputs.faucet == 'true' ||
+      needs.changes.outputs.rescue == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run test
+
+  keeper:
+    name: keeper
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: needs.changes.outputs.keeper == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config fly.keeper.toml --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  prices:
+    name: prices
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: needs.changes.outputs.prices == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config fly.prices.toml --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  faucet:
+    name: faucet
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: needs.changes.outputs.faucet == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config fly.faucet.toml --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  rescue:
+    name: rescue
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: needs.changes.outputs.rescue == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config fly.rescue.toml --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -78,9 +78,4 @@ export const ABOUT_COPY = {
       example: null,
     },
   ],
-  programLineLabels: {
-    program: 'Program',
-    build: 'Build',
-    upgradeAuthority: 'Upgrade authority',
-  },
 } as const;

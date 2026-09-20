@@ -4,11 +4,12 @@ import Link from 'next/link';
 import type { JSX } from 'react';
 
 import { Button, Mono, Muted, Row, Sheet, Stack } from '../../components/ui/index.js';
-import { COMMON } from '../../copy/common.js';
+import { A_LINE_IN_BOTH_UNITS, COMMON } from '../../copy/common.js';
 import { DEPOSIT_COPY } from '../../copy/deposit.js';
 import { YIELD_LINE } from '../../copy/banners.js';
 import { howLongAgo, money, percent } from '../../client/format.js';
 import type { DepositSizing } from '@accrue/core/deposit';
+import { theGuardLine, theLiquidationLine } from '@accrue/core/price-fall';
 
 const A_SECOND = 1_000;
 
@@ -48,8 +49,9 @@ export function DepositDetailsSheet({
   destinationSymbol,
   sizing,
   quotedAtMilliseconds,
+  targetLtvBps,
   protectLtvBps,
-  liquidationFallBps,
+  liquidationThresholdBps,
   limits,
   openPosition,
   onAdjust,
@@ -60,8 +62,9 @@ export function DepositDetailsSheet({
   destinationSymbol: string;
   sizing: DepositSizing;
   quotedAtMilliseconds: number | null;
+  targetLtvBps: number;
   protectLtvBps: number;
-  liquidationFallBps: number;
+  liquidationThresholdBps: number;
   limits: PositionSizeLimits | null;
   // Set when this deposit grows a position the wallet already holds, and then the guard is that
   // position's own and is only read here.
@@ -113,12 +116,20 @@ export function DepositDetailsSheet({
         />
         <QuoteRow
           label={DEPOSIT_COPY.guardRepaysAtRow}
-          value={DEPOSIT_COPY.loanToValueLevel(percent(protectLtvBps, 0))}
+          value={A_LINE_IN_BOTH_UNITS(
+            stockSymbol,
+            percent(theGuardLine(targetLtvBps, protectLtvBps).fallBps, 0),
+            percent(protectLtvBps, 0),
+          )}
           testId="details-guard"
         />
         <QuoteRow
-          label={DEPOSIT_COPY.liquidationRow(stockSymbol)}
-          value={DEPOSIT_COPY.fallOf(percent(liquidationFallBps, 0))}
+          label={DEPOSIT_COPY.liquidationRow}
+          value={A_LINE_IN_BOTH_UNITS(
+            stockSymbol,
+            percent(theLiquidationLine(targetLtvBps, liquidationThresholdBps).fallBps, 0),
+            percent(liquidationThresholdBps, 0),
+          )}
           testId="details-liquidation"
         />
         <QuoteRow
