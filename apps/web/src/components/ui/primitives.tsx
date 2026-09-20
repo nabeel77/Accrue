@@ -14,13 +14,8 @@ export function Panel({
   return (
     <section
       data-testid={testId}
-      style={{
-        background: 'var(--color-panel)',
-        border: '1px solid var(--color-hairline)',
-        borderRadius: 'var(--radius)',
-        padding: '20px',
-        ...style,
-      }}
+      className="acr-card"
+      style={{ padding: '20px', ...style }}
     >
       {children}
     </section>
@@ -30,17 +25,20 @@ export function Panel({
 export function Stack({
   children,
   gap = 12,
+  className,
   style,
   testId,
 }: {
   children: ReactNode;
   gap?: number;
+  className?: string;
   style?: CSSProperties;
   testId?: string;
 }): JSX.Element {
   return (
     <div
       data-testid={testId}
+      className={className}
       style={{ display: 'flex', flexDirection: 'column', gap, ...style }}
     >
       {children}
@@ -151,14 +149,56 @@ export function Heading({
   level?: 1 | 2 | 3;
   testId?: string;
 }): JSX.Element {
-  const size = level === 1 ? 28 : level === 2 ? 20 : 16;
   const Tag = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3';
+  if (level === 1) {
+    return (
+      <h1
+        data-testid={testId}
+        className="acr-title"
+        style={{
+          margin: 0,
+          fontSize: 'clamp(26px,3vw,34px)',
+          fontWeight: 300,
+          letterSpacing: '-0.03em',
+        }}
+      >
+        {children}
+      </h1>
+    );
+  }
   return (
     <Tag
       data-testid={testId}
-      style={{ fontSize: size, fontWeight: 500, margin: 0, color: 'var(--color-text)' }}
+      style={{
+        fontSize: level === 2 ? 20 : 16,
+        fontWeight: 500,
+        margin: 0,
+        color: 'var(--color-text)',
+      }}
     >
       {children}
     </Tag>
+  );
+}
+
+export function Eyebrow({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+}): JSX.Element {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        letterSpacing: '.12em',
+        textTransform: 'uppercase',
+        color: 'var(--color-text-muted)',
+        ...style,
+      }}
+    >
+      {children}
+    </span>
   );
 }

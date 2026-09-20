@@ -193,8 +193,6 @@ function writeUnsigned(into: Uint8Array, at: number, value: bigint): void {
   }
 }
 
-// The price sanity band the market checks an oracle against. A yield token that climbs for a demo
-// runs out of room against the mainnet band, so a sandbox widens it.
 const HEURISTIC_EXPONENT = 8;
 
 async function priceBand(

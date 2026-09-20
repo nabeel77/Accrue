@@ -14,6 +14,7 @@ import {
 import {
   collateralAllowlist,
   currentCluster,
+  theStockCatalogue,
   type CollateralToken,
 } from '@accrue/solana';
 import {
@@ -69,6 +70,49 @@ export function destinationForMintOnThisCluster(mint: string): Destination | nul
       (entry) => entry.mainnetMint === mint || cluster.mints[entry.symbol] === mint,
     ) ?? null
   );
+}
+
+export interface AStockInYourWallet {
+  readonly symbol: string;
+  readonly amount: number;
+  readonly valueUsd: number;
+}
+
+export async function theStocksInYourWallet(
+  wallet: string | null,
+): Promise<readonly AStockInYourWallet[]> {
+  if (wallet === null) {
+    return [];
+  }
+  const stocks = await readEveryStock();
+  const balances = await balancesOf(wallet, stocks);
+  return stocks.flatMap(({ token, reserve }, index) => {
+    const raw = balances[index];
+    if (raw === undefined || raw === 0n) {
+      return [];
+    }
+    const amount = Number(raw) / 10 ** reserve.decimals;
+    return [
+      {
+        symbol: token.symbol,
+        amount,
+        valueUsd: amount * (Number(reserve.oraclePriceScaled) / Number(2n ** 60n)),
+      },
+    ];
+  });
+}
+
+export async function priceOfTheDestinationMint(mint: string): Promise<number> {
+  const destination = destinationForMintOnThisCluster(mint);
+  if (destination === null) {
+    throw new Error('this position holds a yield token we do not know');
+  }
+  const read = await readScopePrice(
+    chain().rpc,
+    currentCluster().scopePriceAccount,
+    destination.scopeFeedIndex,
+  );
+  return Number(read.price.value) / 10 ** Number(read.price.exponent);
 }
 
 export interface StockDefault {
@@ -197,6 +241,12 @@ export interface DefaultsReading {
   readonly sizing: DepositSizing | null;
   readonly quotedAtMilliseconds: number | null;
   readonly stocks: readonly StockDefault[];
+  readonly catalogue: readonly ACatalogueStock[];
+}
+
+export interface ACatalogueStock {
+  readonly symbol: string;
+  readonly name: string;
 }
 
 export interface PositionSizeLimits {
@@ -329,6 +379,9 @@ export async function readDefaults(
         openPosition: alreadyHeld.get(token.mint) ?? null,
       };
     }),
+    catalogue: theStockCatalogue()
+      .filter((entry) => !stocks.some(({ token }) => token.symbol === entry.symbol))
+      .map((entry) => ({ symbol: entry.symbol, name: entry.name })),
   };
 }
 

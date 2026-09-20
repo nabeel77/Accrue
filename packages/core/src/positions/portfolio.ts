@@ -52,8 +52,6 @@ export interface WhatItHasEarned {
   readonly direction: 'up' | 'down' | 'flat';
 }
 
-// The yield token was bought with the loan, so what it is worth above what is still owed is what
-// the position has made, after the cost of the loan and anything the guard spent getting out.
 export function whatThePositionsHaveEarned(
   positions: readonly APositionsWorth[],
 ): WhatItHasEarned {

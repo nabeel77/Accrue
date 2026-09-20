@@ -35,6 +35,7 @@ import {
 } from '@accrue/solana/program';
 
 import { CAPS } from '../env.js';
+import { priceOfTheDestinationMint } from '../markets.js';
 import { latestDestinationTarget } from '../snapshots.js';
 import { chain, nowUnixTimestamp, swapRouter } from '../rpc.js';
 
@@ -79,6 +80,8 @@ export interface PositionReading {
   readonly owedAtLeaveRaw: string;
   readonly collateralRaw: string;
   readonly destinationRaw: string;
+  readonly destinationValueUsd: number;
+  readonly earnedUsd: number;
   readonly oraclePriceScaled: string;
   readonly oraclePriceAgeSeconds: number;
   readonly oraclePriceIsTooOld: boolean;
@@ -182,6 +185,11 @@ export async function readOnePosition(
     ) ?? null;
   const destinationRateBps =
     destination === null ? 0 : (await latestDestinationTarget(destination)).rateBps;
+  const destinationValueUsd =
+    destination === null
+      ? 0
+      : (Number(destinationRaw) / 10 ** destination.decimals) *
+        (await priceOfTheDestinationMint(position.destinationMint));
 
   const health = readHealth(
     loanToValueBps,
@@ -222,6 +230,9 @@ export async function readOnePosition(
     owedAtLeaveRaw: position.usdcOwedAtLeave.toString(),
     collateralRaw: depositedAmount.toString(),
     destinationRaw: destinationRaw.toString(),
+    destinationValueUsd,
+    earnedUsd:
+      destinationValueUsd - Number(debtRaw) / 10 ** (borrow?.decimals ?? USDC_DECIMALS),
     oraclePriceScaled: priceAge.scaled.toString(),
     oraclePriceAgeSeconds: priceAge.seconds,
     oraclePriceIsTooOld: priceAge.tooOld,

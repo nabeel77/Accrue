@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react';
 import {
   Button,
   CENTRED_SCREEN,
+  Eyebrow,
   Heading,
   HealthBar,
   Mono,
@@ -26,6 +27,21 @@ import { useSession } from '../../../client/session.js';
 
 const A_SECOND = 1_000;
 const HOW_OFTEN_THE_VALUE_IS_READ = 10 * A_SECOND;
+const POSITION_COLUMNS = '150px 1fr minmax(0, 420px) 14px';
+
+function edgeFor(zone: string | undefined): string {
+  if (zone === 'caution') {
+    return '#E8B03A';
+  }
+  if (zone === 'danger') {
+    return '#E2685C';
+  }
+  return 'var(--color-hairline)';
+}
+
+function rawToWhole(raw: string, decimals: number): number {
+  return Number(BigInt(raw)) / 10 ** decimals;
+}
 
 interface PortfolioValue {
   readonly breakdown: {
@@ -42,6 +58,11 @@ interface PortfolioValue {
     readonly earnedBps: number;
     readonly direction: 'up' | 'down' | 'flat';
   };
+  readonly walletStocks: readonly {
+    readonly symbol: string;
+    readonly amount: number;
+    readonly valueUsd: number;
+  }[];
   readonly holdings: readonly {
     readonly symbol: string;
     readonly amount: number;
@@ -75,6 +96,10 @@ interface PortfolioEntry {
     readonly fillBps: number;
     readonly debtRaw: string;
     readonly protectLtvBps: number;
+    readonly collateralRaw: string;
+    readonly collateralDecimals: number;
+    readonly fallToLiquidationBps: number;
+    readonly earnedUsd: number;
   } | null;
 }
 
@@ -111,8 +136,6 @@ export default function PortfolioPage(): JSX.Element {
     void readTheValue();
   }, [readTheValue, tokensGrantedCount]);
 
-  // The yield token earns while the screen is open, so the screen reads it again rather than
-  // showing a figure that stopped being true the moment it arrived.
   useEffect(() => {
     const again = setInterval(() => {
       void readTheValue();
@@ -144,7 +167,7 @@ export default function PortfolioPage(): JSX.Element {
       <Heading level={1}>{PORTFOLIO_COPY.title}</Heading>
 
       <Panel>
-        <Stack gap={12} style={{ alignItems: 'center', textAlign: 'center' }}>
+        <Stack gap={16}>
           {value === null ? (
             <Stack gap={10} style={{ alignItems: 'center', width: '100%' }}>
               <Skeleton width={220} height={44} />
@@ -156,33 +179,55 @@ export default function PortfolioPage(): JSX.Element {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: 20,
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 24,
                   width: '100%',
                   alignItems: 'start',
+                  textAlign: 'left',
                 }}
               >
-                <Stack gap={4} style={{ alignItems: 'center' }}>
-                  <Muted>{PORTFOLIO_VALUE_COPY.inAccrue}</Muted>
+                <Stack gap={6}>
+                  <Eyebrow>{PORTFOLIO_VALUE_COPY.inAccrue}</Eyebrow>
                   <Mono
                     testId="portfolio-total"
-                    style={{ fontSize: 40, fontWeight: 500, lineHeight: 1.1 }}
+                    style={{ fontSize: 32, letterSpacing: '-0.02em' }}
                   >
                     {`$${money(value.breakdown.positionEquityUsd)}`}
                   </Mono>
-                  <Muted>{PORTFOLIO_VALUE_COPY.whatYourPositionsAreWorth}</Muted>
                 </Stack>
 
-                <Stack gap={4} style={{ alignItems: 'center' }}>
-                  <Muted>{PORTFOLIO_VALUE_COPY.earnedSoFar}</Muted>
+                <Stack gap={6}>
+                  <Eyebrow>{PORTFOLIO_VALUE_COPY.owedToTheMarket}</Eyebrow>
+                  <Mono
+                    testId="portfolio-owed"
+                    style={{ fontSize: 32, letterSpacing: '-0.02em' }}
+                  >
+                    {`$${money(value.breakdown.owedUsd)}`}
+                  </Mono>
+                </Stack>
+
+                <Stack
+                  gap={6}
+                  style={{
+                    margin: '-10px -12px',
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background:
+                      'linear-gradient(90deg, rgba(55,185,141,0), rgba(55,185,141,.10) 50%, rgba(226,184,113,.16))',
+                    boxShadow: '0 1px 0 rgba(111,216,176,.25) inset',
+                  }}
+                >
+                  <Eyebrow style={{ color: 'var(--color-text-secondary)' }}>
+                    {PORTFOLIO_VALUE_COPY.earnedSoFar}
+                  </Eyebrow>
                   <Mono
                     testId="portfolio-earned"
                     tone={value.earned.direction === 'down' ? 'caution' : 'accent'}
-                    style={{ fontSize: 40, fontWeight: 500, lineHeight: 1.1 }}
+                    style={{ fontSize: 32, letterSpacing: '-0.02em' }}
                   >
                     {`${value.earned.earnedUsd < 0 ? '−' : '+'}$${money(Math.abs(value.earned.earnedUsd))}`}
                   </Mono>
-                  <Row style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Row style={{ gap: 8, flexWrap: 'wrap' }}>
                     <Mono
                       testId="portfolio-earned-percent"
                       tone={value.earned.direction === 'down' ? 'caution' : 'accent'}
@@ -258,105 +303,194 @@ export default function PortfolioPage(): JSX.Element {
         </Stack>
       </Panel>
 
-      <Panel>
-        <Stack gap={14}>
-          <Heading level={3}>{PORTFOLIO_COPY.openPositions}</Heading>
-          {positions === null ? (
-            <Stack gap={10} testId="positions-loading">
-              <SkeletonCard lines={5} />
-            </Stack>
-          ) : null}
-          {positions?.length === 0 ? (
-            <Muted testId="no-positions">{PORTFOLIO_COPY.noPositions}</Muted>
-          ) : null}
-          {positions?.map((entry) => (
+      <Stack gap={14}>
+        <Heading level={2}>{PORTFOLIO_COPY.openPositions}</Heading>
+        {positions === null ? (
+          <Stack gap={8} testId="positions-loading">
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+          </Stack>
+        ) : null}
+        {positions?.length === 0 ? (
+          <Muted testId="no-positions">{PORTFOLIO_COPY.noPositions}</Muted>
+        ) : null}
+        {positions?.map((entry) => {
+          const chain = entry.onChain;
+          const closed = chain?.state !== 'Open';
+          const price = chain === null ? 0 : inDollars(chain.oraclePriceScaled);
+          const liquidatedAt =
+            chain === null || chain.liquidationThresholdBps === 0
+              ? 0
+              : (price * chain.loanToValueBps) / chain.liquidationThresholdBps;
+          return (
             <Link
               key={entry.id}
               href={`/app/positions/${entry.id}`}
               data-testid={`position-${entry.id}`}
-              style={{ textDecoration: 'none' }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: POSITION_COLUMNS,
+                gap: '14px 24px',
+                alignItems: 'center',
+                background: '#121110',
+                border: '1px solid var(--color-hairline)',
+                borderLeft: `3px solid ${edgeFor(chain?.healthZone)}`,
+                borderRadius: 12,
+                padding: '16px 18px',
+                color: closed ? 'var(--color-text-muted)' : 'var(--color-text)',
+                textDecoration: 'none',
+                minWidth: 0,
+              }}
             >
-              <Stack
-                gap={10}
+              <Stack gap={4} style={{ minWidth: 0 }}>
+                <Mono style={{ fontSize: 16, fontWeight: 500 }}>
+                  {chain === null
+                    ? (entry.positionAddress ?? COMMON.missingValue)
+                    : chain.stockSymbol}
+                </Mono>
+                <Mono tone="secondary" style={{ fontSize: 13 }}>
+                  {chain === null
+                    ? entry.status
+                    : money(rawToWhole(chain.collateralRaw, chain.collateralDecimals), 4)}
+                </Mono>
+              </Stack>
+
+              <Row style={{ gap: 12, minWidth: 0, flexWrap: 'wrap' }}>
+                {chain === null || closed ? (
+                  <Mono tone="muted" style={{ fontSize: 13 }}>
+                    {PORTFOLIO_COPY.noLongerOpen}
+                  </Mono>
+                ) : (
+                  <>
+                    <HealthBar
+                      fillBps={chain.fillBps}
+                      zone={chain.healthZone}
+                      label={PORTFOLIO_COPY.health}
+                    />
+                    <Row style={{ gap: 6, flex: 'none' }}>
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: '50%',
+                          background: 'var(--color-accent)',
+                        }}
+                      />
+                      <span
+                        style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}
+                      >
+                        {PORTFOLIO_COPY.guarded}
+                      </span>
+                    </Row>
+                  </>
+                )}
+              </Row>
+
+              {chain === null ? (
+                <span />
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.4fr 1fr 0.8fr',
+                    gap: '8px 20px',
+                    minWidth: 0,
+                  }}
+                >
+                  <Stack gap={3}>
+                    <Eyebrow style={{ fontSize: 10 }}>
+                      {PORTFOLIO_COPY.liquidatedAt}
+                    </Eyebrow>
+                    <Mono style={{ fontSize: 13 }}>
+                      {PORTFOLIO_COPY.priceAndDistance(
+                        `$${money(liquidatedAt)}`,
+                        percent(chain.fallToLiquidationBps, 0),
+                      )}
+                    </Mono>
+                  </Stack>
+                  <Stack gap={3}>
+                    <Eyebrow style={{ fontSize: 10 }}>{PORTFOLIO_COPY.earned}</Eyebrow>
+                    <Mono
+                      tone={closed ? 'muted' : 'gold'}
+                      style={{ fontSize: 13 }}
+                    >{`${chain.earnedUsd < 0 ? '−' : '+'}$${money(Math.abs(chain.earnedUsd))}`}</Mono>
+                  </Stack>
+                  <Stack gap={3}>
+                    <Eyebrow style={{ fontSize: 10 }}>{PORTFOLIO_COPY.inWhat}</Eyebrow>
+                    <Mono style={{ fontSize: 13 }}>{chain.destinationSymbol}</Mono>
+                  </Stack>
+                </div>
+              )}
+
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                <path
+                  d="M5 3l4 4-4 4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+              </svg>
+            </Link>
+          );
+        })}
+      </Stack>
+
+      {value === null || value.walletStocks.length === 0 ? null : (
+        <Stack gap={14}>
+          <Heading level={2}>{PORTFOLIO_COPY.stocksInWallet}</Heading>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))',
+              gap: 8,
+            }}
+          >
+            {value.walletStocks.map((held) => (
+              <div
+                key={held.symbol}
+                className="acr-card-quiet"
+                data-testid={`wallet-${held.symbol}`}
                 style={{
-                  border: '1px solid var(--color-hairline)',
-                  borderRadius: 'var(--radius)',
-                  padding: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '16px 18px',
+                  gap: 12,
                 }}
               >
-                <Row>
-                  <Heading level={3}>
-                    {entry.onChain === null
-                      ? (entry.positionAddress ?? COMMON.missingValue)
-                      : `${entry.onChain.stockSymbol} → ${entry.onChain.destinationSymbol}`}
-                  </Heading>
-                  <Mono tone="secondary">{entry.onChain?.state ?? entry.status}</Mono>
-                </Row>
-                {entry.onChain === null ? null : (
-                  <Stack gap={8}>
-                    <Figure
-                      label={PORTFOLIO_COPY.worth}
-                      value={`$${money(inDollars(entry.onChain.collateralValueScaled))}`}
-                    />
-                    <Row>
-                      <span style={{ color: 'var(--color-text-secondary)' }}>
-                        {PORTFOLIO_COPY.owed}
-                      </span>
-                      <Mono tone="gold">
-                        {money(Number(BigInt(entry.onChain.debtRaw)) / 1e6)} USDC
-                      </Mono>
-                    </Row>
-                    <Figure
-                      label={PORTFOLIO_COPY.holding}
-                      value={`${money(
-                        Number(BigInt(entry.onChain.destinationRaw)) /
-                          10 ** entry.onChain.destinationDecimals,
-                        4,
-                      )} ${entry.onChain.destinationSymbol}`}
-                    />
-                    <Figure
-                      label={PORTFOLIO_COPY.netRate}
-                      value={PORTFOLIO_COPY.aYear(percent(entry.onChain.netYieldBps))}
-                    />
-                    <Figure
-                      label={PORTFOLIO_COPY.loanToValue}
-                      value={PORTFOLIO_COPY.ofTarget(
-                        percent(entry.onChain.loanToValueBps, 0),
-                        percent(entry.onChain.targetLtvBps, 0),
-                      )}
-                    />
-                    <Figure
-                      label={PORTFOLIO_COPY.liquidatedAt}
-                      value={`$${money(
-                        entry.onChain.liquidationThresholdBps === 0
-                          ? 0
-                          : (inDollars(entry.onChain.oraclePriceScaled) *
-                              entry.onChain.loanToValueBps) /
-                              entry.onChain.liquidationThresholdBps,
-                      )}`}
-                    />
-                  </Stack>
-                )}
-                {entry.onChain === null ? null : (
-                  <HealthBar
-                    fillBps={entry.onChain.fillBps}
-                    zone={entry.onChain.healthZone}
-                    label={PORTFOLIO_COPY.health}
-                  />
-                )}
-                {entry.onChain === null ? null : (
-                  <Row>
-                    <span style={{ color: 'var(--color-text-secondary)' }}>
-                      {PORTFOLIO_COPY.guard}
-                    </span>
-                    <Mono tone="accent">{percent(entry.onChain.protectLtvBps, 0)}</Mono>
-                  </Row>
-                )}
-              </Stack>
-            </Link>
-          ))}
+                <Stack gap={4}>
+                  <Mono style={{ fontSize: 16, fontWeight: 500 }}>{held.symbol}</Mono>
+                  <Mono tone="secondary" style={{ fontSize: 13 }}>
+                    {PORTFOLIO_COPY.balanceAndValue(
+                      money(held.amount),
+                      `$${money(held.valueUsd)}`,
+                    )}
+                  </Mono>
+                </Stack>
+                <Link
+                  href={`/app?stock=${held.symbol}`}
+                  data-testid={`put-to-work-${held.symbol}`}
+                  style={{
+                    flex: 'none',
+                    height: 36,
+                    padding: '0 12px',
+                    border: '1px solid rgba(111,216,176,.45)',
+                    color: '#6FD8B0',
+                    background: 'rgba(55,185,141,.12)',
+                    borderRadius: 999,
+                    boxShadow: '0 6px 20px rgba(55,185,141,.15)',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  {PORTFOLIO_COPY.putToWork}
+                </Link>
+              </div>
+            ))}
+          </div>
         </Stack>
-      </Panel>
+      )}
 
       {value === null ? null : (
         <Sheet

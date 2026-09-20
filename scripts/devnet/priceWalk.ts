@@ -22,11 +22,7 @@ export interface WalkKnobs {
   readonly bigMoveLowPercent: number;
   readonly bigMoveHighPercent: number;
   readonly recoverySteps: number;
-  // How many seconds of earning the yield token gets for every second that passes on a sandbox,
-  // so a rate published per year is visible in a sitting.
   readonly yieldTimesFaster: number;
-  // A yield token earns, but its price is a mark that can be written down, so the sandbox marks it
-  // down now and then and climbs back to where it was over the steps that follow.
   readonly yieldDipOdds: number;
   readonly yieldDipLowPercent: number;
   readonly yieldDipHighPercent: number;
@@ -140,7 +136,6 @@ export interface WalkState {
 
 export interface YieldWalkState {
   recoveryStepsLeft: number;
-  // A yield token has no book price to come back to, so a mark down remembers where it fell from.
   climbingBackTo: number | null;
 }
 
@@ -185,8 +180,6 @@ export function stepAStock(
   return { symbol: token.symbol, from: price, to, why };
 }
 
-// One move for one yield token: earning is applied on every write, so this is only the mark, which
-// is written down now and then and climbs back to where it fell from over the steps that follow.
 export function stepAYieldToken(
   token: SandboxToken,
   price: number,

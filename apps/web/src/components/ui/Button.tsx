@@ -18,7 +18,7 @@ export function Button({
   testId?: string;
 }): JSX.Element {
   const base = {
-    borderRadius: 'var(--radius)',
+    borderRadius: tone === 'primary' ? 999 : 'var(--radius)',
     padding: tone === 'link' ? 0 : '10px 16px',
     fontFamily: 'var(--font-text)',
     fontSize: 14,
@@ -29,14 +29,21 @@ export function Button({
 
   const tones = {
     primary: {
-      background: 'var(--color-accent)',
-      color: 'var(--color-ground)',
-      border: '1px solid var(--color-accent)',
+      background: disabled
+        ? 'rgba(255,255,255,.03)'
+        : 'linear-gradient(rgba(12,20,17,.92), rgba(12,20,17,.92)) padding-box, linear-gradient(90deg, #6FD8B0, #37B98D 50%, #E2B871) border-box',
+      color: disabled ? 'var(--color-text-muted)' : '#6FD8B0',
+      border: `1px solid ${disabled ? 'rgba(255,255,255,.08)' : 'transparent'}`,
+      boxShadow: disabled
+        ? 'none'
+        : '0 -1px 0 0 rgba(111,216,176,.9) inset, 0 0 0 1px rgba(55,185,141,.25), 0 14px 40px rgba(55,185,141,.18)',
     },
     quiet: {
-      background: 'var(--color-raised)',
-      color: 'var(--color-text)',
-      border: '1px solid var(--color-hairline)',
+      background: 'rgba(55,185,141,.12)',
+      color: '#6FD8B0',
+      border: '1px solid rgba(111,216,176,.45)',
+      borderRadius: 999,
+      boxShadow: '0 6px 20px rgba(55,185,141,.15)',
     },
     link: {
       background: 'transparent',

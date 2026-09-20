@@ -8,6 +8,8 @@ import { AccrueMark } from '../../components/AccrueMark.js';
 import {
   Banner,
   Button,
+  LEDGER_GROUND,
+  LedgerGround,
   Toast,
   WalletPill,
   type ToastTone,
@@ -82,14 +84,19 @@ export function AppShell({
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        background: 'var(--color-ground)',
+        background: LEDGER_GROUND,
       }}
     >
+      <LedgerGround />
       {isDevnet ? (
-        <div data-testid="devnet-banner" style={{ padding: '8px 24px' }}>
+        <div
+          data-testid="devnet-banner"
+          style={{ position: 'relative', zIndex: 1, padding: '8px 24px' }}
+        >
           <Banner tone="notice">
             <span
               style={{
@@ -120,12 +127,17 @@ export function AppShell({
 
       <header
         style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 4,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          padding: '16px 24px',
-          borderBottom: '1px solid var(--color-hairline)',
+          padding: '12px clamp(16px,3vw,32px)',
+          background: 'rgba(11,12,12,0.7)',
+          backdropFilter: 'blur(14px)',
+          borderBottom: '1px solid #1A1815',
           flexWrap: 'wrap',
         }}
       >
@@ -150,14 +162,27 @@ export function AppShell({
           </span>
         </Link>
 
-        <nav style={{ display: 'flex', gap: 18 }}>
-          {LINKS.map((link) => (
+        <nav
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+          }}
+        >
+          {[...LINKS, { href: '/app/about', label: NAV.about }].map((link) => (
             <Link
               key={link.href}
               href={link.href}
               data-testid={`nav-${link.label.toLowerCase()}`}
+              className={path === link.href ? 'acr-nav-here' : undefined}
               style={{
+                padding: '10px 12px',
+                fontSize: 14,
+                whiteSpace: 'nowrap',
                 textDecoration: 'none',
+                borderRadius: 8,
                 color:
                   path === link.href
                     ? 'var(--color-text)'
@@ -167,13 +192,6 @@ export function AppShell({
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/app/about"
-            data-testid="nav-about"
-            style={{ textDecoration: 'none', color: 'var(--color-text-secondary)' }}
-          >
-            {NAV.about}
-          </Link>
         </nav>
 
         {me?.signedIn === true && me.wallet !== undefined ? (
@@ -198,6 +216,8 @@ export function AppShell({
 
       <main
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
           flexDirection: 'column',
           flex: 1,

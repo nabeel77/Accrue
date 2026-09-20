@@ -5,6 +5,10 @@ export const ACTIVITY_COPY = {
   grow: 'Guard borrowed back to target',
   leave: 'Position returned to your wallet',
   'top-up': 'You added to this position',
+  line: (what: string, amount: string, caller: string): string =>
+    `${what}${amount}${caller}`,
+  forAmount: (amount: string): string => `, ${amount} USDC`,
+  byCaller: (caller: string): string => `, by ${caller}`,
   columnWhen: 'When',
   columnWhat: 'What',
   columnAmount: 'Amount',

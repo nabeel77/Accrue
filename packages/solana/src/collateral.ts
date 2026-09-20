@@ -101,6 +101,10 @@ function sandboxCollateral(): CollateralToken[] {
   });
 }
 
+export function theStockCatalogue(): readonly CollateralToken[] {
+  return MAINNET_COLLATERAL;
+}
+
 export function collateralAllowlist(): readonly CollateralToken[] {
   return clusterName() === 'mainnet' ? MAINNET_COLLATERAL : sandboxCollateral();
 }
