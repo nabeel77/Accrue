@@ -42,7 +42,6 @@ function QuoteRow({
   );
 }
 
-// Everything the card does not say, in the quote style: the label left and the number right.
 export function DepositDetailsSheet({
   open,
   stockSymbol,
@@ -66,8 +65,6 @@ export function DepositDetailsSheet({
   protectLtvBps: number;
   liquidationThresholdBps: number;
   limits: PositionSizeLimits | null;
-  // Set when this deposit grows a position the wallet already holds, and then the guard is that
-  // position's own and is only read here.
   openPosition: OpenPositionSettings | null;
   onAdjust: () => void;
   onClose: () => void;

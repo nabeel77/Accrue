@@ -108,6 +108,13 @@ describe('a keeper round that protects a position past its guard level', () => {
     );
 
     expect(report).toEqual({ considered: 1, attempted: 0, landed: 0 });
-    expect(runLog.recorded).toHaveLength(0);
+    expect(runLog.recorded).toHaveLength(1);
+    expect(runLog.recorded[0]).toMatchObject({
+      positionAddress: opened.address,
+      kind: 'check',
+      outcome: 'skipped',
+      signature: null,
+    });
+    expect(runLog.recorded[0]?.reason).not.toBeNull();
   });
 });

@@ -139,7 +139,6 @@ export function AdjustSheet({
               label={BORROW_MORE_COPY.label}
               note={BORROW_MORE_COPY.note}
               checked={current.growEnabled}
-              isDefault={!current.growEnabled}
               onChange={(value) => {
                 set({ growEnabled: value });
               }}
@@ -164,7 +163,6 @@ export function AdjustSheet({
           label={ADJUST_COPY.leaveLabel}
           note={ADJUST_COPY.leaveNote}
           checked={current.exitOnFlagEnabled}
-          isDefault={current.exitOnFlagEnabled}
           onChange={(value) => {
             set({ exitOnFlagEnabled: value });
           }}

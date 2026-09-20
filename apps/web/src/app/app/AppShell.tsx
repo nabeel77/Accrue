@@ -29,18 +29,36 @@ export function AppShell({
   const path = usePathname();
   const [faucet, setFaucet] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [pickingWallet, setPickingWallet] = useState(false);
+  const [whatTheFaucetSent, setWhatTheFaucetSent] = useState('');
 
   const askTheFaucet = useCallback(async (): Promise<void> => {
     setFaucet('sending');
     const answer = await fetch('/api/devnet/faucet', { method: 'POST' });
-    setFaucet(answer.ok ? 'sent' : 'failed');
+    if (!answer.ok) {
+      setFaucet('failed');
+      return;
+    }
+    const granted = (await answer.json()) as {
+      grants?: { symbol: string; amount: string }[];
+      solSent?: string | null;
+    };
+    const named = (granted.grants ?? []).map(
+      (grant) => `${grant.amount} ${grant.symbol}`,
+    );
+    if (granted.solSent != null) {
+      named.push(DEVNET.andSomeSol(granted.solSent));
+    }
+    setWhatTheFaucetSent(named.join(', '));
+    setFaucet('sent');
   }, []);
 
   const faucetLine =
     faucet === 'sending'
       ? DEVNET.gettingTestTokens
       : faucet === 'sent'
-        ? DEVNET.testTokensSent
+        ? whatTheFaucetSent === ''
+          ? DEVNET.testTokensSentNothingNamed
+          : DEVNET.testTokensSent(whatTheFaucetSent)
         : faucet === 'failed'
           ? DEVNET.testTokensFailed
           : DEVNET.getTestTokens;

@@ -917,7 +917,6 @@ export default function PositionPage(): JSX.Element {
                 label={BORROW_MORE_COPY.label}
                 note={BORROW_MORE_COPY.note}
                 checked={guard.borrowMore}
-                isDefault={!guard.borrowMore}
                 onChange={(value) => {
                   setGuard({ ...guard, borrowMore: value });
                 }}

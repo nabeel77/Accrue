@@ -103,7 +103,6 @@ export function ReviewSheet({
   const [now, setNow] = useState(() => Date.now());
   const [rebuilds, setRebuilds] = useState(0);
 
-  // The sheet watches its own quote age, because a quote nobody refreshes is one nobody may sign.
   useEffect(() => {
     if (!open) {
       return;

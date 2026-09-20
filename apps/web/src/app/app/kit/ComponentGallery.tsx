@@ -127,7 +127,6 @@ export function ComponentGallery(): JSX.Element {
                 label="Borrow back up when the stock recovers"
                 note="The guard borrows back to target and buys more of the yield token."
                 checked={autoGrow}
-                isDefault={autoGrow}
                 onChange={setAutoGrow}
                 testId="kit-toggle"
               />
