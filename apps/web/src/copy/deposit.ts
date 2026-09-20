@@ -3,7 +3,6 @@ export const DEPOSIT_COPY = {
   amountPrefix: '$',
   amountMax: 'MAX',
   amountMaxWaitingForAPrice: 'price loading',
-  // The one small line under the amount field.
   inYourWallet: (balance: string, stockSymbol: string): string =>
     `${balance} ${stockSymbol} in your wallet`,
   inYourWalletWorth: (balance: string, stockSymbol: string, valueUsd: string): string =>
@@ -13,13 +12,11 @@ export const DEPOSIT_COPY = {
   balanceInYourWallet: (balance: string): string => `${balance} in your wallet`,
   stockEmpty: 'Your wallet holds none of these yet.',
   earnInColumnTitle: 'Earn in',
-  // The one large line on the card, and what it becomes when the wallet already holds this pair.
   earnsLine: (earnings: string, netYield: string): string =>
     `Earns ≈ ${earnings} / year · ${netYield}`,
   addsLine: (earnings: string, stockSymbol: string, netYield: string): string =>
     `Adds ≈ ${earnings} / year to your ${stockSymbol} position · ${netYield}`,
   details: 'Details',
-  // The rows inside the Details sheet, the label left and the number right.
   depositRow: 'Deposit',
   borrowedRow: 'Borrowed',
   intoRow: 'Into',
@@ -47,7 +44,6 @@ export const DEPOSIT_COPY = {
     `${stockSymbol} → ${destinationSymbol}`,
   adjust: 'Adjust',
   deposit: 'Deposit',
-  // The rows inside the sheet that grows a position the wallet already holds.
   youBorrow: 'You borrow',
   youReceive: 'You receive',
   holdsAfter: 'The position holds',
@@ -99,7 +95,6 @@ export const YIELD_TOKEN_DETAILS_COPY = {
 export const ADJUST_COPY = {
   title: 'Adjust',
   resetToDefault: 'Reset to default',
-  accrueDefault: 'Accrue default',
   borrowLabel: 'Borrow',
   borrowNote: 'How much USDC the position borrows against your stock.',
   guardLabel: 'Guard repays at',

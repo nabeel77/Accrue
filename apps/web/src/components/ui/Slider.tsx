@@ -39,19 +39,7 @@ export function Slider({
       <Row>
         <span style={{ color: 'var(--color-text)' }}>{label}</span>
         <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {isDefault ? (
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--color-accent)',
-                border: '1px solid var(--color-accent-deeper)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '2px 8px',
-              }}
-            >
-              Accrue default
-            </span>
-          ) : (
+          {isDefault ? null : (
             <button
               type="button"
               onClick={onReset}

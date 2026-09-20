@@ -92,6 +92,7 @@ async function handleGrant(
       wallet: result.wallet,
       signature: result.signature,
       grants: result.grants,
+      lamportsSent: result.lamportsSent.toString(),
     });
   } catch (failure) {
     refund(perWallet, wallet);

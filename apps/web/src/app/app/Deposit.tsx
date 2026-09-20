@@ -135,8 +135,6 @@ export function Deposit(): JSX.Element {
     if (chosenDestination === null) {
       return;
     }
-    // The card's figures are worked out on the server, so the stock and the amount go with the
-    // request rather than being multiplied out in the browser.
     const asked = new URLSearchParams({ destination: chosenDestination });
     if (chosenStock !== null) {
       asked.set('stock', chosenStock);
@@ -207,7 +205,6 @@ export function Deposit(): JSX.Element {
   const aPriceHasArrived = aPriceHasArrivedFor(stock);
   const holdsNoStock = stocks.every((entry) => wholeBalanceOf(entry) === 0);
 
-  // The acknowledgement comes before the first position, not on the way in to the app.
   const openReview = useCallback((): void => {
     if (me?.acknowledgement?.accepted === false) {
       setAcknowledgementOpen(true);
