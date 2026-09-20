@@ -11,11 +11,13 @@ import {
   clampToTheBounds,
   knobsFromTheEnvironment,
   stepAStock,
+  stepAYieldToken,
   theStocksThatAreWalked,
   theWriteIntervalTheGuardCanLiveWith,
   theYieldRateOf,
   type Step,
   type WalkState,
+  type YieldWalkState,
 } from './priceWalk.js';
 import { refreshEveryReserve } from './refreshReserves.js';
 import { setThePoolRates, topUpThePoolVaultsUnderTheFloor } from './router.js';
@@ -201,6 +203,12 @@ async function main(): Promise<void> {
   const states = new Map<string, WalkState>(
     walked.map((token) => [token.symbol, { recoveryStepsLeft: 0 }]),
   );
+  const yieldStates = new Map<string, YieldWalkState>(
+    SANDBOX_TOKENS.filter((token) => theYieldRateOf(token) !== null).map((token) => [
+      token.symbol,
+      { recoveryStepsLeft: 0, climbingBackTo: null },
+    ]),
+  );
 
   reportStep(`prices account      ${prices}`);
   reportStep(
@@ -208,6 +216,9 @@ async function main(): Promise<void> {
   );
   reportStep(
     `a big move of ${knobs.bigMoveLowPercent} to ${knobs.bigMoveHighPercent} percent down on about one step in ${Math.round(1 / knobs.bigMoveOdds)}, recovering over ${knobs.recoverySteps} steps`,
+  );
+  reportStep(
+    `the yield token earns ${knobs.yieldTimesFaster} times faster than the clock, and is marked down ${knobs.yieldDipLowPercent} to ${knobs.yieldDipHighPercent} percent on about one step in ${Math.round(1 / knobs.yieldDipOdds)}`,
   );
   serve(feed, Number(process.env['DEVNET_PRICES_PORT'] ?? DEFAULT_PORT));
 
@@ -234,6 +245,7 @@ async function main(): Promise<void> {
           rateBps,
           sinceTheLastWrite,
           bound,
+          knobs.yieldTimesFaster,
         );
         values[token.symbol] = earned.to;
       }
@@ -257,20 +269,26 @@ async function main(): Promise<void> {
           values[token.symbol] = step.to;
           reportStepLine(step);
         }
-        // The yield token has no step of its own, so its line says what it earned since the last.
+        // The yield token earns on every write, so its step is the mark on top of what it earned.
         for (const token of SANDBOX_TOKENS) {
           const rateBps = theYieldRateOf(token);
-          const now = values[token.symbol] ?? token.startingPrice;
-          if (rateBps === null) {
+          const state = yieldStates.get(token.symbol);
+          const bound = bounds.get(token.symbol);
+          const earnedTo = values[token.symbol] ?? token.startingPrice;
+          if (rateBps === null || state === undefined || bound === undefined) {
             continue;
           }
+          const step = stepAYieldToken(token, earnedTo, bound, knobs, state);
+          values[token.symbol] = step.to;
           reportStepLine({
             symbol: token.symbol,
-            from: earnedSinceTheLastStep.get(token.symbol) ?? now,
-            to: now,
-            why: `earning ${(rateBps / 100).toFixed(2)} percent a year`,
+            from: earnedSinceTheLastStep.get(token.symbol) ?? earnedTo,
+            to: step.to,
+            why: `earning ${(rateBps / 100).toFixed(2)} percent a year ${
+              knobs.yieldTimesFaster
+            } times faster, ${step.why}`,
           });
-          earnedSinceTheLastStep.set(token.symbol, now);
+          earnedSinceTheLastStep.set(token.symbol, step.to);
         }
       }
 

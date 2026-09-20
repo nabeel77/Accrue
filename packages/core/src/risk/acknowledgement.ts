@@ -14,9 +14,6 @@ export const RISK_ACKNOWLEDGEMENT_SENTENCES: readonly string[] = [
 
 export const RISK_ACKNOWLEDGEMENT_BUTTON = 'I understand these risks';
 
-export const RISK_ACKNOWLEDGEMENT_FOOTNOTE =
-  'Version 1. You will see this again only if the words change.';
-
 // What the version above is a version of: the title and the four sentences, in order.
 export function riskAcknowledgementHash(): string {
   return createHash('sha256')

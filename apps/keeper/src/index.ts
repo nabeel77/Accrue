@@ -8,7 +8,8 @@ import { readKeeperConfiguration } from './config.js';
 import { createGuardInstructionBuilder } from './guard.js';
 import { loadFeePayer } from './keypair.js';
 import { shortenAddress, shortenEveryAddress } from './logging.js';
-import { runOneRound, sleep } from './loop.js';
+import { runOneRound } from './loop.js';
+import { waitForTheNextRound, type PriceSensitivePosition } from './priceWatch.js';
 import { runLogFromTheEnvironment } from './runs.js';
 import { surveyTheProgram } from './survey.js';
 import { createSender } from './transaction.js';
@@ -54,6 +55,8 @@ async function main(): Promise<void> {
     );
   }
 
+  let watching: PriceSensitivePosition[] = [];
+
   for (;;) {
     try {
       const config = await fetchConfig(rpc, configAddress);
@@ -85,14 +88,25 @@ async function main(): Promise<void> {
       console.log(
         `${report.considered} watched, ${report.attempted} attempted, ${report.landed} landed`,
       );
+      watching = round.candidates.map((candidate) => ({
+        scopePriceAccount: candidate.subject.collateralReserve.scopePriceAccount,
+        scopeFeedIndex: candidate.subject.collateralReserve.scopeFeedIndex,
+        collateralPriceScaled: candidate.subject.collateralPriceScaled,
+        loanToValueBps: candidate.loanToValueBps,
+        protectLtvBps: candidate.subject.position.strategy.protectLtvBps,
+      }));
     } catch (failure) {
+      watching = [];
       console.log(
         shortenEveryAddress(
           `round failed: ${failure instanceof Error ? failure.message : 'unknown'}`,
         ),
       );
     }
-    await sleep(configuration.intervalSeconds);
+    const why = await waitForTheNextRound(rpc, watching, configuration.intervalSeconds);
+    if (why === 'a price crossed a guard level') {
+      console.log('a price crossed a guard level, running the guard now');
+    }
   }
 }
 

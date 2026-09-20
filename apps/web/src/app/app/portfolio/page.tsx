@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import {
   Button,
@@ -22,8 +22,10 @@ import {
 import { COMMON } from '../../../copy/common.js';
 import { PORTFOLIO_COPY, PORTFOLIO_VALUE_COPY } from '../../../copy/portfolio.js';
 import { howLongAgo, money, percent } from '../../../client/format.js';
+import { useSession } from '../../../client/session.js';
 
 const A_SECOND = 1_000;
+const HOW_OFTEN_THE_VALUE_IS_READ = 10 * A_SECOND;
 
 interface PortfolioValue {
   readonly breakdown: {
@@ -84,17 +86,33 @@ export default function PortfolioPage(): JSX.Element {
   const [positions, setPositions] = useState<PortfolioEntry[] | null>(null);
   const [value, setValue] = useState<PortfolioValue | null>(null);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const { tokensGrantedCount } = useSession();
 
-  useEffect(() => {
-    void (async () => {
-      const answer = await fetch('/api/portfolio', { cache: 'no-store' });
-      if (answer.ok) {
-        setValue((await answer.json()) as PortfolioValue);
-      }
-    })();
+  const readTheValue = useCallback(async (): Promise<void> => {
+    const answer = await fetch('/api/portfolio', { cache: 'no-store' });
+    if (answer.ok) {
+      setValue((await answer.json()) as PortfolioValue);
+    }
   }, []);
 
   useEffect(() => {
+    setValue(null);
+    void readTheValue();
+  }, [readTheValue, tokensGrantedCount]);
+
+  // The yield token earns while the screen is open, so the screen reads it again rather than
+  // showing a figure that stopped being true the moment it arrived.
+  useEffect(() => {
+    const again = setInterval(() => {
+      void readTheValue();
+    }, HOW_OFTEN_THE_VALUE_IS_READ);
+    return () => {
+      clearInterval(again);
+    };
+  }, [readTheValue]);
+
+  useEffect(() => {
+    setPositions(null);
     void (async () => {
       const answer = await fetch('/api/positions', { cache: 'no-store' });
       if (!answer.ok) {
@@ -104,7 +122,7 @@ export default function PortfolioPage(): JSX.Element {
       const body = (await answer.json()) as { positions: PortfolioEntry[] };
       setPositions(body.positions);
     })();
-  }, []);
+  }, [tokensGrantedCount]);
 
   return (
     <Stack

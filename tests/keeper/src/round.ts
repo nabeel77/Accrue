@@ -113,6 +113,7 @@ function readTheMarket(world: World, opened: OpenedPosition): MarketReading {
     borrowReserve: world.borrow.snapshot,
     borrowReserveAddress: world.borrow.address,
     usdcPrice: world.scopePrice(world.borrow.snapshot.scopeFeedIndex),
+    collateralPrice: world.scopePrice(world.collateral.snapshot.scopeFeedIndex),
     currentSlot: world.slot,
   };
 }

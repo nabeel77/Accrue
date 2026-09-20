@@ -61,6 +61,16 @@ export function destinationOnThisCluster(destination: Destination): Address | nu
   return currentCluster().mints[destination.symbol] ?? null;
 }
 
+// On a sandbox the mint is a mock of the same symbol, so the match is by cluster, not by mint.
+export function destinationForMintOnThisCluster(mint: string): Destination | null {
+  const cluster = currentCluster();
+  return (
+    DESTINATIONS.find(
+      (entry) => entry.mainnetMint === mint || cluster.mints[entry.symbol] === mint,
+    ) ?? null
+  );
+}
+
 export interface StockDefault {
   readonly symbol: string;
   readonly name: string;

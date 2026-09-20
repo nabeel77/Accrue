@@ -80,6 +80,7 @@ export function watchThePosition(reading: ChainReading): Candidate<GuardSubject>
       destinationBalance: reading.destinationBalance,
       usdcPriceScaled: usdPerWholeTokenScaled(reading.market.usdcPrice),
       destinationPriceScaled: usdPerWholeTokenScaled(reading.destinationPrice),
+      collateralPriceScaled: usdPerWholeTokenScaled(reading.market.collateralPrice),
     } satisfies GuardSubject,
   };
 }

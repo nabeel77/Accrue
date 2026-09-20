@@ -11,7 +11,7 @@ primary_region = "iad"
 [env]
   SOLANA_CLUSTER = "devnet"
   JUPITER_API_URL = "https://lite-api.jup.ag"
-  KEEPER_INTERVAL_SECONDS = "30"
+  KEEPER_INTERVAL_SECONDS = "5"
   KEEPER_PRIORITY_FEE_LAMPORTS = "50000"
   KEEPER_KEYPAIR_PATH = "/tmp/accrue-keys/keeper.json"
   DEVNET_CRON_SECONDS = "30"

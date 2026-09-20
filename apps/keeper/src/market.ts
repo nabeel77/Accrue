@@ -34,6 +34,7 @@ export interface MarketReading {
   readonly borrowReserve: ReserveSnapshot;
   readonly borrowReserveAddress: Address;
   readonly usdcPrice: ScopePrice;
+  readonly collateralPrice: ScopePrice;
   readonly currentSlot: bigint;
 }
 
@@ -110,6 +111,10 @@ export async function readTheMarketAfterARefresh(
     await fetchAccount(rpc, borrowReserve.scopePriceAccount),
     borrowReserve.scopeFeedIndex,
   );
+  const collateralPrice = decodeScopePrice(
+    await fetchAccount(rpc, collateralReserve.scopePriceAccount),
+    collateralReserve.scopeFeedIndex,
+  );
 
   return {
     obligation: decodeObligation(
@@ -120,6 +125,7 @@ export async function readTheMarketAfterARefresh(
     borrowReserve,
     borrowReserveAddress,
     usdcPrice,
+    collateralPrice,
     currentSlot: simulation.context.slot,
   };
 }

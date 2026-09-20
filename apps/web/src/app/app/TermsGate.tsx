@@ -11,7 +11,6 @@ import {
   SkeletonRows,
   Stack,
 } from '../../components/ui/index.js';
-import { ACKNOWLEDGEMENT_COPY } from '../../copy/acknowledgement.js';
 import { COMMON } from '../../copy/common.js';
 import { TERMS_COPY } from '../../copy/terms.js';
 import { useSession } from '../../client/session.js';
@@ -76,7 +75,6 @@ export function TermsGate({
               {TERMS_COPY.decline}
             </Button>
           </div>
-          <Muted>{ACKNOWLEDGEMENT_COPY.footnote}</Muted>
         </Stack>
       </Panel>
     );
