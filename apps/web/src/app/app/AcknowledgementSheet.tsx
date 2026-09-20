@@ -2,7 +2,7 @@
 
 import { useState, type JSX } from 'react';
 
-import { Button, Muted, Sheet, Stack } from '../../components/ui/index.js';
+import { Button, Sheet, Stack } from '../../components/ui/index.js';
 import { useSession } from '../../client/session.js';
 
 export function AcknowledgementSheet({
@@ -45,7 +45,6 @@ export function AcknowledgementSheet({
         >
           {acknowledgement.button}
         </Button>
-        <Muted>{acknowledgement.footnote}</Muted>
       </Stack>
     </Sheet>
   );

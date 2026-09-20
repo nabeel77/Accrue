@@ -20,6 +20,7 @@ primary_region = "iad"
   DEVNET_PRICE_BIG_MOVE_LOW_PERCENT = "20"
   DEVNET_PRICE_BIG_MOVE_HIGH_PERCENT = "25"
   DEVNET_PRICE_RECOVERY_STEPS = "36"
+  DEVNET_YIELD_TIMES_FASTER = "20000"
 
 [http_service]
   processes = ["prices"]

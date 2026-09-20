@@ -22,6 +22,9 @@ export interface WalkKnobs {
   readonly bigMoveLowPercent: number;
   readonly bigMoveHighPercent: number;
   readonly recoverySteps: number;
+  // How many seconds of earning the yield token gets for every second that passes on a sandbox,
+  // so a rate published per year is visible in a sitting.
+  readonly yieldTimesFaster: number;
 }
 
 const DEFAULTS: WalkKnobs = {
@@ -33,6 +36,7 @@ const DEFAULTS: WalkKnobs = {
   bigMoveLowPercent: 20,
   bigMoveHighPercent: 25,
   recoverySteps: 6,
+  yieldTimesFaster: 1,
 };
 
 function number(name: string, fallback: number): number {
@@ -56,6 +60,7 @@ export function knobsFromTheEnvironment(): WalkKnobs {
       DEFAULTS.bigMoveHighPercent,
     ),
     recoverySteps: number('DEVNET_PRICE_RECOVERY_STEPS', DEFAULTS.recoverySteps),
+    yieldTimesFaster: number('DEVNET_YIELD_TIMES_FASTER', DEFAULTS.yieldTimesFaster),
   };
 }
 
@@ -159,13 +164,16 @@ export function accrueTheYield(
   rateBps: number,
   seconds: number,
   bounds: PriceBounds,
+  timesFaster = 1,
 ): Step {
-  const growth = (1 + rateBps / BASIS_POINTS) ** (seconds / SECONDS_IN_A_YEAR);
+  const earning = seconds * timesFaster;
+  const growth = (1 + rateBps / BASIS_POINTS) ** (earning / SECONDS_IN_A_YEAR);
+  const faster = timesFaster > 1 ? `, ${timesFaster} times faster on a sandbox` : '';
   return {
     symbol: token.symbol,
     from: price,
     to: clampToTheBounds(price * growth, bounds),
-    why: `earning ${(rateBps / PERCENT).toFixed(2)} percent a year`,
+    why: `earning ${(rateBps / PERCENT).toFixed(2)} percent a year${faster}`,
   };
 }
 

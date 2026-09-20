@@ -234,6 +234,7 @@ async function main(): Promise<void> {
           rateBps,
           sinceTheLastWrite,
           bound,
+          knobs.yieldTimesFaster,
         );
         values[token.symbol] = earned.to;
       }
@@ -268,7 +269,11 @@ async function main(): Promise<void> {
             symbol: token.symbol,
             from: earnedSinceTheLastStep.get(token.symbol) ?? now,
             to: now,
-            why: `earning ${(rateBps / 100).toFixed(2)} percent a year`,
+            why: `earning ${(rateBps / 100).toFixed(2)} percent a year${
+              knobs.yieldTimesFaster > 1
+                ? `, ${knobs.yieldTimesFaster} times faster on a sandbox`
+                : ''
+            }`,
           });
           earnedSinceTheLastStep.set(token.symbol, now);
         }

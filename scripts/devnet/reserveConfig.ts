@@ -86,6 +86,18 @@ function slice(template: Uint8Array, offset: number, byteLength: number): Uint8A
   return template.slice(offset, offset + byteLength);
 }
 
+const HEURISTIC_EXPONENT = 8;
+
+function eightBytes(value: bigint): Uint8Array {
+  const bytes = new Uint8Array(8);
+  let remaining = value;
+  for (let index = 0; index < 8; index += 1) {
+    bytes[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return bytes;
+}
+
 function readUnsigned(from: Uint8Array, at: number, byteLength: number): bigint {
   let value = 0n;
   for (let index = byteLength - 1; index >= 0; index -= 1) {
@@ -102,6 +114,9 @@ export interface PriceBounds {
 // The market refuses a price outside the bounds its token info carries, and those bounds were
 // copied from the template reserve, so anything writing a price reads them from the same place.
 export function priceBoundsFor(token: SandboxToken): PriceBounds {
+  if (token.priceBand !== undefined) {
+    return token.priceBand;
+  }
   const template = readTemplateReserve(token.templateReserve);
   const offsets = RESERVE_CONFIG_OFFSETS;
   const scale = 10 ** Number(readUnsigned(template, offsets.heuristicExponent, 8));
@@ -221,24 +236,48 @@ export function reserveConfigWrites(
       offsets.deleveragingBonusIncreaseBpsPerDay,
       8,
     ),
-    fromTemplate(
-      'price heuristic lower',
-      UpdateConfigMode.UpdateTokenInfoLowerHeuristic,
-      offsets.heuristicLower,
-      8,
-    ),
-    fromTemplate(
-      'price heuristic upper',
-      UpdateConfigMode.UpdateTokenInfoUpperHeuristic,
-      offsets.heuristicUpper,
-      8,
-    ),
-    fromTemplate(
-      'price heuristic exponent',
-      UpdateConfigMode.UpdateTokenInfoExpHeuristic,
-      offsets.heuristicExponent,
-      8,
-    ),
+    ...(token.priceBand === undefined
+      ? [
+          fromTemplate(
+            'price heuristic lower',
+            UpdateConfigMode.UpdateTokenInfoLowerHeuristic,
+            offsets.heuristicLower,
+            8,
+          ),
+          fromTemplate(
+            'price heuristic upper',
+            UpdateConfigMode.UpdateTokenInfoUpperHeuristic,
+            offsets.heuristicUpper,
+            8,
+          ),
+          fromTemplate(
+            'price heuristic exponent',
+            UpdateConfigMode.UpdateTokenInfoExpHeuristic,
+            offsets.heuristicExponent,
+            8,
+          ),
+        ]
+      : [
+          {
+            what: 'price heuristic exponent',
+            mode: UpdateConfigMode.UpdateTokenInfoExpHeuristic,
+            value: eightBytes(BigInt(HEURISTIC_EXPONENT)),
+          },
+          {
+            what: 'price heuristic lower',
+            mode: UpdateConfigMode.UpdateTokenInfoLowerHeuristic,
+            value: eightBytes(
+              BigInt(Math.round(token.priceBand.lowest * 10 ** HEURISTIC_EXPONENT)),
+            ),
+          },
+          {
+            what: 'price heuristic upper',
+            mode: UpdateConfigMode.UpdateTokenInfoUpperHeuristic,
+            value: eightBytes(
+              BigInt(Math.round(token.priceBand.highest * 10 ** HEURISTIC_EXPONENT)),
+            ),
+          },
+        ]),
     {
       what: 'token name',
       mode: UpdateConfigMode.UpdateTokenInfoName,

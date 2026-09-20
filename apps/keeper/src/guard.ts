@@ -47,6 +47,7 @@ export interface GuardSubject {
   readonly destinationBalance: bigint;
   readonly usdcPriceScaled: bigint;
   readonly destinationPriceScaled: bigint;
+  readonly collateralPriceScaled: bigint;
 }
 
 export interface GuardAssembly {

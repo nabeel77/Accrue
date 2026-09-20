@@ -1,9 +1,9 @@
 import { address } from '@solana/kit';
 
-import { destinationForMint } from '@accrue/core';
 import { currentCluster } from '@accrue/solana';
 import { readScopePrice } from '@accrue/solana/kamino';
 
+import { destinationForMintOnThisCluster } from '../../../server/markets.js';
 import { positionsOwnedOnChain } from '../../../server/positions/ownedOnChain.js';
 import { readOnePosition } from '../../../server/positions/readPositions.js';
 import { readThePortfolio } from '../../../server/positions/portfolio.js';
@@ -24,20 +24,16 @@ function fromScaled(scaled: string): number {
 }
 
 async function priceOfTheDestination(mint: string): Promise<number> {
-  const destination = destinationForMint(mint);
+  const destination = destinationForMintOnThisCluster(mint);
   if (destination === null) {
-    return 0;
+    throw new Error('this position holds a yield token we do not know');
   }
-  try {
-    const read = await readScopePrice(
-      chain().rpc,
-      currentCluster().scopePriceAccount,
-      destination.scopeFeedIndex,
-    );
-    return Number(read.price.value) / 10 ** Number(read.price.exponent);
-  } catch {
-    return 0;
-  }
+  const read = await readScopePrice(
+    chain().rpc,
+    currentCluster().scopePriceAccount,
+    destination.scopeFeedIndex,
+  );
+  return Number(read.price.value) / 10 ** Number(read.price.exponent);
 }
 
 export async function GET(): Promise<Response> {

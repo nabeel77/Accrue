@@ -55,7 +55,6 @@ export interface Me {
     title: string;
     sentences: readonly string[];
     button: string;
-    footnote: string;
   };
 }
 

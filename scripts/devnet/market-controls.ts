@@ -193,6 +193,55 @@ function writeUnsigned(into: Uint8Array, at: number, value: bigint): void {
   }
 }
 
+// The price sanity band the market checks an oracle against. A yield token that climbs for a demo
+// runs out of room against the mainnet band, so a sandbox widens it.
+const HEURISTIC_EXPONENT = 8;
+
+async function priceBand(
+  cluster: Cluster,
+  admin: KeyPairSigner,
+  lending: Address,
+  market: Address,
+  reserve: Address,
+  lowest: number,
+  highest: number,
+): Promise<void> {
+  const [globalConfig] = await getProgramDerivedAddress({
+    programAddress: lending,
+    seeds: [globalConfigSeed()],
+  });
+  const scale = 10 ** HEURISTIC_EXPONENT;
+  const write = (mode: UpdateConfigMode, value: bigint) => {
+    const bytes = new Uint8Array(8);
+    writeUnsigned(bytes, 0, value);
+    return getUpdateReserveConfigInstruction(
+      {
+        signer: admin,
+        globalConfig,
+        lendingMarket: market,
+        reserve,
+        instructionSysvarAccount: INSTRUCTIONS_SYSVAR_ADDRESS,
+        mode,
+        value: bytes,
+        skipConfigIntegrityValidation: false,
+      },
+      { programAddress: lending },
+    );
+  };
+  const signature = await sendInstructions(cluster, admin, [
+    write(UpdateConfigMode.UpdateTokenInfoExpHeuristic, BigInt(HEURISTIC_EXPONENT)),
+    write(
+      UpdateConfigMode.UpdateTokenInfoLowerHeuristic,
+      BigInt(Math.round(lowest * scale)),
+    ),
+    write(
+      UpdateConfigMode.UpdateTokenInfoUpperHeuristic,
+      BigInt(Math.round(highest * scale)),
+    ),
+  ]);
+  reportSignature(`the price band is now ${lowest} to ${highest}`, signature);
+}
+
 const MARKET_SETTING_LENGTH = 72;
 
 // The market refuses to mark any one obligation until it carries its own margin call period.
@@ -316,6 +365,22 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (what === 'price-band') {
+    const token = tokenBySymbol(first ?? '');
+    const reserve = registry.reserves?.[token.symbol];
+    if (reserve === undefined) {
+      throw new Error(`${token.symbol} has no reserve in the devnet registry`);
+    }
+    const lowest = Number(second ?? 0);
+    const highest = Number(third ?? 0);
+    if (!(lowest > 0) || !(highest > lowest)) {
+      throw new Error('give a lowest and a highest price, for example 0.95 12');
+    }
+    reportStep(`${token.symbol} reserve ${reserve}`);
+    await priceBand(cluster, admin, lending, market, reserve as Address, lowest, highest);
+    return;
+  }
+
   if (what === 'individual-deleverage-period') {
     await individualDeleveragePeriod(cluster, admin, lending, market, Number(first ?? 0));
     return;
@@ -337,7 +402,7 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    'say reserve-status <symbol> <active|obsolete|hidden>, borrow-rate <symbol> <basis points at no utilisation>, withdrawal-cap <symbol> <capacity raw> <window seconds, 0 for no cap>, individual-deleverage-period <seconds>, or mark-for-deleveraging <obligation> <target ltv percent, or 255 to clear>',
+    'say reserve-status <symbol> <active|obsolete|hidden>, borrow-rate <symbol> <basis points at no utilisation>, withdrawal-cap <symbol> <capacity raw> <window seconds, 0 for no cap>, price-band <symbol> <lowest> <highest>, individual-deleverage-period <seconds>, or mark-for-deleveraging <obligation> <target ltv percent, or 255 to clear>',
   );
 }
 

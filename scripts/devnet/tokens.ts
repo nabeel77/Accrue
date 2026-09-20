@@ -10,6 +10,9 @@ export interface SandboxToken {
   readonly templateReserve: string;
   readonly faucetGrant: number;
   readonly scaledUiMultiplier?: number;
+  // A yield token climbs for as long as a sandbox runs, so it needs more room than the band the
+  // mainnet reserve was snapshotted with.
+  readonly priceBand?: { readonly lowest: number; readonly highest: number };
 }
 
 export const SANDBOX_TOKENS: readonly SandboxToken[] = [
@@ -62,6 +65,7 @@ export const SANDBOX_TOKENS: readonly SandboxToken[] = [
     mainnetMint: '5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5',
     templateReserve: 'reserve_onyc_onre_market',
     faucetGrant: 100,
+    priceBand: { lowest: 0.95, highest: 20 },
   },
 ];
 

@@ -1,7 +1,6 @@
 import { address } from '@solana/kit';
 import { eq } from 'drizzle-orm';
 
-import { DESTINATIONS, type Destination } from '@accrue/core';
 import { schema } from '@accrue/db';
 
 import { db } from '../../../../server/database.js';
@@ -9,6 +8,7 @@ import { currentCluster } from '@accrue/solana';
 import { readScopePrice } from '@accrue/solana/kamino';
 
 import { cronIsAuthorised } from '../../../../server/cron.js';
+import { destinationForMintOnThisCluster } from '../../../../server/markets.js';
 import { readOnePosition } from '../../../../server/positions/readPositions.js';
 import { ok, refuse, somethingWentWrong } from '../../../../server/respond.js';
 import { chain } from '../../../../server/rpc.js';
@@ -17,16 +17,6 @@ import { latestDestinationTarget } from '../../../../server/snapshots.js';
 const SCALED_FRACTION_ONE = 2n ** 60n;
 const USDC_DECIMALS = 6;
 const BASIS_POINTS = 10_000;
-
-// On a sandbox the mint is a mock of the same symbol, so the match is by cluster, not by mint.
-function destinationOnThisCluster(mint: string): Destination | null {
-  const cluster = currentCluster();
-  return (
-    DESTINATIONS.find(
-      (entry) => entry.mainnetMint === mint || cluster.mints[entry.symbol] === mint,
-    ) ?? null
-  );
-}
 
 function wholeUnits(raw: string, decimals: number): number {
   return Number(BigInt(raw)) / 10 ** decimals;
@@ -61,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
         continue;
       }
 
-      const destination = destinationOnThisCluster(row.destinationMint);
+      const destination = destinationForMintOnThisCluster(row.destinationMint);
       let destinationPrice = 0;
       let priceAgeSlots: bigint | null = null;
       if (destination !== null) {
