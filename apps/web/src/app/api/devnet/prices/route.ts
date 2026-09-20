@@ -33,12 +33,12 @@ export async function POST(request: Request): Promise<Response> {
     return parsed.response;
   }
 
-  const perWallet = await withinTheLimit('faucet', 'devnet/prices/wallet', wallet);
+  const perWallet = await withinTheLimit('marketMove', 'devnet/prices/wallet', wallet);
   if (!perWallet.allowed) {
     return tooMany(perWallet.retryAfterSeconds);
   }
   const perHost = await withinTheLimit(
-    'faucet',
+    'marketMove',
     'devnet/prices/host',
     callerAddress(request),
   );

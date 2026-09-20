@@ -72,6 +72,8 @@ interface SessionValue {
   readonly onTheWrongNetwork: boolean;
   readonly networkName: 'devnet' | 'mainnet';
   readonly refresh: () => Promise<void>;
+  readonly tokensGrantedCount: number;
+  readonly noteTokensGranted: () => void;
   readonly signIn: (walletName?: string) => Promise<void>;
   readonly signOut: () => Promise<void>;
   readonly acceptTerms: () => Promise<void>;
@@ -101,6 +103,11 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
     wallet: StandardWallet;
     account: StandardAccount;
   } | null>(null);
+  const [tokensGrantedCount, setTokensGrantedCount] = useState(0);
+
+  const noteTokensGranted = useCallback((): void => {
+    setTokensGrantedCount((count) => count + 1);
+  }, []);
 
   const [walletsOnTheBrowser, setWalletsOnTheBrowser] = useState({
     any: false,
@@ -359,6 +366,8 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       me,
       busy,
       failure,
+      tokensGrantedCount,
+      noteTokensGranted,
       onTheWrongNetwork,
       networkName,
       refresh,
@@ -376,6 +385,8 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       me,
       busy,
       failure,
+      tokensGrantedCount,
+      noteTokensGranted,
       onTheWrongNetwork,
       networkName,
       refresh,

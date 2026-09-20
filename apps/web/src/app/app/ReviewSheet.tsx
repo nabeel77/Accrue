@@ -9,9 +9,9 @@ import {
   Button,
   Heading,
   Mono,
-  Muted,
   Row,
   Sheet,
+  SkeletonRows,
   Stack,
   TransactionLink,
 } from '../../components/ui/index.js';
@@ -262,7 +262,7 @@ export function ReviewSheet({
   return (
     <Sheet title={REVIEW_COPY.title} open={open} testId="review-sheet" onClose={onClose}>
       <Stack gap={14}>
-        {built === null ? <Muted>{COMMON.loading}</Muted> : null}
+        {built === null ? <SkeletonRows rows={5} testId="review-loading" /> : null}
         {failure === null ? null : (
           <Banner tone="caution" testId="review-failure">
             {failure.sentence}

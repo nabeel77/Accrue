@@ -2,7 +2,14 @@
 
 import type { JSX, ReactNode } from 'react';
 
-import { Button, Heading, Muted, Panel, Stack } from '../../components/ui/index.js';
+import {
+  Button,
+  Heading,
+  Muted,
+  Panel,
+  SkeletonRows,
+  Stack,
+} from '../../components/ui/index.js';
 import { ACKNOWLEDGEMENT_COPY } from '../../copy/acknowledgement.js';
 import { COMMON } from '../../copy/common.js';
 import { TERMS_COPY } from '../../copy/terms.js';
@@ -19,7 +26,11 @@ export function TermsGate({
   const { me, acceptTerms, busy } = useSession();
 
   if (me === null) {
-    return <Muted>{COMMON.loading}</Muted>;
+    return (
+      <Panel style={{ maxWidth: 560 }}>
+        <SkeletonRows rows={3} testId="terms-loading" />
+      </Panel>
+    );
   }
 
   if (!me.signedIn) {

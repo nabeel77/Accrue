@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import {
   Banner,
   Button,
+  CENTRED_SCREEN,
   Explainer,
   Heading,
   Mono,
@@ -12,9 +13,9 @@ import {
   NumbersInMono,
   Panel,
   Row,
+  SkeletonCard,
   Stack,
 } from '../../components/ui/index.js';
-import { COMMON } from '../../copy/common.js';
 import { DEPOSIT_COPY, EARNS_EXPLAINER_COPY } from '../../copy/deposit.js';
 import { earnsPerYearLines } from '../../client/earnsPerYearLines.js';
 import { YIELD_LINE } from '../../copy/banners.js';
@@ -97,7 +98,7 @@ function wholeBalanceOf(entry: StockRow): number {
 }
 
 export function Deposit(): JSX.Element {
-  const { me, signAndSubmit } = useSession();
+  const { me, signAndSubmit, tokensGrantedCount } = useSession();
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
   const [priceSource, setPriceSource] = useState<PriceSource>('jupiter');
   const [chosenDestination, setChosenDestination] = useState<string | null>(null);
@@ -129,7 +130,7 @@ export function Deposit(): JSX.Element {
       const offered = body.destinations.find((entry) => entry.exit !== null);
       setChosenDestination((current) => current ?? offered?.symbol ?? null);
     })();
-  }, []);
+  }, [tokensGrantedCount]);
 
   const readTheDefaults = useCallback(async (): Promise<void> => {
     if (chosenDestination === null) {
@@ -167,7 +168,7 @@ export function Deposit(): JSX.Element {
     setChosenStock((current) => current ?? body.stocks[0]?.symbol ?? null);
     setSizing(body.sizing);
     setQuotedAt(body.quotedAtMilliseconds);
-  }, [chosenDestination, chosenStock, dollars]);
+  }, [chosenDestination, chosenStock, dollars, tokensGrantedCount]);
 
   useEffect(() => {
     const soon = setTimeout(() => {
@@ -229,6 +230,7 @@ export function Deposit(): JSX.Element {
       )}
       <div
         style={{
+          ...CENTRED_SCREEN,
           display: 'grid',
           gridTemplateColumns:
             'minmax(260px, 320px) minmax(320px, 1fr) minmax(260px, 320px)',
@@ -245,7 +247,13 @@ export function Deposit(): JSX.Element {
                 {DEPOSIT_COPY.earnsColumnTitle}
               </span>
             </Row>
-            {stocks.length === 0 ? <Muted>{COMMON.loading}</Muted> : null}
+            {stocks.length === 0 ? (
+              <Stack gap={10} testId="stocks-loading">
+                <SkeletonCard lines={1} />
+                <SkeletonCard lines={1} />
+                <SkeletonCard lines={1} />
+              </Stack>
+            ) : null}
             {stocks.map((entry) => {
               const balance = wholeBalanceOf(entry);
               const chosen = entry.symbol === chosenStock;
@@ -434,7 +442,12 @@ export function Deposit(): JSX.Element {
         <Panel>
           <Stack gap={12}>
             <Heading level={3}>{DEPOSIT_COPY.earnInColumnTitle}</Heading>
-            {destinations.length === 0 ? <Muted>{COMMON.loading}</Muted> : null}
+            {destinations.length === 0 ? (
+              <Stack gap={10} testId="destinations-loading">
+                <SkeletonCard lines={1} />
+                <SkeletonCard lines={1} />
+              </Stack>
+            ) : null}
             {destinations.map((entry) => {
               const chosen = entry.symbol === chosenDestination;
               const offered = entry.exit !== null;

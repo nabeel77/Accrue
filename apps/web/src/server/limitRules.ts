@@ -1,6 +1,7 @@
 export const A_MINUTE_IN_MILLISECONDS = 60_000;
 
-export type LimitName = 'nonce' | 'verify' | 'build' | 'submit' | 'read' | 'faucet';
+export type LimitName =
+  'nonce' | 'verify' | 'build' | 'submit' | 'read' | 'faucet' | 'marketMove';
 
 // The variable each limit is read from, and the number it falls back to when nothing is set.
 export const LIMIT_VARIABLES: Readonly<
@@ -12,6 +13,7 @@ export const LIMIT_VARIABLES: Readonly<
   submit: { variable: 'RATE_LIMIT_SUBMIT_PER_WALLET', fallback: 6 },
   read: { variable: 'RATE_LIMIT_READ_PER_WALLET', fallback: 60 },
   faucet: { variable: 'RATE_LIMIT_FAUCET_PER_WALLET', fallback: 2 },
+  marketMove: { variable: 'RATE_LIMIT_MARKET_MOVE_PER_WALLET', fallback: 60 },
 };
 
 export function theWindowStart(nowMilliseconds: number): number {

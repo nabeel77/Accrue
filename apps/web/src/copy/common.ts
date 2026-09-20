@@ -20,7 +20,6 @@ export const COMMON = {
   signingIn: 'Signing in',
   signMessagePrompt: 'Sign one message to prove this wallet is yours.',
   missingValue: '—',
-  loading: 'Reading the chain',
   tryAgain: 'Try again',
   close: 'Close',
   done: 'Done',

@@ -11,6 +11,7 @@ import {
   Muted,
   Panel,
   Row,
+  SkeletonCard,
   Stack,
 } from '../../../components/ui/index.js';
 import { COMMON } from '../../../copy/common.js';
@@ -81,7 +82,11 @@ export default function PortfolioPage(): JSX.Element {
       <Panel>
         <Stack gap={14}>
           <Heading level={3}>{PORTFOLIO_COPY.openPositions}</Heading>
-          {positions === null ? <Muted>{COMMON.loading}</Muted> : null}
+          {positions === null ? (
+            <Stack gap={10} testId="positions-loading">
+              <SkeletonCard lines={5} />
+            </Stack>
+          ) : null}
           {positions?.length === 0 ? (
             <Muted testId="no-positions">{PORTFOLIO_COPY.noPositions}</Muted>
           ) : null}
