@@ -17,7 +17,8 @@ import {
   type Step,
   type WalkState,
 } from './priceWalk.js';
-import { setThePoolRates } from './router.js';
+import { refreshEveryReserve } from './refreshReserves.js';
+import { setThePoolRates, topUpThePoolVaultsUnderTheFloor } from './router.js';
 import {
   adminSigner,
   connectToDevnet,
@@ -58,16 +59,47 @@ async function writeEverything(
     values,
   );
   reportServiceSignature('prices written', signature);
-  const rates = await setThePoolRates(
-    feed.cluster,
-    feed.admin,
-    (await namedSigner('honest-swap')).address,
-    values,
-  );
+  const swapProgram = (await namedSigner('honest-swap')).address;
+  const rates = await setThePoolRates(feed.cluster, feed.admin, swapProgram, values);
   if (rates !== undefined) {
     reportServiceSignature('router rates written', rates);
   }
+  await keepThePoolVaultsStocked(feed, swapProgram);
+  await refreshWhatTheMarketQuotes(feed);
   return signature;
+}
+
+async function refreshWhatTheMarketQuotes(feed: Feed): Promise<void> {
+  try {
+    const refreshed = await refreshEveryReserve(feed.cluster, feed.admin, feed.prices);
+    reportServiceSignature('reserves refreshed', refreshed);
+  } catch (failure) {
+    reportStep(
+      `  the reserves could not be refreshed: ${failure instanceof Error ? failure.message : 'no reason given'}`,
+    );
+  }
+}
+
+async function keepThePoolVaultsStocked(feed: Feed, swapProgram: Address): Promise<void> {
+  try {
+    const { topped, signature } = await topUpThePoolVaultsUnderTheFloor(
+      feed.cluster,
+      feed.admin,
+      swapProgram,
+    );
+    for (const vault of topped) {
+      reportStep(
+        `  vault ${vault.symbol.padEnd(6)} was ${vault.wholeUnitsHeld.toFixed(2)}, under its floor of ${vault.floor}, topped up`,
+      );
+    }
+    if (signature !== undefined) {
+      reportServiceSignature('router vaults topped up', signature);
+    }
+  } catch (failure) {
+    reportStep(
+      `  the router vaults could not be topped up: ${failure instanceof Error ? failure.message : 'no reason given'}`,
+    );
+  }
 }
 
 function moveOneToken(

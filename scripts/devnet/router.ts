@@ -44,6 +44,15 @@ export const SANDBOX_PAIRS: readonly (readonly [string, string])[] = [
 ];
 
 const VAULT_FUNDING = { USDC: 500_000, ONyc: 500_000 } as const;
+const VAULT_FLOOR = { USDC: 100_000, ONyc: 100_000 } as const;
+
+export interface VaultReading {
+  readonly symbol: string;
+  readonly vault: Address;
+  readonly wholeUnitsHeld: number;
+  readonly floor: number;
+  readonly isUnderTheFloor: boolean;
+}
 
 function unsigned(value: bigint, byteLength: number): Uint8Array {
   const bytes = new Uint8Array(byteLength);
@@ -78,7 +87,10 @@ export function rateBetween(
   };
 }
 
-async function vaultFor(swapProgram: Address, token: SandboxToken): Promise<Address> {
+export async function vaultFor(
+  swapProgram: Address,
+  token: SandboxToken,
+): Promise<Address> {
   const authority = await findSandboxSwapAuthority(swapProgram);
   const mint = (await namedSigner(mintKeypairName(token))).address;
   const [vault] = await findAssociatedTokenPda({
@@ -169,6 +181,72 @@ async function fundInstruction(
     ],
     data: tagged(FUND_TAG, [amount]),
   };
+}
+
+export async function readThePoolVaults(
+  cluster: Cluster,
+  swapProgram: Address,
+): Promise<VaultReading[]> {
+  const readings: VaultReading[] = [];
+  for (const [symbol, floor] of Object.entries(VAULT_FLOOR)) {
+    const token = tokenBySymbol(symbol);
+    const vault = await vaultFor(swapProgram, token);
+    const balance = await cluster.rpc
+      .getTokenAccountBalance(vault)
+      .send()
+      .catch(() => null);
+    const wholeUnitsHeld = Number(balance?.value.uiAmountString ?? 0);
+    readings.push({
+      symbol,
+      vault,
+      wholeUnitsHeld,
+      floor,
+      isUnderTheFloor: wholeUnitsHeld < floor,
+    });
+  }
+  return readings;
+}
+
+export async function topUpThePoolVaultsUnderTheFloor(
+  cluster: Cluster,
+  admin: KeyPairSigner,
+  swapProgram: Address,
+): Promise<{ readonly topped: readonly VaultReading[]; readonly signature?: string }> {
+  const readings = await readThePoolVaults(cluster, swapProgram);
+  const hungry = readings.filter((reading) => reading.isUnderTheFloor);
+  if (hungry.length === 0) {
+    return { topped: [] };
+  }
+
+  const instructions: Instruction[] = [];
+  for (const reading of hungry) {
+    const token = tokenBySymbol(reading.symbol);
+    const backUpTo = VAULT_FUNDING[reading.symbol as keyof typeof VAULT_FUNDING];
+    const raw = wholeUnits(token, Math.ceil(backUpTo - reading.wholeUnitsHeld));
+    const mint = (await namedSigner(mintKeypairName(token))).address;
+    const tokenProgram = tokenProgramAddress(token);
+    const [source] = await findAssociatedTokenPda({
+      owner: admin.address,
+      mint,
+      tokenProgram,
+    });
+    instructions.push(
+      getCreateAssociatedTokenIdempotentInstruction({
+        payer: admin,
+        ata: source,
+        owner: admin.address,
+        mint,
+        tokenProgram,
+      }),
+      getMintToInstruction(
+        { mint, token: source, mintAuthority: admin, amount: raw },
+        { programAddress: tokenProgram },
+      ),
+      await fundInstruction(swapProgram, admin, token, raw),
+    );
+  }
+  const signature = await sendInstructions(cluster, admin, instructions);
+  return { topped: hungry, signature };
 }
 
 // Keeps the router quoting what the oracle is saying.

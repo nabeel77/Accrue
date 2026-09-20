@@ -1,0 +1,26 @@
+app = "accrue-faucet"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  faucet = "sh scripts/deploy/with-keys.sh pnpm exec tsx scripts/devnet/faucet-server.ts"
+
+[env]
+  SOLANA_CLUSTER = "devnet"
+  DEVNET_FAUCET_PORT = "8787"
+  DEVNET_KEYPAIR_DIR = "/tmp/accrue-devnet"
+  ADMIN_KEYPAIR_PATH = "/tmp/accrue-devnet/admin.json"
+
+[http_service]
+  processes = ["faucet"]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

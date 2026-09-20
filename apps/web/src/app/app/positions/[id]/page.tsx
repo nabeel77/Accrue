@@ -14,6 +14,7 @@ import {
   HealthBar,
   Mono,
   Muted,
+  NumbersInMono,
   Panel,
   Row,
   Explainer,
@@ -23,8 +24,17 @@ import {
   Toggle,
   TransactionLink,
 } from '../../../../components/ui/index.js';
-import { BANNERS, CLOSING_COPY, POSITION_LABELS } from '../../../../copy/banners.js';
-import { AMOUNT_FIELD_COPY, COMMON } from '../../../../copy/common.js';
+import {
+  BANNERS,
+  CLOSING_COPY,
+  POSITION_LABELS,
+  TEST_USDC_COPY,
+} from '../../../../copy/banners.js';
+import {
+  A_LINE_IN_BOTH_UNITS,
+  AMOUNT_FIELD_COPY,
+  COMMON,
+} from '../../../../copy/common.js';
 import {
   ACTION_COPY,
   AMOUNT_SHEET_COPY,
@@ -51,6 +61,7 @@ import {
   type ReadableFailure,
 } from '../../../../client/failures.js';
 import { borrowMoreLines } from '../../../../client/borrowMoreLines.js';
+import { theGuardLine, theLiquidationLine } from '@accrue/core/price-fall';
 import { useSession } from '../../../../client/session.js';
 import { useSubmit } from '../../../../client/useSubmit.js';
 import { DevnetMarketBlock } from '../../DevnetMarketBlock.js';
@@ -189,8 +200,15 @@ export default function PositionPage(): JSX.Element {
     'none' | 'close' | 'add' | 'repay' | 'guard' | 'top-up' | 'top-up-review'
   >('none');
   const [amount, setAmount] = useState('');
+  const [faucet, setFaucet] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const closeTheSheet = useCallback((): void => {
     setSheet('none');
+  }, []);
+
+  const askTheFaucetForUsdc = useCallback(async (): Promise<void> => {
+    setFaucet('sending');
+    const answer = await fetch('/api/devnet/faucet', { method: 'POST' });
+    setFaucet(answer.ok ? 'sent' : 'failed');
   }, []);
   const [guard, setGuard] = useState({
     target: 0,
@@ -489,11 +507,26 @@ export default function PositionPage(): JSX.Element {
           },
           {
             label: GUARD_PARAMETER_LABELS.guard,
-            value: percent(onChain.protectLtvBps, 0),
+            value: A_LINE_IN_BOTH_UNITS(
+              onChain.stockSymbol,
+              percent(
+                theGuardLine(onChain.targetLtvBps, onChain.protectLtvBps).fallBps,
+                0,
+              ),
+              percent(onChain.protectLtvBps, 0),
+            ),
           },
           {
             label: GUARD_PARAMETER_LABELS.liquidationThreshold,
-            value: percent(onChain.liquidationThresholdBps, 0),
+            value: A_LINE_IN_BOTH_UNITS(
+              onChain.stockSymbol,
+              percent(
+                theLiquidationLine(onChain.targetLtvBps, onChain.liquidationThresholdBps)
+                  .fallBps,
+                0,
+              ),
+              percent(onChain.liquidationThresholdBps, 0),
+            ),
           },
         ]}
         protectNowIsPointless={onChain.loanToValueBps < onChain.protectLtvBps}
@@ -594,22 +627,61 @@ export default function PositionPage(): JSX.Element {
           <p style={{ margin: 0, color: 'var(--color-text)' }}>
             {closing?.sentence ?? CLOSING_COPY.shortfallSentence}
           </p>
-          <Row>
-            <span style={{ color: 'var(--color-text-secondary)' }}>
-              {CLOSING_COPY.estimateLabel}
-            </span>
-            <Mono tone="gold" testId="closing-estimate">
-              {closing?.neededFromTheWalletRaw == null
-                ? COMMON.missingValue
-                : `${money(rawToWhole(closing.neededFromTheWalletRaw, onChain.borrowDecimals))} USDC`}
-            </Mono>
-          </Row>
           {closing?.neededFromTheWalletRaw == null ? (
-            <Muted>{ACTION_COPY.estimateUnavailable}</Muted>
-          ) : null}
+            <Stack gap={10}>
+              <Muted testId="closing-no-price">
+                {CLOSING_COPY.noPriceRightNow(onChain.destinationSymbol)}
+              </Muted>
+              <div>
+                <Button
+                  tone="quiet"
+                  testId="closing-try-again"
+                  disabled={sheet === 'close' && closing === null}
+                  onClick={() => {
+                    void openClosing();
+                  }}
+                >
+                  {closing === null
+                    ? CLOSING_COPY.askingForAPrice
+                    : CLOSING_COPY.tryAgain}
+                </Button>
+              </div>
+            </Stack>
+          ) : (
+            <Stack gap={10}>
+              <Row style={{ gap: 12, flexWrap: 'wrap' }}>
+                <span data-testid="closing-estimate">
+                  <NumbersInMono
+                    sentence={CLOSING_COPY.youNeedAbout(
+                      `$${money(rawToWhole(closing.neededFromTheWalletRaw, onChain.borrowDecimals))}`,
+                    )}
+                  />
+                </span>
+                {cluster === 'devnet' ? (
+                  <Button
+                    tone="quiet"
+                    testId="closing-get-test-usdc"
+                    disabled={faucet === 'sending'}
+                    onClick={() => void askTheFaucetForUsdc()}
+                  >
+                    {faucet === 'sending'
+                      ? TEST_USDC_COPY.getting
+                      : faucet === 'sent'
+                        ? TEST_USDC_COPY.sent
+                        : TEST_USDC_COPY.get}
+                  </Button>
+                ) : null}
+              </Row>
+              {faucet === 'failed' ? <Muted>{TEST_USDC_COPY.failed}</Muted> : null}
+            </Stack>
+          )}
           <Button
             testId="confirm-close"
-            disabled={working || closingFailure !== null}
+            disabled={
+              working ||
+              closingFailure !== null ||
+              closing?.neededFromTheWalletRaw == null
+            }
             onClick={() => {
               void submit.run(`/api/positions/${parameters.id}/unwind/build`);
             }}

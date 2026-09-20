@@ -342,11 +342,14 @@ pub fn handle_unwind<'info>(
         .usdc_repaid_total
         .checked_add(repaid)
         .ok_or(AccrueError::MathOverflow)?;
-    let fee = performance_fee_on_realised_profit(
+    let fee_on_the_profit = performance_fee_on_realised_profit(
         sales_total,
         repaid_total,
         accounts.position.fee_bps_at_open,
     )?;
+    let usdc_the_position_still_holds =
+        token_account_amount(&accounts.position_usdc_account.to_account_info())?;
+    let fee = fee_on_the_profit.min(usdc_the_position_still_holds);
     if fee > 0 {
         move_tokens(
             &accounts.position_usdc_account.to_account_info(),

@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/.next
+target
+.env
+**/.env
+.husky
+docs
+tests/fixtures/programs
+programs
+Cargo.lock
+Cargo.toml
+rust-toolchain.toml
+Anchor.toml

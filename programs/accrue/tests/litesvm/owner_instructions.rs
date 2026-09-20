@@ -1,6 +1,6 @@
 use accrue::kamino::scaled_fraction_to_whole_units_rounding_up;
 use accrue::state::{Position, PositionState, Strategy};
-use anchor_lang::AccountDeserialize;
+use anchor_lang::{AccountDeserialize, AnchorSerialize, Discriminator};
 use solana_address::Address;
 use solana_signer::Signer;
 
@@ -21,6 +21,23 @@ fn the_account_is_gone(world: &World, address: &Address) -> bool {
 fn read_position(world: &World, address: &Address) -> Position {
     let account = world.svm.get_account(address).unwrap();
     Position::try_deserialize(&mut account.data.as_slice()).unwrap()
+}
+
+fn give_the_position_a_history_of_protects(
+    world: &mut World,
+    address: &Address,
+    usdc_from_sales_total: u64,
+    usdc_repaid_total: u64,
+) {
+    let mut account = world.svm.get_account(address).unwrap();
+    let mut position = Position::try_deserialize(&mut account.data.as_slice()).unwrap();
+    position.usdc_from_sales_total = usdc_from_sales_total;
+    position.usdc_repaid_total = usdc_repaid_total;
+    let mut written = Position::DISCRIMINATOR.to_vec();
+    position.serialize(&mut written).unwrap();
+    written.resize(account.data.len(), 0);
+    account.data = written;
+    world.svm.set_account(*address, account).unwrap();
 }
 
 #[test]
@@ -684,6 +701,106 @@ fn unwind_takes_only_the_shortfall_from_the_owner_when_the_sale_falls_short() {
         world.token_balance(&world.treasury_usdc_account),
         0,
         "a sale that did not cover the loan made no profit to charge a fee on"
+    );
+    assert_eq!(world.token_balance(&opened.tokens.position_usdc), 0);
+    assert_eq!(world.position(&opened.address).state, PositionState::Closed);
+}
+
+#[test]
+fn unwind_closes_when_a_profitable_history_meets_a_sale_the_owner_has_to_top_up() {
+    let mut world = World::new();
+    world.install_swap_program(HONEST_SWAP_PROGRAM);
+    let opened = world.open_a_position_awaiting_its_swap(POSITION_SIZE_USD, BORROW_AMOUNT);
+
+    let sales_before = 12_249_908;
+    let repaid_before = 12_115_297;
+    give_the_position_a_history_of_protects(
+        &mut world,
+        &opened.address,
+        sales_before,
+        repaid_before,
+    );
+    let seeded = read_position(&world, &opened.address);
+    assert_eq!(seeded.usdc_from_sales_total, sales_before);
+    assert_eq!(seeded.usdc_repaid_total, repaid_before);
+    assert_eq!(seeded.fee_bps_at_open, 1_000);
+
+    let destination_bought = 4_000_000_000;
+    world.set_token_account(
+        opened.tokens.position_destination,
+        world.destination_mint,
+        opened.address,
+        destination_bought,
+        world.destination_token_program,
+    );
+    world.set_token_account(
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        opened.address,
+        0,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let owner_usdc_before = 5_000_000;
+    world.set_token_account(
+        opened.tokens.owner_usdc,
+        world.borrow.liquidity_mint(),
+        world.owner.pubkey(),
+        owner_usdc_before,
+        accrue::constants::TOKEN_PROGRAM_ID,
+    );
+
+    let debt_before = u64::try_from(scaled_fraction_to_whole_units_rounding_up(
+        world.obligation_debt(&opened.obligation),
+    ))
+    .unwrap();
+
+    let shortfall = 100_000;
+    let sale_proceeds = debt_before - shortfall;
+    assert!(
+        sales_before + sale_proceeds > repaid_before + debt_before,
+        "the history has to leave a profit for the fee to be charged on, \
+         or this is not the position that failed on devnet"
+    );
+
+    let route_accounts = world.swap_route_accounts(
+        opened.address,
+        opened.tokens.position_destination,
+        world.destination_mint,
+        world.destination_token_program,
+        opened.tokens.position_usdc,
+        world.borrow.liquidity_mint(),
+        accrue::constants::TOKEN_PROGRAM_ID,
+        None,
+    );
+
+    let owner = world.owner.insecure_clone();
+    let instruction = world.unwind_instruction(
+        &opened,
+        owner.pubkey(),
+        sale_proceeds,
+        honest_route_data(destination_bought, sale_proceeds),
+        route_accounts,
+    );
+    world
+        .send(&[instruction], &[&owner])
+        .unwrap_or_else(|failure| {
+            panic!(
+                "the fee reached past what the position held: {:?} {:#?}",
+                failure.err, failure.meta.logs
+            )
+        });
+
+    assert_eq!(world.obligation_debt(&opened.obligation), 0);
+    assert_eq!(
+        world.token_balance(&opened.tokens.owner_usdc),
+        owner_usdc_before - shortfall,
+        "unwind takes exactly the debt from the owner and never a fee on top"
+    );
+    assert_eq!(
+        world.token_balance(&world.treasury_usdc_account),
+        0,
+        "a position the owner had to top up has no profit in hand to charge"
     );
     assert_eq!(world.token_balance(&opened.tokens.position_usdc), 0);
     assert_eq!(world.position(&opened.address).state, PositionState::Closed);

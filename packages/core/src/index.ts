@@ -12,3 +12,5 @@ export * from './positions/borrowMore.js';
 export * from './positions/priceMargin.js';
 export * from './positions/topUp.js';
 export * from './positions/strategy.js';
+export * from './positions/maxDeposit.js';
+export * from './positions/priceFall.js';

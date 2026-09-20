@@ -27,6 +27,12 @@ import {
   wholeToRaw,
 } from '../../client/format.js';
 import type { DepositSizing } from '@accrue/core/deposit';
+import {
+  aPriceHasArrivedFor,
+  walletValueInDollars,
+  whatTheMaxButtonFills,
+  wholeBalanceOfAStock,
+} from '@accrue/core/max-deposit';
 
 import { useSession } from '../../client/session.js';
 import { AcknowledgementSheet } from './AcknowledgementSheet.js';
@@ -87,7 +93,7 @@ interface PositionSizeLimits {
 }
 
 function wholeBalanceOf(entry: StockRow): number {
-  return entry.balanceRaw === null ? 0 : rawToWhole(entry.balanceRaw, entry.decimals);
+  return wholeBalanceOfAStock(entry);
 }
 
 export function Deposit(): JSX.Element {
@@ -196,18 +202,9 @@ export function Deposit(): JSX.Element {
   const targetLtvBps = adjustments?.targetLtvBps ?? stock?.targetLtvBps ?? 0;
   const protectLtvBps = adjustments?.protectLtvBps ?? stock?.protectLtvBps ?? 0;
   const borrowUsd = (amountUsd * targetLtvBps) / 10_000;
-  // How far the stock has to fall from today's price before the market liquidates this position.
-  const liquidationFallBps =
-    stock === null || stock.liquidationThresholdBps === 0
-      ? 0
-      : Math.max(
-          10_000 - Math.round((targetLtvBps / stock.liquidationThresholdBps) * 10_000),
-          0,
-        );
 
-  const walletValueUsd = stock === null ? 0 : wholeBalanceOf(stock) * price;
-  const theMostThatCanBeDeposited =
-    limits === null ? walletValueUsd : Math.min(walletValueUsd, limits.largestUsd);
+  const walletValueUsd = walletValueInDollars(stock);
+  const aPriceHasArrived = aPriceHasArrivedFor(stock);
   const holdsNoStock = stocks.every((entry) => wholeBalanceOf(entry) === 0);
 
   // The acknowledgement comes before the first position, not on the way in to the app.
@@ -366,18 +363,28 @@ export function Deposit(): JSX.Element {
               <Button
                 tone="quiet"
                 testId="amount-max"
+                disabled={!aPriceHasArrived}
                 onClick={() => {
-                  setDollars(
-                    (Math.floor(theMostThatCanBeDeposited * 100) / 100).toFixed(2),
-                  );
+                  setDollars(whatTheMaxButtonFills(stock, limits?.largestUsd ?? null));
                 }}
               >
-                {DEPOSIT_COPY.amountMax}
+                {aPriceHasArrived
+                  ? DEPOSIT_COPY.amountMax
+                  : DEPOSIT_COPY.amountMaxWaitingForAPrice}
               </Button>
             </Row>
             {stock === null ? null : (
               <Mono tone="muted" testId="amount-under" style={{ fontSize: 12 }}>
-                {DEPOSIT_COPY.inYourWallet(money(wholeBalanceOf(stock), 6), stock.symbol)}
+                {aPriceHasArrived
+                  ? DEPOSIT_COPY.inYourWalletWorth(
+                      money(wholeBalanceOf(stock), 3),
+                      stock.symbol,
+                      `$${money(walletValueUsd, 0)}`,
+                    )
+                  : DEPOSIT_COPY.inYourWallet(
+                      money(wholeBalanceOf(stock), 3),
+                      stock.symbol,
+                    )}
               </Mono>
             )}
 
@@ -567,8 +574,9 @@ export function Deposit(): JSX.Element {
             destinationSymbol={destination.symbol}
             sizing={sizing}
             quotedAtMilliseconds={quotedAt}
+            targetLtvBps={targetLtvBps}
             protectLtvBps={protectLtvBps}
-            liquidationFallBps={liquidationFallBps}
+            liquidationThresholdBps={stock.liquidationThresholdBps}
             limits={limits}
             openPosition={
               stock.openPosition === null

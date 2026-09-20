@@ -1,0 +1,34 @@
+app = "accrue-prices"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  prices = "sh scripts/deploy/with-keys.sh pnpm exec tsx scripts/devnet/price-service.ts"
+
+[env]
+  SOLANA_CLUSTER = "devnet"
+  DEVNET_PRICES_PORT = "8788"
+  DEVNET_KEYPAIR_DIR = "/tmp/accrue-devnet"
+  ADMIN_KEYPAIR_PATH = "/tmp/accrue-devnet/admin.json"
+  DEVNET_PRICE_WRITE_SECONDS = "20"
+  DEVNET_PRICE_STEP_SECONDS = "300"
+  DEVNET_PRICE_STEP_PERCENT = "4"
+  DEVNET_PRICE_PULL_PERCENT = "25"
+  DEVNET_PRICE_BIG_MOVE_ODDS = "0.083"
+  DEVNET_PRICE_BIG_MOVE_LOW_PERCENT = "20"
+  DEVNET_PRICE_BIG_MOVE_HIGH_PERCENT = "25"
+  DEVNET_PRICE_RECOVERY_STEPS = "6"
+
+[http_service]
+  processes = ["prices"]
+  internal_port = 8788
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
