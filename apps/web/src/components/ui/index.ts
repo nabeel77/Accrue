@@ -5,6 +5,7 @@ export { GuardCard, type GuardCardProps } from './GuardCard.js';
 export { HealthBar } from './HealthBar.js';
 export { Sheet } from './Sheet.js';
 export { Skeleton, SkeletonCard, SkeletonRows } from './Skeleton.js';
+export { Sparkline, type SparklinePoint } from './Sparkline.js';
 export { Toast, type ToastTone } from './Toast.js';
 export { Slider } from './Slider.js';
 export { Toggle } from './Toggle.js';

@@ -4,6 +4,7 @@ import type { JSX, ReactNode } from 'react';
 
 import {
   Button,
+  CENTRED_SCREEN,
   Heading,
   Muted,
   Panel,
@@ -27,7 +28,7 @@ export function TermsGate({
 
   if (me === null) {
     return (
-      <Panel style={{ maxWidth: 560 }}>
+      <Panel style={{ ...CENTRED_SCREEN, maxWidth: 560 }}>
         <SkeletonRows rows={3} testId="terms-loading" />
       </Panel>
     );
@@ -35,7 +36,7 @@ export function TermsGate({
 
   if (!me.signedIn) {
     return (
-      <Panel style={{ maxWidth: 560 }}>
+      <Panel style={{ ...CENTRED_SCREEN, maxWidth: 560 }}>
         <Stack gap={14}>
           <Heading level={1}>accrue</Heading>
           <Muted>{COMMON.signMessagePrompt}</Muted>
@@ -51,7 +52,7 @@ export function TermsGate({
 
   if (me.terms.accepted !== true) {
     return (
-      <Panel style={{ maxWidth: 640 }} testId="terms-gate">
+      <Panel style={{ ...CENTRED_SCREEN, maxWidth: 640 }} testId="terms-gate">
         <Stack gap={14}>
           <Heading level={1}>{TERMS_COPY.title}</Heading>
           <Muted>{TERMS_COPY.intro}</Muted>

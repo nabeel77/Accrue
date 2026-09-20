@@ -11,7 +11,8 @@
     "./deposit": "./src/positions/defaults.ts",
     "./borrow-more": "./src/positions/borrowMore.ts",
     "./max-deposit": "./src/positions/maxDeposit.ts",
-    "./price-fall": "./src/positions/priceFall.ts"
+    "./price-fall": "./src/positions/priceFall.ts",
+    "./portfolio": "./src/positions/portfolio.ts"
   },
   "scripts": {
     "build": "tsc --build",
