@@ -1,4 +1,12 @@
 export const PORTFOLIO_VALUE_COPY = {
+  earnedSoFar: 'Earned so far',
+  afterTheLoan: 'after the loan',
+  inAccrue: 'In Accrue',
+  whatYourPositionsAreWorth: 'what your positions are worth',
+  holdingTitle: 'What is earning for you',
+  holdingLine: (amount: string, symbol: string): string => `${amount} ${symbol}`,
+  holdingPrice: (price: string): string => `at ${price}`,
+  nothingEarningYet: 'Nothing is earning yet. Your first deposit starts it.',
   everythingYouHold: 'everything you hold',
   inYourPositions: 'in your positions',
   seeBreakdown: 'See breakdown',

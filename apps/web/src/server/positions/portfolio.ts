@@ -6,8 +6,10 @@ import {
   breakDownThePortfolio,
   howTheEquityHasMoved,
   theLineToDraw,
+  whatThePositionsHaveEarned,
   type APointInTime,
   type PortfolioBreakdown,
+  type WhatItHasEarned,
 } from '@accrue/core/portfolio';
 import { schema } from '@accrue/db';
 
@@ -18,8 +20,17 @@ const MOST_POINTS_ON_THE_LINE = 120;
 const A_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const HOW_FAR_BACK_THE_LINE_GOES_DAYS = 30;
 
+export interface AYieldTokenHolding {
+  readonly symbol: string;
+  readonly amount: number;
+  readonly priceUsd: number;
+  readonly valueUsd: number;
+}
+
 export interface PortfolioReading {
   readonly breakdown: PortfolioBreakdown;
+  readonly earned: WhatItHasEarned;
+  readonly holdings: readonly AYieldTokenHolding[];
   readonly changeUsd: number;
   readonly changeBps: number;
   readonly direction: 'up' | 'down' | 'flat';
@@ -77,6 +88,7 @@ export async function readThePortfolio(
   positions: readonly APositionsWorthNow[],
   stockInYourWalletUsd: number,
   usdcInYourWalletUsd: number,
+  holdings: readonly AYieldTokenHolding[],
 ): Promise<PortfolioReading> {
   const breakdown = breakDownThePortfolio(
     positions,
@@ -99,6 +111,8 @@ export async function readThePortfolio(
 
   return {
     breakdown,
+    earned: whatThePositionsHaveEarned(positions),
+    holdings,
     changeUsd: moved.changeUsd,
     changeBps: moved.changeBps,
     direction: moved.direction,

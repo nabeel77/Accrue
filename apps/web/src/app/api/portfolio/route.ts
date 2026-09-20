@@ -6,7 +6,10 @@ import { readScopePrice } from '@accrue/solana/kamino';
 import { destinationForMintOnThisCluster } from '../../../server/markets.js';
 import { positionsOwnedOnChain } from '../../../server/positions/ownedOnChain.js';
 import { readOnePosition } from '../../../server/positions/readPositions.js';
-import { readThePortfolio } from '../../../server/positions/portfolio.js';
+import {
+  readThePortfolio,
+  type AYieldTokenHolding,
+} from '../../../server/positions/portfolio.js';
 import { withinTheLimit } from '../../../server/rateLimit.js';
 import { ok, refuseWith, somethingWentWrong, tooMany } from '../../../server/respond.js';
 import { chain } from '../../../server/rpc.js';
@@ -56,6 +59,7 @@ export async function GET(): Promise<Response> {
     );
 
     const worths = [];
+    const byYieldToken = new Map<string, AYieldTokenHolding>();
     let stockInYourWalletUsd = 0;
     let usdcInYourWalletUsd = 0;
     for (const { reading, destinationMint } of readings) {
@@ -63,6 +67,15 @@ export async function GET(): Promise<Response> {
         continue;
       }
       const destinationPrice = await priceOfTheDestination(destinationMint);
+      const held = wholeUnits(reading.destinationRaw, reading.destinationDecimals);
+      const symbol = destinationForMintOnThisCluster(destinationMint)?.symbol ?? '';
+      const alreadyHeld = byYieldToken.get(symbol);
+      byYieldToken.set(symbol, {
+        symbol,
+        amount: (alreadyHeld?.amount ?? 0) + held,
+        priceUsd: destinationPrice,
+        valueUsd: (alreadyHeld?.valueUsd ?? 0) + held * destinationPrice,
+      });
       worths.push({
         collateralValueUsd:
           wholeUnits(reading.collateralRaw, reading.collateralDecimals) *
@@ -86,6 +99,7 @@ export async function GET(): Promise<Response> {
       worths,
       stockInYourWalletUsd,
       usdcInYourWalletUsd,
+      [...byYieldToken.values()].filter((holding) => holding.amount > 0),
     );
     return ok({ readAt: new Date().toISOString(), ...portfolio });
   } catch (failure) {
