@@ -4,9 +4,10 @@ export const BANNERS = {
     `${stockSymbol} has to fall ${fallToLiquidation} from here before the market liquidates this position. Repaying part of the loan or adding stock moves that further away.`,
   danger: (fallToLiquidation: string, stockSymbol: string, protectLtv: string): string =>
     `${stockSymbol} has to fall only ${fallToLiquidation} from here before the market liquidates this position, and it is already above its guard level of ${protectLtv}.`,
-  guardActsNext: 'The guard repays part of the loan by itself on its next round.',
+  guardActsNext:
+    'The guard repays part of the loan by itself, the next time a keeper looks at this position.',
   guardRepaidAndWaits: (lastRepaid: string, until: string): string =>
-    `The guard repaid ${lastRepaid} and takes its next turn in ${until}. If the market could seize this position before then, the guard acts at once instead of waiting.`,
+    `The guard repaid ${lastRepaid} and can act again in ${until}. If the market could seize this position before then, it acts at once instead of waiting.`,
   guardHasNotActedYet: 'The guard has not repaid anything on this position yet.',
   orDoItYourself: 'You can press Protect now instead, or unwind, or add stock.',
   guardWaiting: (aboveSince: string, keepersLastHour: string): string =>

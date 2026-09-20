@@ -5,7 +5,7 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [processes]
-  keeper = "sh scripts/deploy/with-keys.sh node apps/keeper/dist/index.js"
+  keeper = "sh scripts/deploy/with-keys.sh pnpm exec tsx apps/keeper/src/index.ts"
   cron = "pnpm exec tsx scripts/devnet/cron.ts"
 
 [env]

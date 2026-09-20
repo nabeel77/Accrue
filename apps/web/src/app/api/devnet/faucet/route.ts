@@ -46,6 +46,9 @@ export async function POST(request: Request): Promise<Response> {
       },
       body: JSON.stringify({ wallet }),
     });
+    if (answer.status === 429) {
+      return refuseWith('faucetLimitReached', 429);
+    }
     if (!answer.ok) {
       return refuse('The faucet could not send tokens right now.', 502);
     }

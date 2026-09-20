@@ -41,7 +41,6 @@ const body = z.object({
   overrideAccepted: z.boolean().optional(),
 });
 
-// Which refusals the audit log keeps apart, by the name the builder gave them.
 const AUDIT_ACTIONS: Record<
   string,
   | 'build_refused_terms'

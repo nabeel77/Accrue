@@ -16,8 +16,8 @@ import { grantTestTokens, mintAuthoritySigner } from './faucet.js';
 
 const DEFAULT_PORT = 8787;
 const A_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
-const GRANTS_PER_ADDRESS_PER_DAY = 1;
-const GRANTS_PER_HOST_PER_DAY = 20;
+const GRANTS_PER_ADDRESS_PER_DAY = 5;
+const GRANTS_PER_HOST_PER_DAY = 500;
 
 interface Window {
   count: number;
@@ -79,7 +79,7 @@ async function handleGrant(
   }
   if (!withinTheLimit(perWallet, wallet, GRANTS_PER_ADDRESS_PER_DAY)) {
     refund(perHost, host);
-    answer(response, 429, { error: 'that wallet has had its grant for today' });
+    answer(response, 429, { error: 'that wallet has had its grants for today' });
     return;
   }
 
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
       `devnet faucet listening on ${port}, minting as ${shortenAddress(mintAuthority.address)}`,
     );
     reportStep(
-      `  one grant per wallet a day, ${GRANTS_PER_HOST_PER_DAY} per host a day, shared secret ${
+      `  ${GRANTS_PER_ADDRESS_PER_DAY} grants per wallet a day, ${GRANTS_PER_HOST_PER_DAY} per host a day, shared secret ${
         theSharedSecret() === '' ? 'not set, so every caller is refused' : 'required'
       }`,
     );
