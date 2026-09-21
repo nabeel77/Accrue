@@ -19,6 +19,8 @@ export const FAILURE_CODES = [
   'signInFirst',
   'faucetLimitReached',
   'signInFailed',
+  'signInExpired',
+  'signatureDoesNotMatch',
   'noWallet',
   'walletCannotSign',
   'notYours',
@@ -73,6 +75,9 @@ export const FAILURE_COPY: Record<FailureCode, string> = {
   faucetLimitReached:
     'This wallet has had its test tokens for today. The faucet opens again tomorrow.',
   signInFailed: 'That sign in did not go through. Try again.',
+  signInExpired: 'That sign in took too long. Ask for a new one and sign again.',
+  signatureDoesNotMatch:
+    'That signature did not match the wallet that asked to sign in. Sign in again with the wallet you want to use.',
   noWallet: 'No wallet answered on this browser. Install one and reload.',
   walletCannotSign:
     "That wallet will not sign this. Open this page in your wallet's own browser, or use another wallet.",

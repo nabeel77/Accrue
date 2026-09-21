@@ -2,4 +2,4 @@ set -e
 
 anchor build
 pnpm run build
-pnpm run check:bundle-secrets
+pnpm run check:bundle-secret

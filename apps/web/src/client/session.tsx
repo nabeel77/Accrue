@@ -26,6 +26,7 @@ import {
   connectTheWallet,
   rememberTheChoice,
   signMessage,
+  whenTheWalletChanges,
   canSignAndSendTransaction,
   canSignTransaction,
   signAndSendTransaction,
@@ -107,6 +108,15 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
   const noteTokensGranted = useCallback((): void => {
     setTokensGrantedCount((count) => count + 1);
   }, []);
+
+  useEffect(() => {
+    if (connected === null) {
+      return;
+    }
+    return whenTheWalletChanges(connected.wallet, (account) => {
+      setConnected(account === null ? null : { wallet: connected.wallet, account });
+    });
+  }, [connected]);
 
   const [walletsOnTheBrowser, setWalletsOnTheBrowser] = useState({
     any: false,

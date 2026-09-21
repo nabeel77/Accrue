@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { recordInTheAuditLog } from '../../../../server/gates.js';
 import { callerAddress, withinTheLimit } from '../../../../server/rateLimit.js';
-import { ok, readBody, refuse, tooMany } from '../../../../server/respond.js';
+import { ok, readBody, refuseWith, tooMany } from '../../../../server/respond.js';
 import { signInMessage, spendNonce, startSession } from '../../../../server/session.js';
 
 const body = z.object({
@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   const { wallet, nonce, issuedAt, signature } = parsed.value;
 
   if (!(await spendNonce(wallet, nonce))) {
-    return refuse('That sign in has expired. Ask for a new one.', 401);
+    return refuseWith('signInExpired', 401);
   }
 
   const encoder = getBase58Encoder();
@@ -44,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
     message,
   );
   if (!signed) {
-    return refuse('That signature does not match the wallet.', 401);
+    return refuseWith('signatureDoesNotMatch', 401);
   }
 
   await startSession(wallet, request.headers.get('user-agent'));

@@ -19,6 +19,13 @@ interface ConnectFeature {
   connect(): Promise<{ accounts: readonly StandardAccount[] }>;
 }
 
+interface EventsFeature {
+  on(
+    event: 'change',
+    handler: (changed: { accounts?: readonly StandardAccount[] }) => void,
+  ): () => void;
+}
+
 interface SignMessageFeature {
   signMessage(input: {
     account: StandardAccount;
@@ -140,6 +147,22 @@ export async function connectTheWallet(
   );
   const account = offered[0] ?? accountsForTheChain(wallet, chain)[0];
   return account === undefined ? null : { wallet, account };
+}
+
+export function whenTheWalletChanges(
+  wallet: StandardWallet,
+  changed: (account: StandardAccount | null) => void,
+): () => void {
+  const feature = wallet.features['standard:events'] as EventsFeature | undefined;
+  if (feature === undefined) {
+    return () => undefined;
+  }
+  return feature.on('change', (what) => {
+    if (what.accounts === undefined) {
+      return;
+    }
+    changed(what.accounts[0] ?? null);
+  });
 }
 
 export async function signMessage(
