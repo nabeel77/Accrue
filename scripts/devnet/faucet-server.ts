@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 
 import { address, isAddress, type Address, type KeyPairSigner } from '@solana/kit';
 
-import { shortenAddress } from '@accrue/core';
+import { shortenAddress, shortenEveryAddress } from '@accrue/core';
 
 import {
   answer,
@@ -97,7 +97,13 @@ async function handleGrant(
   } catch (failure) {
     refund(perWallet, wallet);
     refund(perHost, host);
-    reportStep(`grant to ${shortenAddress(wallet)} failed`);
+    reportStep(
+      shortenEveryAddress(
+        `grant to ${shortenAddress(wallet)} failed: ${
+          failure instanceof Error ? failure.message : 'the grant did not land'
+        }`,
+      ),
+    );
     answer(response, 502, {
       error: failure instanceof Error ? failure.message : 'the grant did not land',
     });

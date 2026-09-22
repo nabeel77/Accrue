@@ -16,6 +16,7 @@ import {
   SkeletonCard,
   Stack,
 } from '../../components/ui/index.js';
+import { usePollWhenVisible } from '../../client/pollWhenVisible.js';
 import { COMMON } from '../../copy/common.js';
 import { DEPOSIT_COPY, EARNS_EXPLAINER_COPY } from '../../copy/deposit.js';
 import { earnsPerYearLines } from '../../client/earnsPerYearLines.js';
@@ -91,7 +92,7 @@ interface DestinationRow {
 
 const SCALED_FRACTION_ONE = 2n ** 60n;
 const STOCK_ROW_EXPLAINER_WIDTH = 30;
-const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 6_000;
+const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 20_000;
 const STOCK_LIST_HEIGHT = 'min(56vh, 460px)';
 const A_PAUSE_IN_TYPING = 400;
 
@@ -184,14 +185,12 @@ export function Deposit(): JSX.Element {
     const soon = setTimeout(() => {
       void readTheDefaults();
     }, A_PAUSE_IN_TYPING);
-    const again = setInterval(() => {
-      void readTheDefaults();
-    }, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
     return () => {
       clearTimeout(soon);
-      clearInterval(again);
     };
   }, [readTheDefaults]);
+
+  usePollWhenVisible(readTheDefaults, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
 
   const stock = useMemo(
     () => stocks.find((entry) => entry.symbol === chosenStock) ?? null,

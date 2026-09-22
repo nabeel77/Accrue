@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { schema } from '@accrue/db';
 
@@ -51,6 +51,14 @@ export async function withinTheLimit(
     allowed: isWithinTheAllowance(used, allowance(limit)),
     retryAfterSeconds: retryAfterSeconds(windowStart.getTime(), now),
   };
+}
+
+export async function giveTheAllowanceBack(route: string, key: string): Promise<void> {
+  const windowStart = new Date(theWindowStart(Date.now()));
+  await db()
+    .update(schema.rateLimitBuckets)
+    .set({ count: sql`greatest(${schema.rateLimitBuckets.count} - 1, 0)` })
+    .where(eq(schema.rateLimitBuckets.key, bucketKey(route, key, windowStart.getTime())));
 }
 
 export function callerAddress(request: Request): string {

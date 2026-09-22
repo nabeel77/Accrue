@@ -114,7 +114,14 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       return;
     }
     return whenTheWalletChanges(connected.wallet, (account) => {
-      setConnected(account === null ? null : { wallet: connected.wallet, account });
+      if (account === null) {
+        setConnected(null);
+        return;
+      }
+      if (account.address === connected.account.address) {
+        return;
+      }
+      setConnected({ wallet: connected.wallet, account });
     });
   }, [connected]);
 

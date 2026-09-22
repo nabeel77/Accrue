@@ -1,5 +1,9 @@
 import { isDevnet, optional, required } from '../../../../server/env.js';
-import { callerAddress, withinTheLimit } from '../../../../server/rateLimit.js';
+import {
+  callerAddress,
+  giveTheAllowanceBack,
+  withinTheLimit,
+} from '../../../../server/rateLimit.js';
 import { ok, refuse, refuseWith, tooMany } from '../../../../server/respond.js';
 import { walletOfTheSession } from '../../../../server/session.js';
 
@@ -36,6 +40,12 @@ export async function POST(request: Request): Promise<Response> {
     return tooMany(perHost.retryAfterSeconds);
   }
 
+  const caller = callerAddress(request);
+  const giveItBack = async (): Promise<void> => {
+    await giveTheAllowanceBack('devnet/faucet/wallet', wallet);
+    await giveTheAllowanceBack('devnet/faucet/host', caller);
+  };
+
   const faucetUrl = optional('DEVNET_FAUCET_URL') ?? 'http://127.0.0.1:8787/grant';
   try {
     const answer = await fetch(faucetUrl, {
@@ -50,6 +60,7 @@ export async function POST(request: Request): Promise<Response> {
       return refuseWith('faucetLimitReached', 429);
     }
     if (!answer.ok) {
+      await giveItBack();
       return refuse('The faucet could not send tokens right now.', 502);
     }
     const granted = (await answer.json()) as {
@@ -68,6 +79,7 @@ export async function POST(request: Request): Promise<Response> {
       solSent: theSolIn(granted.lamportsSent),
     });
   } catch {
+    await giveItBack();
     return refuse('The faucet could not send tokens right now.', 502);
   }
 }
