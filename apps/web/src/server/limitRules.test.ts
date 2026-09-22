@@ -78,7 +78,7 @@ describe('every limit', () => {
     });
     expect(LIMIT_VARIABLES.build).toStrictEqual({
       variable: 'RATE_LIMIT_BUILD_PER_WALLET',
-      fallback: 6,
+      fallback: 20,
     });
     expect(LIMIT_VARIABLES.submit).toStrictEqual({
       variable: 'RATE_LIMIT_SUBMIT_PER_WALLET',

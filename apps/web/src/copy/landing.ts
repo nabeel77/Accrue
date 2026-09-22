@@ -3,7 +3,7 @@ export const LANDING_COPY = {
   openApp: 'Open app',
   about: 'About',
   xLabel: 'X',
-  xHref: 'https://x.com/accruestocks',
+  xHref: 'https://x.com/accruexyz',
   hero: {
     headline: 'Keep your stocks. Earn on them anyway.',
     body: 'Deposit tokenized stocks like NVDAx, borrow USDC against them, and put that USDC into a yield token. The code guards the loan and repays it before the market can liquidate you. Your stock never leaves an account only you can empty.',

@@ -23,6 +23,7 @@ import {
 import { COMMON } from '../../../copy/common.js';
 import { PORTFOLIO_COPY, PORTFOLIO_VALUE_COPY } from '../../../copy/portfolio.js';
 import { howLongAgo, money, percent } from '../../../client/format.js';
+import { usePollWhenVisible } from '../../../client/pollWhenVisible.js';
 import { useSession } from '../../../client/session.js';
 
 const A_SECOND = 1_000;
@@ -136,14 +137,7 @@ export default function PortfolioPage(): JSX.Element {
     void readTheValue();
   }, [readTheValue, tokensGrantedCount]);
 
-  useEffect(() => {
-    const again = setInterval(() => {
-      void readTheValue();
-    }, HOW_OFTEN_THE_VALUE_IS_READ);
-    return () => {
-      clearInterval(again);
-    };
-  }, [readTheValue]);
+  usePollWhenVisible(readTheValue, HOW_OFTEN_THE_VALUE_IS_READ);
 
   useEffect(() => {
     setPositions(null);

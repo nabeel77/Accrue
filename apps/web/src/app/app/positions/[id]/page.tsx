@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useState, type JSX } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -63,6 +63,7 @@ import {
 } from '../../../../client/failures.js';
 import { borrowMoreLines } from '../../../../client/borrowMoreLines.js';
 import { theGuardLine, theLiquidationLine } from '@accrue/core/price-fall';
+import { usePollWhenVisible } from '../../../../client/pollWhenVisible.js';
 import { useSession } from '../../../../client/session.js';
 import { useSubmit } from '../../../../client/useSubmit.js';
 import { DevnetMarketBlock } from '../../DevnetMarketBlock.js';
@@ -180,7 +181,7 @@ function BigNumber({
     </Row>
   );
 }
-const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 4_000;
+const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 15_000;
 const A_SECOND = 1_000;
 // Past this, the guard is not being run often enough for anyone to rely on it.
 const HOW_LONG_WITHOUT_A_KEEPER_IS_TOO_LONG_MINUTES = 5;
@@ -256,15 +257,7 @@ export default function PositionPage(): JSX.Element {
   });
 
   // A price age that never moves is not an age, so the screen reads the chain again on a beat.
-  useEffect(() => {
-    void load();
-    const again = setInterval(() => {
-      void load();
-    }, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
-    return () => {
-      clearInterval(again);
-    };
-  }, [load]);
+  usePollWhenVisible(load, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
 
   const openClosing = useCallback(async (): Promise<void> => {
     setSheet('close');

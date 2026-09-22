@@ -126,6 +126,9 @@ export function DevnetMarketBlock({
       }
     };
     const again = setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
       void look();
     }, HOW_OFTEN_THE_GUARD_IS_LOOKED_FOR);
     return () => {

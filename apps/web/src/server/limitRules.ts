@@ -9,7 +9,7 @@ export const LIMIT_VARIABLES: Readonly<
 > = {
   nonce: { variable: 'RATE_LIMIT_NONCE_PER_IP', fallback: 10 },
   verify: { variable: 'RATE_LIMIT_VERIFY_PER_IP', fallback: 10 },
-  build: { variable: 'RATE_LIMIT_BUILD_PER_WALLET', fallback: 6 },
+  build: { variable: 'RATE_LIMIT_BUILD_PER_WALLET', fallback: 20 },
   submit: { variable: 'RATE_LIMIT_SUBMIT_PER_WALLET', fallback: 6 },
   read: { variable: 'RATE_LIMIT_READ_PER_WALLET', fallback: 60 },
   faucet: { variable: 'RATE_LIMIT_FAUCET_PER_WALLET', fallback: 2 },
