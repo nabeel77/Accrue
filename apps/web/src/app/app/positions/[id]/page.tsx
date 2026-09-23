@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useState, type JSX } from 'react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 
 import {
   AmountField,
@@ -25,12 +24,7 @@ import {
   Toggle,
   TransactionLink,
 } from '../../../../components/ui/index.js';
-import {
-  BANNERS,
-  CLOSING_COPY,
-  POSITION_LABELS,
-  TEST_USDC_COPY,
-} from '../../../../copy/banners.js';
+import { BANNERS, CLOSING_COPY, POSITION_LABELS } from '../../../../copy/banners.js';
 import {
   A_LINE_IN_BOTH_UNITS,
   AMOUNT_FIELD_COPY,
@@ -64,6 +58,7 @@ import {
 import { borrowMoreLines } from '../../../../client/borrowMoreLines.js';
 import { theGuardLine, theLiquidationLine } from '@accrue/core/price-fall';
 import { usePollWhenVisible } from '../../../../client/pollWhenVisible.js';
+import { useNotices } from '../../../../client/notices.js';
 import { useSession } from '../../../../client/session.js';
 import { useSubmit } from '../../../../client/useSubmit.js';
 import { DevnetMarketBlock } from '../../DevnetMarketBlock.js';
@@ -71,6 +66,8 @@ import { TopUpSheet } from '../../TopUpSheet.js';
 
 interface OnChain {
   readonly address: string;
+  readonly earnedUsd: number;
+  readonly destinationValueUsd: number;
   readonly state: 'AwaitingSwap' | 'Open' | 'Closing' | 'Closed';
   readonly stockSymbol: string;
   readonly destinationSymbol: string;
@@ -182,6 +179,7 @@ function BigNumber({
   );
 }
 const HOW_OFTEN_THE_SCREEN_READS_AGAIN = 15_000;
+const USDC_DECIMALS = 6;
 const A_SECOND = 1_000;
 // Past this, the guard is not being run often enough for anyone to rely on it.
 const HOW_LONG_WITHOUT_A_KEEPER_IS_TOO_LONG_MINUTES = 5;
@@ -202,16 +200,12 @@ export default function PositionPage(): JSX.Element {
     'none' | 'close' | 'add' | 'repay' | 'guard' | 'top-up' | 'top-up-review'
   >('none');
   const [amount, setAmount] = useState('');
-  const [faucet, setFaucet] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const { say } = useNotices();
+  const router = useRouter();
   const closeTheSheet = useCallback((): void => {
     setSheet('none');
   }, []);
 
-  const askTheFaucetForUsdc = useCallback(async (): Promise<void> => {
-    setFaucet('sending');
-    const answer = await fetch('/api/devnet/faucet', { method: 'POST' });
-    setFaucet(answer.ok ? 'sent' : 'failed');
-  }, []);
   const [guard, setGuard] = useState({
     target: 0,
     protect: 0,
@@ -259,6 +253,14 @@ export default function PositionPage(): JSX.Element {
   // A price age that never moves is not an age, so the screen reads the chain again on a beat.
   usePollWhenVisible(load, HOW_OFTEN_THE_SCREEN_READS_AGAIN);
 
+  // A row of ours with no account on the chain is a position that has already been closed.
+  useEffect(() => {
+    if (onChain === null && read === 'nothing on the chain') {
+      say(POSITION_COPY.finished, 'confirmation');
+      router.replace('/app/portfolio');
+    }
+  }, [onChain, read, router, say]);
+
   const openClosing = useCallback(async (): Promise<void> => {
     setSheet('close');
     setClosing(null);
@@ -270,28 +272,27 @@ export default function PositionPage(): JSX.Element {
     });
     const body = await readTheAnswer<{ closing?: Closing }>(answer);
     if (answer.ok) {
-      setClosing(body.closing ?? null);
+      const estimate = body.closing ?? null;
+      setClosing(estimate);
+      const needed = estimate?.neededFromTheWalletRaw;
+      if (needed != null && BigInt(needed) > 0n) {
+        say(
+          CLOSING_COPY.topUpYourWallet(`$${money(rawToWhole(needed, USDC_DECIMALS))}`),
+          'notice',
+        );
+      }
       return;
     }
-    setClosingFailure(readFailure(body) ?? failureOf('somethingWentWrong'));
-  }, [parameters.id, headersForABuild]);
+    const refusal = readFailure(body) ?? failureOf('somethingWentWrong');
+    setClosingFailure(refusal);
+    say(refusal.sentence, 'failure');
+  }, [parameters.id, headersForABuild, say]);
 
   if (onChain === null) {
-    // A row of ours with no account on the chain is a position that has already been closed.
-    return read === 'waiting' ? (
+    return (
       <Stack gap={16} style={{ ...CENTRED_SCREEN, maxWidth: 780 }}>
         <SkeletonCard lines={4} testId="position-loading" />
         <SkeletonCard lines={3} />
-      </Stack>
-    ) : (
-      <Stack
-        gap={16}
-        style={{ ...CENTRED_SCREEN, maxWidth: 780 }}
-        testId="position-finished"
-      >
-        <Heading level={1}>{POSITION_COPY.finished}</Heading>
-        <Banner tone="notice">{POSITION_COPY.finishedNote}</Banner>
-        <Link href="/app/portfolio">{POSITION_COPY.backToPortfolio}</Link>
       </Stack>
     );
   }
@@ -616,14 +617,43 @@ export default function PositionPage(): JSX.Element {
         onClose={closeTheSheet}
       >
         <Stack gap={12}>
+          <Stack gap={4} style={{ alignItems: 'center', textAlign: 'center' }}>
+            <Muted>
+              {onChain.earnedUsd < 0 ? CLOSING_COPY.lostLabel : CLOSING_COPY.earnedLabel}
+            </Muted>
+            <Mono
+              testId="closing-result"
+              tone={onChain.earnedUsd < 0 ? 'caution' : 'accent'}
+              style={{ fontSize: 36, fontWeight: 500, lineHeight: 1.1 }}
+            >
+              {`${onChain.earnedUsd < 0 ? '−' : '+'}$${money(Math.abs(onChain.earnedUsd))}`}
+            </Mono>
+            <Mono
+              testId="closing-result-percent"
+              tone={onChain.earnedUsd < 0 ? 'caution' : 'accent'}
+            >
+              {`${onChain.earnedUsd < 0 ? '−' : '+'}${percent(
+                Math.abs(
+                  Math.round(
+                    (onChain.earnedUsd /
+                      Math.max(rawToWhole(onChain.debtRaw, onChain.borrowDecimals), 1)) *
+                      10_000,
+                  ),
+                ),
+              )}`}
+            </Mono>
+          </Stack>
           {closingFailure === null ? null : (
             <Banner tone="caution" testId="closing-failure">
               {closingFailure.sentence}
             </Banner>
           )}
-          <p style={{ margin: 0, color: 'var(--color-text)' }}>
-            {closing?.sentence ?? CLOSING_COPY.shortfallSentence}
-          </p>
+          {closing?.neededFromTheWalletRaw == null ||
+          BigInt(closing.neededFromTheWalletRaw) > 0n ? (
+            <p style={{ margin: 0, color: 'var(--color-text)' }}>
+              {closing?.sentence ?? CLOSING_COPY.shortfallSentence}
+            </p>
+          ) : null}
           {closing?.neededFromTheWalletRaw == null ? (
             <Stack gap={10}>
               <Muted testId="closing-no-price">
@@ -644,6 +674,8 @@ export default function PositionPage(): JSX.Element {
                 </Button>
               </div>
             </Stack>
+          ) : BigInt(closing.neededFromTheWalletRaw) === 0n ? (
+            <Muted testId="closing-nothing-needed">{CLOSING_COPY.nothingNeeded}</Muted>
           ) : (
             <Stack gap={10}>
               <Row style={{ gap: 12, flexWrap: 'wrap' }}>
@@ -654,22 +686,7 @@ export default function PositionPage(): JSX.Element {
                     )}
                   />
                 </span>
-                {cluster === 'devnet' ? (
-                  <Button
-                    tone="quiet"
-                    testId="closing-get-test-usdc"
-                    disabled={faucet === 'sending'}
-                    onClick={() => void askTheFaucetForUsdc()}
-                  >
-                    {faucet === 'sending'
-                      ? TEST_USDC_COPY.getting
-                      : faucet === 'sent'
-                        ? TEST_USDC_COPY.sent
-                        : TEST_USDC_COPY.get}
-                  </Button>
-                ) : null}
               </Row>
-              {faucet === 'failed' ? <Muted>{TEST_USDC_COPY.failed}</Muted> : null}
             </Stack>
           )}
           <Button

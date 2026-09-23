@@ -38,10 +38,7 @@ export const POSITION_COPY = {
     'The guard sold what it could and repaid what it could. Pay the rest to finish.',
   stillOwed: 'Still owed',
   liveDebtUnavailable: 'The lending market could not be read just now.',
-  finished: 'This position is finished.',
-  finishedNote:
-    'Nothing of it is left on the chain, so there is nothing here to repay, guard or close. Everything it held is in your wallet and on the lending market under your address.',
-  backToPortfolio: 'Back to Portfolio',
+  finished: 'That position is closed. Everything it held is back in your wallet.',
   nothingToRepay: 'This position is under its guard level, so there is nothing to repay.',
   guardIsWaitingOutItsInterval: (until: string): string =>
     `The guard repays this position at most once a minute, so its next turn is in ${until}. You can repay it yourself now, and so can anyone once the market could seize it.`,

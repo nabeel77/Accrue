@@ -16,6 +16,7 @@ import {
   SkeletonCard,
   Stack,
 } from '../../components/ui/index.js';
+import { useNotices } from '../../client/notices.js';
 import { usePollWhenVisible } from '../../client/pollWhenVisible.js';
 import { COMMON } from '../../copy/common.js';
 import { DEPOSIT_COPY, EARNS_EXPLAINER_COPY } from '../../copy/deposit.js';
@@ -32,6 +33,9 @@ import {
 import type { DepositSizing } from '@accrue/core/deposit';
 import {
   aPriceHasArrivedFor,
+  isMoreThanTheWalletHolds,
+  priceOfAStockInDollars,
+  stockTokensForDollars,
   walletValueInDollars,
   whatTheMaxButtonFills,
   wholeBalanceOfAStock,
@@ -107,6 +111,7 @@ function wholeBalanceOf(entry: StockRow): number {
 
 export function Deposit(): JSX.Element {
   const { me, signAndSubmit, tokensGrantedCount } = useSession();
+  const { say } = useNotices();
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
   const [priceSource, setPriceSource] = useState<PriceSource>('jupiter');
   const [chosenDestination, setChosenDestination] = useState<string | null>(null);
@@ -214,6 +219,8 @@ export function Deposit(): JSX.Element {
   const walletValueUsd = walletValueInDollars(stock);
   const aPriceHasArrived = aPriceHasArrivedFor(stock);
   const holdsNoStock = stocks.every((entry) => wholeBalanceOf(entry) === 0);
+  const depositTokens = stockTokensForDollars(stock, Number(dollars));
+  const overTheBalance = isMoreThanTheWalletHolds(stock, Number(dollars));
 
   const openReview = useCallback((): void => {
     if (me?.acknowledgement?.accepted === false) {
@@ -443,6 +450,21 @@ export function Deposit(): JSX.Element {
                   : DEPOSIT_COPY.amountMaxWaitingForAPrice}
               </Button>
             </Row>
+            {stock === null || depositTokens === null ? null : (
+              <Mono
+                testId="amount-in-stock"
+                tone={overTheBalance ? 'caution' : 'text'}
+                style={{ fontSize: 13 }}
+              >
+                {overTheBalance
+                  ? DEPOSIT_COPY.notEnoughInYourWallet(stock.symbol)
+                  : DEPOSIT_COPY.depositsThisMuchStock(
+                      money(depositTokens, 4),
+                      stock.symbol,
+                      `$${money(priceOfAStockInDollars(stock))}`,
+                    )}
+              </Mono>
+            )}
             {stock === null ? null : (
               <Mono tone="muted" testId="amount-under" style={{ fontSize: 12 }}>
                 {aPriceHasArrived
@@ -489,7 +511,9 @@ export function Deposit(): JSX.Element {
 
             <Button
               testId="deposit"
-              disabled={stock === null || destination === null || amountUsd <= 0}
+              disabled={
+                stock === null || destination === null || amountUsd <= 0 || overTheBalance
+              }
               onClick={openReview}
             >
               {DEPOSIT_COPY.deposit}
@@ -649,6 +673,14 @@ export function Deposit(): JSX.Element {
             onSigned={async (transactions, buildId) =>
               signAndSubmit(transactions, buildId)
             }
+            onOpened={() => {
+              setReviewOpen(false);
+              say(
+                DEPOSIT_COPY.positionIsOpen(stock.symbol, destination.symbol),
+                'confirmation',
+              );
+              void readTheDefaults();
+            }}
             walletAddress={me?.wallet ?? ''}
             borrowUsd={borrowUsd}
             rawToWhole={rawToWhole}
@@ -664,6 +696,13 @@ export function Deposit(): JSX.Element {
               setTopUpOpen(false);
             }}
             onDone={() => {
+              setTopUpOpen(false);
+              if (destination !== null) {
+                say(
+                  DEPOSIT_COPY.positionIsOpen(stock.symbol, destination.symbol),
+                  'confirmation',
+                );
+              }
               void readTheDefaults();
             }}
           />

@@ -64,6 +64,12 @@ export const CLOSING_COPY = {
   estimateLabel: 'Estimated from your wallet',
   youNeedAbout: (amountUsd: string): string =>
     `You need about ${amountUsd} of USDC in your wallet to close`,
+  nothingNeeded:
+    'Selling your yield token covers the loan in full. Nothing is needed from your wallet.',
+  earnedLabel: 'Earned on this position',
+  lostLabel: 'Lost on this position',
+  topUpYourWallet: (amountUsd: string): string =>
+    `This position needs about ${amountUsd} of USDC in your wallet to close. The loan grew past what the yield token is worth.`,
   noPriceRightNow: (destinationSymbol: string): string =>
     `Could not get a price for your ${destinationSymbol} right now`,
   tryAgain: 'Try again',

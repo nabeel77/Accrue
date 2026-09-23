@@ -11,6 +11,7 @@ import {
   Mono,
   Row,
   Sheet,
+  Skeleton,
   SkeletonRows,
   Stack,
   TransactionLink,
@@ -80,6 +81,7 @@ export function ReviewSheet({
   adjustments,
   onClose,
   onSigned,
+  onOpened,
   walletAddress,
   borrowUsd,
 }: {
@@ -90,6 +92,7 @@ export function ReviewSheet({
   adjustments: Adjustments | null;
   onClose: () => void;
   onSigned: (transactions: readonly string[], buildId?: string) => Promise<string>;
+  onOpened: () => void;
   walletAddress: string;
   borrowUsd: number;
   rawToWhole: (raw: string, decimals: number) => number;
@@ -102,6 +105,7 @@ export function ReviewSheet({
   const [failure, setFailure] = useState<ReadableFailure | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [rebuilds, setRebuilds] = useState(0);
+  const [building, setBuilding] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -117,11 +121,12 @@ export function ReviewSheet({
 
   useEffect(() => {
     if (!open) {
+      setBuilt(null);
       return;
     }
-    setBuilt(null);
     setSignature(null);
     setFailure(null);
+    setBuilding(true);
     void (async () => {
       const answer = await fetch('/api/positions/build', {
         method: 'POST',
@@ -143,6 +148,7 @@ export function ReviewSheet({
       });
       const body = await readTheAnswer<BuiltAnswer>(answer);
       setBuilt(body);
+      setBuilding(false);
       setNow(Date.now());
       if (!answer.ok) {
         setFailure(readFailure(body) ?? failureOf('somethingWentWrong'));
@@ -171,12 +177,13 @@ export function ReviewSheet({
           built.buildId ?? undefined,
         ),
       );
+      onOpened();
     } catch (thrown) {
       setFailure(failureFromSigning(thrown));
     } finally {
       setBusy(false);
     }
-  }, [built, onSigned]);
+  }, [built, onSigned, onOpened]);
 
   const summary = built?.summary;
   const quoteAge =
@@ -246,7 +253,7 @@ export function ReviewSheet({
             (summary.protectLtvBps / summary.liquidationThresholdBps) * 100
           ).toFixed(0),
           sellableTodayUsd: money(Number(BigInt(summary.quotedDestinationRaw)) / 1e9),
-          slippageBps: `${summary.slippageBps}`,
+          slippagePercent: `${summary.slippageBps / 100}`,
           quoteAge: howLongAgo(quoteAge),
           netYear: money(
             (Number(BigInt(summary.borrowUsdcRaw)) / 1e6) *
@@ -262,7 +269,7 @@ export function ReviewSheet({
   return (
     <Sheet title={REVIEW_COPY.title} open={open} testId="review-sheet" onClose={onClose}>
       <Stack gap={14}>
-        {built === null ? <SkeletonRows rows={5} testId="review-loading" /> : null}
+        {built === null ? <SkeletonRows rows={5} testId="review-first-read" /> : null}
         {failure === null ? null : (
           <Banner tone="caution" testId="review-failure">
             {failure.sentence}
@@ -296,7 +303,15 @@ export function ReviewSheet({
           </p>
         ) : null}
 
-        {summary === undefined ? null : (
+        {building ? (
+          <Stack gap={10} testId="review-loading">
+            <Skeleton width="60%" height={26} />
+            <Skeleton width="45%" height={20} />
+            <Skeleton width="100%" height={44} style={{ borderRadius: 999 }} />
+          </Stack>
+        ) : null}
+
+        {building || summary === undefined ? null : (
           <Stack gap={6}>
             <Heading level={2} testId="review-depositing">
               {REVIEW_COPY.depositing(`$${money(collateralUsd)}`, summary.stockSymbol)}
@@ -317,7 +332,7 @@ export function ReviewSheet({
           </Stack>
         )}
 
-        {signature === null ? (
+        {building ? null : signature === null ? (
           <Button
             testId="review-sign"
             disabled={

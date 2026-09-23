@@ -102,8 +102,7 @@ export const FAILURE_COPY: Record<FailureCode, string> = {
   aboveTheDefaultLoanToValue:
     "That is above Accrue's default for this stock. Open Adjust and type override to go higher.",
   aboveTheLiquidityShare: 'That borrow is too big a share of what is left to borrow.',
-  somethingWentWrong:
-    'Something went wrong reading the chain. Nothing was sent. Try again.',
+  somethingWentWrong: 'Something went wrong. Nothing was sent. Try again.',
 };
 
 export const FAILURE_DETAILS = {

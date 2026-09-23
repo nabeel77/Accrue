@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { SCALED_FRACTION_ONE } from '../money.js';
 import {
   aPriceHasArrivedFor,
+  isMoreThanTheWalletHolds,
+  stockTokensForDollars,
   theMostThatCanBeDeposited,
-  walletValueInDollars,
-  wholeBalanceOfAStock,
-  whatTheMaxButtonFills,
   type AStockInTheWallet,
+  walletValueInDollars,
+  whatTheMaxButtonFills,
+  wholeBalanceOfAStock,
 } from './maxDeposit.js';
 
 const EIGHT_DECIMALS = 8;
@@ -79,5 +81,63 @@ describe('what MAX fills on the deposit screen', () => {
 
     expect(wholeBalanceOfAStock(empty)).toBe(0);
     expect(whatTheMaxButtonFills(empty, null)).toBe('0.00');
+  });
+});
+
+describe('stockTokensForDollars', () => {
+  const nvdax = {
+    balanceRaw: '500000000',
+    decimals: 8,
+    oraclePriceScaled: (175n * SCALED_FRACTION_ONE).toString(),
+  };
+
+  it('turns dollars into whole stock tokens at the oracle price', () => {
+    expect(stockTokensForDollars(nvdax, 875)).toBeCloseTo(5, 9);
+    expect(stockTokensForDollars(nvdax, 868.43)).toBeCloseTo(4.96245714, 6);
+  });
+
+  it('says nothing when no stock is chosen', () => {
+    expect(stockTokensForDollars(null, 875)).toBeNull();
+  });
+
+  it('says nothing for an amount of nothing', () => {
+    expect(stockTokensForDollars(nvdax, 0)).toBeNull();
+  });
+
+  it('says nothing while the price has not arrived', () => {
+    expect(stockTokensForDollars({ ...nvdax, oraclePriceScaled: '0' }, 875)).toBeNull();
+  });
+});
+
+describe('isMoreThanTheWalletHolds', () => {
+  const nvdax = {
+    balanceRaw: '4000000000',
+    decimals: 8,
+    oraclePriceScaled: (
+      (BigInt(156_200_000) * SCALED_FRACTION_ONE) /
+      1_000_000n
+    ).toString(),
+  };
+
+  it('is true when the dollars buy more stock than the wallet holds', () => {
+    expect(isMoreThanTheWalletHolds(nvdax, 6_554)).toBe(true);
+  });
+
+  it('is false at exactly what the wallet is worth', () => {
+    expect(isMoreThanTheWalletHolds(nvdax, 40 * 156.2)).toBe(false);
+  });
+
+  it('is false under what the wallet is worth', () => {
+    expect(isMoreThanTheWalletHolds(nvdax, 1_000)).toBe(false);
+  });
+
+  it('does not block an empty amount', () => {
+    expect(isMoreThanTheWalletHolds(nvdax, 0)).toBe(false);
+  });
+
+  it('does not block while the price has not arrived', () => {
+    expect(isMoreThanTheWalletHolds({ ...nvdax, oraclePriceScaled: '0' }, 6_554)).toBe(
+      false,
+    );
   });
 });
