@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, type JSX, type ReactNode } from 'react';
+import { useEffect, useState, type JSX, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import { Heading, Stack } from './primitives.js';
 
@@ -33,10 +34,15 @@ export function Sheet({
     };
   }, [open, onClose]);
 
-  if (!open) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted) {
     return null;
   }
-  return (
+  return createPortal(
     <div
       data-testid={testId}
       role="dialog"
@@ -55,7 +61,7 @@ export function Sheet({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 16,
-        zIndex: 20,
+        zIndex: 60,
       }}
     >
       <div
@@ -75,6 +81,7 @@ export function Sheet({
           {children}
         </Stack>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

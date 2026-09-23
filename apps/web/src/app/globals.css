@@ -269,3 +269,14 @@ input[type='range'].acr::-moz-range-thumb {
 .acr-scroll::-webkit-scrollbar-thumb:hover {
   background: #3a3632;
 }
+
+@keyframes acr-notice {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

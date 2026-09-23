@@ -30,6 +30,28 @@ export function walletValueInDollars(stock: AStockInTheWallet | null): number {
   return wholeBalanceOfAStock(stock) * priceOfAStockInDollars(stock);
 }
 
+export function stockTokensForDollars(
+  stock: AStockInTheWallet | null,
+  dollars: number,
+): number | null {
+  if (stock === null || !Number.isFinite(dollars) || dollars <= 0) {
+    return null;
+  }
+  const price = priceOfAStockInDollars(stock);
+  return price > 0 ? dollars / price : null;
+}
+
+export function isMoreThanTheWalletHolds(
+  stock: AStockInTheWallet | null,
+  dollars: number,
+): boolean {
+  if (stock === null || !Number.isFinite(dollars) || dollars <= 0) {
+    return false;
+  }
+  const value = walletValueInDollars(stock);
+  return value > 0 && dollars > value;
+}
+
 export function theMostThatCanBeDeposited(
   stock: AStockInTheWallet | null,
   largestPositionUsd: number | null,

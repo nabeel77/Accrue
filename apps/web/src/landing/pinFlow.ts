@@ -55,6 +55,7 @@ export function pinTheFlow(
   const jumpTo = (step: number): void => {
     const { top, span } = spanOfTheScrub();
     manualUntil = performance.now() + MANUAL_HOLD;
+    goToStep(step);
     window.scrollTo({
       top: window.scrollY + top - STICKY_GAP + span * ((step + 0.5) / FLOW_STEPS),
       behavior: 'smooth',

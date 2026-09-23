@@ -6,7 +6,7 @@ export const LANDING_COPY = {
   xHref: 'https://x.com/accruexyz',
   hero: {
     headline: 'Keep your stocks. Earn on them anyway.',
-    body: 'Deposit tokenized stocks like NVDAx, borrow USDC against them, and put that USDC into a yield token. The code guards the loan and repays it before the market can liquidate you. Your stock never leaves an account only you can empty.',
+    body: 'Deposit tokenized stocks like NVDAx, borrow USDC against them, and put that USDC into a yield token. The guard watches the loan and repays part of it before the market can liquidate you. Your stock never leaves an account only you can empty.',
     seeHowItWorks: 'See how it works',
   },
   howItWorks: {
@@ -58,8 +58,9 @@ export const LANDING_COPY = {
     startingGuardPrice: '$151.11',
   },
   whatItEarns: {
-    eyebrow: 'What it earns today',
-    title: 'On $1,000 of stock',
+    eyebrow: 'An example',
+    title: 'What $1,000 of stock could earn',
+    note: 'One worked example, with ONyc as the yield token. Every figure below follows from the two rates beside it.',
     stockColumn: 'Stock',
     earnsColumn: 'Earns a year',
     yieldColumn: 'Yield',

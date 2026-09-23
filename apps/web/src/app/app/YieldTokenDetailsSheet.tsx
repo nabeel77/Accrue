@@ -54,6 +54,7 @@ export function YieldTokenDetailsSheet({
       title={YIELD_TOKEN_DETAILS_COPY.title}
       open={open}
       testId={`yield-token-details-${destinationSymbol}`}
+      onClose={onClose}
     >
       <Stack gap={16}>
         <Stack gap={6}>

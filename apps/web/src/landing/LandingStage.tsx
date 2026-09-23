@@ -306,6 +306,17 @@ export function LandingStage(): JSX.Element {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <span style={EYEBROW}>{LANDING_COPY.whatItEarns.eyebrow}</span>
           <h2 style={TITLE}>{LANDING_COPY.whatItEarns.title}</h2>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14,
+              color: '#9A938A',
+              maxWidth: '58ch',
+              textWrap: 'pretty',
+            }}
+          >
+            {LANDING_COPY.whatItEarns.note}
+          </p>
         </div>
         <div
           className="tnum acr-earns"

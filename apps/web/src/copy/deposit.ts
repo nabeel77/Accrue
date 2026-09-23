@@ -10,6 +10,12 @@ export const DEPOSIT_COPY = {
     `${balance} ${stockSymbol} in your wallet`,
   inYourWalletWorth: (balance: string, stockSymbol: string, valueUsd: string): string =>
     `${balance} ${stockSymbol} in your wallet ≈ ${valueUsd}`,
+  depositsThisMuchStock: (amount: string, stockSymbol: string, price: string): string =>
+    `Deposits ${amount} ${stockSymbol} at ${price} each`,
+  positionIsOpen: (stockSymbol: string, destinationSymbol: string): string =>
+    `Your ${stockSymbol} position is open and earning ${destinationSymbol}.`,
+  notEnoughInYourWallet: (stockSymbol: string): string =>
+    `Not enough ${stockSymbol} in your wallet`,
   stockColumnTitle: 'Stock',
   earnsColumnTitle: 'Earns / yr',
   balanceInYourWallet: (balance: string): string => `${balance} in your wallet`,
