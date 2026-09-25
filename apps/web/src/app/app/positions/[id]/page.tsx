@@ -569,16 +569,6 @@ export default function PositionPage(): JSX.Element {
         </Button>
         <Button
           tone="quiet"
-          testId="add-collateral"
-          onClick={() => {
-            setAmount('');
-            setSheet('add');
-          }}
-        >
-          {ACTION_COPY.addCollateral}
-        </Button>
-        <Button
-          tone="quiet"
           testId="repay"
           onClick={() => {
             setAmount('');
@@ -741,6 +731,15 @@ export default function PositionPage(): JSX.Element {
             }}
           >
             {ACTION_COPY.confirm}
+          </Button>
+          <Button
+            tone="link"
+            testId="add-collateral"
+            onClick={() => {
+              setSheet('add');
+            }}
+          >
+            {TOP_UP_COPY.addCollateralInstead}
           </Button>
           <Button
             tone="link"
